@@ -2,6 +2,7 @@ import type { AuthUser, AuthOrg } from "../types";
 import { newId, now } from "./helpers";
 import { hashPassword, verifyPassword } from "./password";
 import { defaultNameFromEmail, normalizeEmail } from "./validate";
+import { createOrgSubscription } from "./subscriptions";
 
 function toAuthUser(row: {
   id: string;
@@ -160,21 +161,49 @@ export function resolveDisplayName(name: string | undefined, email: string): str
 export async function getUserOrganizations(db: D1Database, userId: string): Promise<AuthOrg[]> {
   const { results } = await db
     .prepare(
-      `SELECT o.id, o.name, o.slug, m.role
+      `SELECT o.id, o.name, o.slug, m.role,
+              p.code as plan_code, p.name as plan_name, s.status as sub_status, p.features_json
        FROM memberships m
        JOIN organizations o ON o.id = m.organization_id
-       WHERE m.user_id = ? AND m.status = 'active'
+       LEFT JOIN organization_subscriptions s ON s.organization_id = o.id
+       LEFT JOIN subscription_plans p ON p.id = s.plan_id
+       WHERE m.user_id = ? AND m.status = 'active' AND o.status = 'active'
        ORDER BY o.name`,
     )
     .bind(userId)
-    .all<{ id: string; name: string; slug: string; role: string }>();
+    .all<{
+      id: string;
+      name: string;
+      slug: string;
+      role: string;
+      plan_code: string | null;
+      plan_name: string | null;
+      sub_status: string | null;
+      features_json: string | null;
+    }>();
 
-  return (results ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    slug: r.slug,
-    role: r.role,
-  }));
+  return (results ?? []).map((r) => {
+    let features: string[] = [];
+    try {
+      features = r.features_json ? JSON.parse(r.features_json) : [];
+    } catch {
+      features = [];
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      slug: r.slug,
+      role: r.role,
+      subscription: r.plan_code
+        ? {
+            planCode: r.plan_code,
+            planName: r.plan_name ?? r.plan_code,
+            status: r.sub_status ?? "active",
+            features,
+          }
+        : undefined,
+    };
+  });
 }
 
 export async function createOrganization(
@@ -213,6 +242,8 @@ export async function createOrganization(
     .prepare(`INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'lead')`)
     .bind(defaultTeamId, userId)
     .run();
+
+  await createOrgSubscription(db, orgId, "plan_pro", { trialDays: 14, status: "trialing" });
 
   return { id: orgId, name, slug, role: "owner" };
 }

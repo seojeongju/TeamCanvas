@@ -7,6 +7,7 @@ import { frontendUrl } from "../utils/email";
 import { signOAuthState, verifyOAuthState } from "../utils/jwt";
 import { setAuthCookies, clearAuthCookies, getAuthUser } from "../utils/auth";
 import { upsertOAuthUser, getUserOrganizations, registerEmailUser, loginEmailUser, resolveDisplayName } from "../utils/db";
+import { extendAuthMe } from "../routes/admin";
 import { validateEmail, validatePassword, validateName, normalizeEmail } from "../utils/validate";
 import {
   createAuthToken,
@@ -312,7 +313,8 @@ app.get("/me", async (c) => {
   const user = await getAuthUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
   const organizations = await getUserOrganizations(c.env.DB, user.id);
-  return c.json({ user, organizations });
+  const platform = await extendAuthMe(c.env.DB, user.id);
+  return c.json({ user, organizations, ...platform });
 });
 
 app.post("/logout", async (c) => {

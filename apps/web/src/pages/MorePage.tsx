@@ -1,27 +1,66 @@
-import { Building2, Users, Settings, LogOut, Shield, ChevronRight } from "lucide-react";
+import { Building2, Users, Settings, LogOut, Shield, ChevronRight, CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { useAuthStore } from "../stores/authStore";
 import { useOrgDetail } from "../hooks/useData";
 import { useLogout } from "../hooks/useAuth";
+import { useHasPermission } from "../hooks/usePermissions";
+import { useCurrentOrgId } from "../stores/orgStore";
 import { DeveloperCredit } from "../components/layout/DeveloperCredit";
+import { useAdminBootstrap } from "../hooks/useAdmin";
 
 export function MorePage() {
   const user = useAuthStore((s) => s.user);
-  const org = useAuthStore((s) => s.organizations[0]);
+  const orgId = useCurrentOrgId();
+  const org = useAuthStore((s) => s.organizations.find((o) => o.id === orgId));
+  const isPlatformAdmin = useAuthStore((s) => s.isPlatformAdmin);
   const { data: orgData } = useOrgDetail();
   const logout = useLogout();
   const navigate = useNavigate();
+  const canManageMembers = useHasPermission("members:read");
+  const canViewBilling = useHasPermission("billing:read");
+  const bootstrap = useAdminBootstrap();
 
   const stats = orgData?.stats;
 
   const menuItems = [
-    { icon: Building2, label: "조직 설정", desc: org?.name ?? "—" },
-    { icon: Users, label: "멤버 관리", desc: `${stats?.members ?? 1}명` },
-    { icon: Shield, label: "권한 및 보안", desc: org?.role ?? "member" },
-    { icon: Settings, label: "앱 설정", desc: "알림, PWA" },
-  ];
+    {
+      icon: Building2,
+      label: "조직 설정",
+      desc: org?.name ?? "—",
+      onClick: () => {},
+      show: true,
+    },
+    {
+      icon: Users,
+      label: "멤버 관리",
+      desc: `${stats?.members ?? 1}명 · ${org?.role ?? "member"}`,
+      onClick: () => navigate("/settings/members"),
+      show: canManageMembers,
+    },
+    {
+      icon: CreditCard,
+      label: "구독 · 플랜",
+      desc: org?.subscription?.planName ?? "Free",
+      onClick: () => navigate("/settings/billing"),
+      show: canViewBilling,
+    },
+    {
+      icon: Shield,
+      label: "권한 및 보안",
+      desc: org?.role ?? "member",
+      onClick: () => {},
+      show: true,
+    },
+    {
+      icon: Settings,
+      label: "앱 설정",
+      desc: "알림, PWA",
+      onClick: () => {},
+      show: true,
+    },
+  ].filter((item) => item.show);
 
   const handleLogout = async () => {
     await logout.mutateAsync();
@@ -43,19 +82,41 @@ export function MorePage() {
       </GlassCard>
 
       <div className="space-y-2">
-        {menuItems.map(({ icon: Icon, label, desc }) => (
-          <GlassCard key={label} className="flex items-center gap-4 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-400/10">
-              <Icon className="h-5 w-5 text-primary-500" />
-            </div>
-            <div className="flex-1">
-              <p className="font-medium text-navy-900">{label}</p>
-              <p className="text-xs text-navy-600">{desc}</p>
-            </div>
-            <ChevronRight className="h-5 w-5 text-navy-600/40" />
-          </GlassCard>
+        {menuItems.map(({ icon: Icon, label, desc, onClick }) => (
+          <button key={label} type="button" onClick={onClick} className="w-full text-left">
+            <GlassCard className="flex items-center gap-4 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-400/10">
+                <Icon className="h-5 w-5 text-primary-500" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-navy-900">{label}</p>
+                <p className="text-xs text-navy-600">{desc}</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-navy-600/40" />
+            </GlassCard>
+          </button>
         ))}
       </div>
+
+      {isPlatformAdmin ? (
+        <button
+          type="button"
+          onClick={() => navigate("/admin")}
+          className="glass flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[15px] font-medium text-primary-600"
+        >
+          <Shield className="h-5 w-5" />
+          플랫폼 관리자
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => bootstrap.mutate()}
+          disabled={bootstrap.isPending}
+          className="w-full text-center text-xs text-navy-600/60 underline"
+        >
+          {bootstrap.isPending ? "처리 중..." : "최초 관리자 등록 (1회)"}
+        </button>
+      )}
 
       <button
         onClick={handleLogout}

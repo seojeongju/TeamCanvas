@@ -1,12 +1,16 @@
 import { Hono } from "hono";
 import { handle } from "hono/cloudflare-pages";
 import type { Env } from "../types";
-import { requireAuth, requireOrgMember } from "../utils/auth";
+import { requireAuth } from "../utils/auth";
+import { requireOrgPermission } from "../utils/permissions";
+import { requireOrgFeature } from "../utils/subscriptions";
 import {
   createOrganization,
   getUserOrganizations,
   getOrgStats,
 } from "../utils/db";
+import { adminRoutes } from "../routes/admin";
+import { orgAdminRoutes } from "../routes/orgAdmin";
 import {
   newId,
   now,
@@ -17,6 +21,9 @@ import {
 } from "../utils/helpers";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
+
+app.route("/admin", adminRoutes);
+app.route("/", orgAdminRoutes);
 
 app.get("/health", async (c) => {
   let dbStatus = "ok";
@@ -58,7 +65,7 @@ app.get("/organizations/:orgId", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
-  const member = await requireOrgMember(c, user.id, orgId);
+  const member = await requireOrgPermission(c, user.id, orgId, "org:read");
   if (member instanceof Response) return member;
 
   const org = await c.env.DB.prepare(
@@ -78,8 +85,11 @@ app.get("/organizations/:orgId/events", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
-  const member = await requireOrgMember(c, user.id, orgId);
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
   if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
 
   const from = Number(c.req.query("from") ?? startOfDay(now()));
   const to = Number(c.req.query("to") ?? endOfDay(now()) + 86400000 * 30);
@@ -117,8 +127,11 @@ app.post("/organizations/:orgId/events", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
-  const member = await requireOrgMember(c, user.id, orgId);
+  const member = await requireOrgPermission(c, user.id, orgId, "events:write");
   if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
 
   const body = await c.req.json<{
     title: string;
@@ -171,7 +184,7 @@ app.delete("/events/:eventId", async (c) => {
     .first<{ organization_id: string }>();
   if (!event) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgMember(c, user.id, event.organization_id);
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:delete");
   if (member instanceof Response) return member;
 
   await c.env.DB.prepare("DELETE FROM events WHERE id = ?").bind(eventId).run();
@@ -184,8 +197,11 @@ app.get("/organizations/:orgId/tasks", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
-  const member = await requireOrgMember(c, user.id, orgId);
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:read");
   if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
 
   const { results } = await c.env.DB.prepare(
     `SELECT t.*, u.name as assignee_name
@@ -227,8 +243,11 @@ app.post("/organizations/:orgId/tasks", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
-  const member = await requireOrgMember(c, user.id, orgId);
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:write");
   if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
 
   const body = await c.req.json<{
     title: string;
@@ -273,7 +292,7 @@ app.patch("/tasks/:taskId", async (c) => {
     .first<{ organization_id: string }>();
   if (!task) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgMember(c, user.id, task.organization_id);
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
   if (member instanceof Response) return member;
 
   const body = await c.req.json<{ status?: string; title?: string }>();

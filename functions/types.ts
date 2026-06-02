@@ -83,4 +83,15 @@ export type AuthOrg = {
   name: string;
   slug: string;
   role: string;
+  subscription?: {
+    planCode: string;
+    planName: string;
+    status: string;
+    features: string[];
+  };
+};
+
+export type AuthMeExtras = {
+  isPlatformAdmin: boolean;
+  platformRole: string | null;
 };

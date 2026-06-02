@@ -130,6 +130,75 @@ export const api = {
 
   markNotificationRead: (id: string) =>
     request<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: "PATCH" }),
+
+  getOrgPermissions: (orgId: string) =>
+    request<import("./types").OrgPermissionsResponse>(`/api/organizations/${orgId}/permissions`),
+
+  getOrgMembers: (orgId: string) =>
+    request<{ members: import("./types").OrgMember[]; limits: { ok: boolean; limit: number; current: number } }>(
+      `/api/organizations/${orgId}/members`,
+    ),
+
+  updateOrgMember: (orgId: string, userId: string, data: { role?: string; status?: string }) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  removeOrgMember: (orgId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/members/${userId}`, { method: "DELETE" }),
+
+  inviteOrgMember: (orgId: string, data: { email: string; role?: string }) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/members/invite`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getOrgSubscription: (orgId: string) =>
+    request<{ subscription: unknown; plans: unknown[] }>(`/api/organizations/${orgId}/subscription`),
+
+  adminMe: () => request<{ isPlatformAdmin: boolean; role: string | null }>("/api/admin/me"),
+
+  adminBootstrap: () => request<{ ok: boolean; role: string }>("/api/admin/bootstrap", { method: "POST" }),
+
+  adminDashboard: () =>
+    request<{ stats: import("./types").AdminDashboardStats }>("/api/admin/dashboard"),
+
+  adminOrganizations: (params?: { q?: string; limit?: number; offset?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set("q", params.q);
+    if (params?.limit) search.set("limit", String(params.limit));
+    if (params?.offset) search.set("offset", String(params.offset));
+    const qs = search.toString();
+    return request<{ organizations: import("./types").AdminOrgListItem[] }>(
+      `/api/admin/organizations${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  adminOrganization: (orgId: string) =>
+    request<{ organization: Record<string, unknown>; subscription: unknown; members: unknown[] }>(
+      `/api/admin/organizations/${orgId}`,
+    ),
+
+  adminUpdateOrganization: (
+    orgId: string,
+    data: { status?: string; planId?: string; subscriptionStatus?: string },
+  ) =>
+    request<{ ok: boolean }>(`/api/admin/organizations/${orgId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  adminPlans: () => request<{ plans: import("./types").SubscriptionPlan[] }>("/api/admin/plans"),
+
+  adminUsers: (params?: { q?: string; limit?: number; offset?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set("q", params.q);
+    if (params?.limit) search.set("limit", String(params.limit));
+    if (params?.offset) search.set("offset", String(params.offset));
+    const qs = search.toString();
+    return request<{ users: Record<string, unknown>[] }>(`/api/admin/users${qs ? `?${qs}` : ""}`);
+  },
 };
 
 export function oauthUrl(provider: "google" | "kakao"): string {

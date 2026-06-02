@@ -14,7 +14,10 @@ export function useAuthInit() {
     queryFn: async () => {
       try {
         const data = await api.me();
-        setAuth(data.user, data.organizations);
+        setAuth(data.user, data.organizations, {
+          isPlatformAdmin: data.isPlatformAdmin,
+          platformRole: data.platformRole,
+        });
         if (data.organizations[0] && !useOrgStore.getState().currentOrgId) {
           setCurrentOrgId(data.organizations[0].id);
         }
@@ -39,7 +42,10 @@ export function useDevLogin() {
   return useMutation({
     mutationFn: (provider: "google" | "kakao") => api.devLogin(provider),
     onSuccess: (data) => {
-      setAuth(data.user, data.organizations);
+      setAuth(data.user, data.organizations, {
+        isPlatformAdmin: data.isPlatformAdmin,
+        platformRole: data.platformRole,
+      });
       if (data.organizations[0]) setCurrentOrgId(data.organizations[0].id);
       qc.invalidateQueries({ queryKey: ["auth"] });
     },
@@ -52,7 +58,10 @@ function useEmailAuthSuccess() {
   const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
 
   return (data: Awaited<ReturnType<typeof api.login>>) => {
-    setAuth(data.user, data.organizations);
+    setAuth(data.user, data.organizations, {
+      isPlatformAdmin: data.isPlatformAdmin,
+      platformRole: data.platformRole,
+    });
     if (data.organizations[0]) setCurrentOrgId(data.organizations[0].id);
     qc.invalidateQueries({ queryKey: ["auth"] });
   };
@@ -103,7 +112,10 @@ export function useVerifyEmail() {
     onSuccess: async () => {
       try {
         const me = await api.me();
-        setAuth(me.user, me.organizations);
+        setAuth(me.user, me.organizations, {
+          isPlatformAdmin: me.isPlatformAdmin,
+          platformRole: me.platformRole,
+        });
       } catch {
         /* not logged in */
       }
@@ -137,7 +149,10 @@ export function useCreateOrganization() {
       setCurrentOrgId(data.organization.id);
       if (user) {
         const me = await api.me();
-        setAuth(me.user, me.organizations);
+        setAuth(me.user, me.organizations, {
+          isPlatformAdmin: me.isPlatformAdmin,
+          platformRole: me.platformRole,
+        });
       }
       qc.invalidateQueries({ queryKey: ["auth"] });
       qc.invalidateQueries({ queryKey: ["org"] });
