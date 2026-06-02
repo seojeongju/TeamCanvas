@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { handle } from "hono/cloudflare-pages";
 import type { Env } from "../types";
 import { requireAuth } from "../utils/auth";
-import { requireOrgPermission } from "../utils/permissions";
+import { requireOrgPermission, requirePlatformAdmin } from "../utils/permissions";
 import { requireOrgFeature } from "../utils/subscriptions";
 import {
   createOrganization,
@@ -49,9 +49,22 @@ app.get("/organizations", async (c) => {
 app.post("/organizations", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
+  const admin = await requirePlatformAdmin(c, user.id);
+  if (admin instanceof Response) {
+    return c.json({ error: "Organization creation is restricted to platform admins." }, 403);
+  }
 
   const body = await c.req.json<{ name: string; slug?: string }>();
   if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+
+  const membershipCount = await c.env.DB.prepare(
+    "SELECT COUNT(*) as c FROM memberships WHERE user_id = ? AND status = 'active'",
+  )
+    .bind(user.id)
+    .first<{ c: number }>();
+  if ((membershipCount?.c ?? 0) > 0) {
+    return c.json({ error: "A user can belong to only one organization." }, 409);
+  }
 
   let slug = body.slug?.trim() || slugify(body.name);
   const existing = await c.env.DB.prepare("SELECT id FROM organizations WHERE slug = ?")

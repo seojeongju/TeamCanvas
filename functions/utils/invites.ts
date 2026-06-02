@@ -99,6 +99,16 @@ export async function acceptOrgInvite(
     return { error: "이 초대는 다른 이메일 주소용입니다." };
   }
 
+  const activeMembership = await db
+    .prepare(
+      "SELECT organization_id FROM memberships WHERE user_id = ? AND status = 'active' LIMIT 1",
+    )
+    .bind(userId)
+    .first<{ organization_id: string }>();
+  if (activeMembership && activeMembership.organization_id !== invite.organization_id) {
+    return { error: "한 사용자는 하나의 조직에만 가입할 수 있습니다." };
+  }
+
   const existing = await db
     .prepare("SELECT id, status FROM memberships WHERE organization_id = ? AND user_id = ?")
     .bind(invite.organization_id, userId)

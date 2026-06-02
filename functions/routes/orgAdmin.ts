@@ -170,6 +170,15 @@ orgAdminRoutes.post("/organizations/:orgId/members/invite", async (c) => {
 
   if (existing?.status === "active") return c.json({ error: "Already a member" }, 409);
 
+  const activeOrgCount = await c.env.DB.prepare(
+    "SELECT COUNT(*) as c FROM memberships WHERE user_id = ? AND status = 'active'",
+  )
+    .bind(invitee.id)
+    .first<{ c: number }>();
+  if ((activeOrgCount?.c ?? 0) > 0 && !existing) {
+    return c.json({ error: "This user already belongs to another organization.", code: "ONE_ORG_POLICY" }, 409);
+  }
+
   const role = body.role ?? "member";
   const ts = now();
 
