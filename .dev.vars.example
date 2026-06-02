@@ -7,10 +7,12 @@ FRONTEND_URL=http://localhost:5173
 # RESEND_API_KEY=re_xxxxxxxx
 # EMAIL_FROM=TeamCanvas <noreply@yourdomain.com>
 
-# OAuth (프로덕션/스테이징)
+# OAuth — Redirect URI: {APP_URL}/auth/callback/google|kakao
+# APP_URL=http://localhost:8788
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
 # KAKAO_CLIENT_ID=
+# KAKAO_CLIENT_SECRET=
 # Stripe (구독 결제)
 # STRIPE_SECRET_KEY=sk_test_...
 # STRIPE_WEBHOOK_SECRET=whsec_...

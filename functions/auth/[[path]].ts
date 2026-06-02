@@ -2,8 +2,12 @@ import { Hono } from "hono";
 import { handle } from "hono/cloudflare-pages";
 import type { Context } from "hono";
 import type { Env } from "../types";
-import { appUrl } from "../utils/helpers";
 import { frontendUrl } from "../utils/email";
+import {
+  oauthRedirectUri,
+  loginRedirect,
+  completeOAuthLogin,
+} from "../utils/oauth";
 import { signOAuthState, verifyOAuthState } from "../utils/jwt";
 import { setAuthCookies, clearAuthCookies, getAuthUser } from "../utils/auth";
 import { upsertOAuthUser, getUserOrganizations, registerEmailUser, loginEmailUser, resolveDisplayName } from "../utils/db";
@@ -23,12 +27,19 @@ import { hashPassword } from "../utils/password";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/auth");
 
+app.get("/providers", (c) => {
+  return c.json({
+    google: Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
+    kakao: Boolean(c.env.KAKAO_CLIENT_ID),
+  });
+});
+
 app.get("/google", async (c) => {
   const clientId = c.env.GOOGLE_CLIENT_ID;
   if (!clientId) return c.json({ error: "Google OAuth not configured" }, 503);
 
   const state = await signOAuthState({ provider: "google" }, c.env.JWT_SECRET);
-  const redirectUri = `${appUrl(c.req.raw, c.env)}/auth/callback/google`;
+  const redirectUri = oauthRedirectUri(c, "google");
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -46,12 +57,13 @@ app.get("/kakao", async (c) => {
   if (!clientId) return c.json({ error: "Kakao OAuth not configured" }, 503);
 
   const state = await signOAuthState({ provider: "kakao" }, c.env.JWT_SECRET);
-  const redirectUri = `${appUrl(c.req.raw, c.env)}/auth/callback/kakao`;
+  const redirectUri = oauthRedirectUri(c, "kakao");
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     state,
+    scope: "profile_nickname,account_email,profile_image",
   });
   return c.redirect(`https://kauth.kakao.com/oauth/authorize?${params}`);
 });
@@ -60,13 +72,13 @@ async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
   const code = c.req.query("code");
   const state = c.req.query("state");
   const error = c.req.query("error");
-  if (error) return c.redirect(`/login?error=${encodeURIComponent(error)}`);
-  if (!code || !state) return c.redirect("/login?error=invalid_callback");
+  if (error) return loginRedirect(c, error);
+  if (!code || !state) return loginRedirect(c, "invalid_callback");
 
   const stateData = await verifyOAuthState(state, c.env.JWT_SECRET);
-  if (!stateData) return c.redirect("/login?error=invalid_state");
+  if (!stateData) return loginRedirect(c, "invalid_state");
 
-  const redirectUri = `${appUrl(c.req.raw, c.env)}/auth/callback/google`;
+  const redirectUri = oauthRedirectUri(c, "google");
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -79,38 +91,39 @@ async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
     }),
   });
 
-  if (!tokenRes.ok) return c.redirect("/login?error=token_exchange_failed");
+  if (!tokenRes.ok) return loginRedirect(c, "token_exchange_failed");
   const tokens = (await tokenRes.json()) as { access_token: string };
 
-  const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+  const profileRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
-  if (!profileRes.ok) return c.redirect("/login?error=profile_failed");
+  if (!profileRes.ok) return loginRedirect(c, "profile_failed");
   const profile = (await profileRes.json()) as {
-    id: string;
-    email: string;
-    name: string;
+    sub: string;
+    email?: string;
+    name?: string;
     picture?: string;
   };
 
-  const user = await upsertOAuthUser(c.env.DB, "google", profile.id, {
-    name: profile.name,
-    email: profile.email,
+  const user = await upsertOAuthUser(c.env.DB, "google", profile.sub, {
+    name: profile.name ?? "Google 사용자",
+    email: profile.email ?? null,
     avatarUrl: profile.picture,
   });
-  await setAuthCookies(c, user.id, user.email);
-  return c.redirect("/");
+  return completeOAuthLogin(c, user.id, user.email);
 }
 
 async function handleKakaoCallback(c: Context<{ Bindings: Env }>) {
   const code = c.req.query("code");
   const state = c.req.query("state");
-  if (!code || !state) return c.redirect("/login?error=invalid_callback");
+  const error = c.req.query("error");
+  if (error) return loginRedirect(c, error);
+  if (!code || !state) return loginRedirect(c, "invalid_callback");
 
   const stateData = await verifyOAuthState(state, c.env.JWT_SECRET);
-  if (!stateData) return c.redirect("/login?error=invalid_state");
+  if (!stateData) return loginRedirect(c, "invalid_state");
 
-  const redirectUri = `${appUrl(c.req.raw, c.env)}/auth/callback/kakao`;
+  const redirectUri = oauthRedirectUri(c, "kakao");
   const tokenBody: Record<string, string> = {
     grant_type: "authorization_code",
     client_id: c.env.KAKAO_CLIENT_ID!,
@@ -124,13 +137,16 @@ async function handleKakaoCallback(c: Context<{ Bindings: Env }>) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(tokenBody),
   });
-  if (!tokenRes.ok) return c.redirect("/login?error=token_exchange_failed");
+  if (!tokenRes.ok) return loginRedirect(c, "token_exchange_failed");
   const tokens = (await tokenRes.json()) as { access_token: string };
 
   const profileRes = await fetch("https://kapi.kakao.com/v2/user/me", {
-    headers: { Authorization: `Bearer ${tokens.access_token}` },
+    headers: {
+      Authorization: `Bearer ${tokens.access_token}`,
+      "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+    },
   });
-  if (!profileRes.ok) return c.redirect("/login?error=profile_failed");
+  if (!profileRes.ok) return loginRedirect(c, "profile_failed");
   const profile = (await profileRes.json()) as {
     id: number;
     kakao_account?: { email?: string; profile?: { nickname?: string; profile_image_url?: string } };
@@ -141,8 +157,7 @@ async function handleKakaoCallback(c: Context<{ Bindings: Env }>) {
     email: profile.kakao_account?.email ?? null,
     avatarUrl: profile.kakao_account?.profile?.profile_image_url,
   });
-  await setAuthCookies(c, user.id, user.email);
-  return c.redirect("/");
+  return completeOAuthLogin(c, user.id, user.email);
 }
 
 app.get("/callback/google", handleGoogleCallback);

@@ -23,6 +23,9 @@ export const api = {
 
   me: () => request<import("./types").AuthMeResponse>("/auth/me"),
 
+  authProviders: () =>
+    request<{ google: boolean; kakao: boolean }>("/auth/providers"),
+
   register: (data: { email: string; password: string; name?: string }) =>
     request<import("./types").RegisterResponse>("/auth/register", {
       method: "POST",

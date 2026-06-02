@@ -1,12 +1,22 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { useAuthStore } from "../stores/authStore";
 import { useEmailLogin, useEmailRegister } from "../hooks/useAuth";
-import { oauthUrl } from "../lib/api";
+import { api, oauthUrl } from "../lib/api";
 import { cn } from "../lib/cn";
 import { DeveloperCredit } from "../components/layout/DeveloperCredit";
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  invalid_callback: "로그인이 취소되었거나 잘못된 요청입니다.",
+  invalid_state: "보안 검증에 실패했습니다. 다시 시도해주세요.",
+  token_exchange_failed:
+    "인증 연동에 실패했습니다. Google/Kakao 콘솔의 Redirect URI를 확인해주세요.",
+  profile_failed: "프로필 정보를 가져오지 못했습니다.",
+  access_denied: "로그인이 취소되었습니다.",
+};
 
 type AuthMode = "login" | "register";
 
@@ -37,6 +47,13 @@ export function LoginPage() {
   const [params] = useSearchParams();
   const oauthError = params.get("error");
   const verified = params.get("verified");
+  const redirectAfterLogin = params.get("redirect");
+
+  const { data: providers } = useQuery({
+    queryKey: ["auth", "providers"],
+    queryFn: () => api.authProviders(),
+    staleTime: 60_000,
+  });
 
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -54,7 +71,11 @@ export function LoginPage() {
   };
 
   const afterAuth = (organizations: { length: number }) => {
-    navigate(organizations.length > 0 ? "/" : "/onboarding");
+    if (redirectAfterLogin?.startsWith("/")) {
+      navigate(redirectAfterLogin, { replace: true });
+      return;
+    }
+    navigate(organizations.length > 0 ? "/" : "/onboarding", { replace: true });
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -95,7 +116,9 @@ export function LoginPage() {
 
         {(oauthError || formError) && (
           <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-center text-sm text-red-600">
-            {formError ?? `로그인 실패: ${oauthError}`}
+            {formError ??
+              OAUTH_ERROR_MESSAGES[oauthError!] ??
+              `로그인 실패: ${oauthError}`}
           </div>
         )}
 
@@ -188,14 +211,31 @@ export function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button variant="google" fullWidth type="button" onClick={() => handleOAuth("google")}>
+            <Button
+              variant="google"
+              fullWidth
+              type="button"
+              disabled={providers !== undefined && !providers.google}
+              onClick={() => handleOAuth("google")}
+            >
               <GoogleIcon />
               Google로 계속하기
             </Button>
-            <Button variant="kakao" fullWidth type="button" onClick={() => handleOAuth("kakao")}>
+            <Button
+              variant="kakao"
+              fullWidth
+              type="button"
+              disabled={providers !== undefined && !providers.kakao}
+              onClick={() => handleOAuth("kakao")}
+            >
               <KakaoIcon />
               카카오로 계속하기
             </Button>
+            {providers && !providers.google && !providers.kakao && (
+              <p className="text-center text-xs text-navy-600">
+                소셜 로그인은 서버에 OAuth 키 설정 후 사용할 수 있습니다.
+              </p>
+            )}
           </div>
         </div>
 
