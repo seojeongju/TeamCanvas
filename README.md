@@ -43,6 +43,29 @@ FRONTEND_URL=https://app.yourdomain.com
 
 `RESEND_API_KEY` 미설정 + `ALLOW_DEV_AUTH=true` → API 응답에 `devLink` 포함
 
+### 5. 결제 모드 설정 (Stripe / Mock)
+
+```bash
+# .dev.vars 또는 Cloudflare Secrets
+# 실결제 모드
+PAYMENT_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+
+# 테스트 모드(실제 PG 없이 플로우 검증)
+# PAYMENT_PROVIDER=mock
+```
+
+- `PAYMENT_PROVIDER=mock`이면 Billing 화면에서 `테스트 결제 완료` 버튼으로 구독 상태 전이를 검증할 수 있습니다.
+- `stripe` 모드에서는 `subscription_plans.stripe_price_monthly_id/yearly_id`가 설정된 플랜만 결제 가능합니다.
+
+### 6. 로그인 세션 정책
+
+- 기본 세션 만료: **24시간**
+- 슬라이딩 세션: 사용자 활동(클릭/입력/화면 복귀) 시 세션 자동 연장
+- 자동 연장 스로틀: **1시간**
+- 만료 10분 전부터 상단에 `세션 만료 임박` 안내 배너가 표시됩니다.
+
 ## API 엔드포인트
 
 | Method | Path | 설명 |
@@ -58,8 +81,13 @@ FRONTEND_URL=https://app.yourdomain.com
 | GET | `/auth/google` | Google OAuth |
 | GET | `/auth/kakao` | Kakao OAuth |
 | GET | `/auth/me` | 현재 사용자 |
+| POST | `/auth/refresh` | 세션 연장(슬라이딩 세션) |
 | POST | `/auth/logout` | 로그아웃 |
 | POST | `/api/organizations` | 조직 생성 |
+| GET | `/api/organizations/:orgId/subscription` | 구독/플랜/결제 공급자 조회 |
+| POST | `/api/organizations/:orgId/billing/checkout` | 결제 시작 |
+| POST | `/api/organizations/:orgId/billing/mock/complete` | Mock 결제 완료 처리 |
+| GET | `/api/organizations/:orgId/billing/history` | 결제 이벤트 히스토리 |
 | GET/POST | `/api/organizations/:id/events` | 일정 |
 | GET/POST | `/api/organizations/:id/tasks` | 업무 |
 | PATCH | `/api/tasks/:id` | 업무 상태 변경 |

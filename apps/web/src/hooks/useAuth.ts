@@ -17,6 +17,7 @@ export function useAuthInit() {
         setAuth(data.user, data.organizations, {
           isPlatformAdmin: data.isPlatformAdmin,
           platformRole: data.platformRole,
+          sessionExpiresAt: data.sessionExpiresAt ?? null,
         });
         if (data.organizations[0] && !useOrgStore.getState().currentOrgId) {
           setCurrentOrgId(data.organizations[0].id);
@@ -45,6 +46,7 @@ export function useDevLogin() {
       setAuth(data.user, data.organizations, {
         isPlatformAdmin: data.isPlatformAdmin,
         platformRole: data.platformRole,
+        sessionExpiresAt: data.sessionExpiresAt ?? null,
       });
       if (data.organizations[0]) setCurrentOrgId(data.organizations[0].id);
       qc.invalidateQueries({ queryKey: ["auth"] });
@@ -61,6 +63,7 @@ function useEmailAuthSuccess() {
     setAuth(data.user, data.organizations, {
       isPlatformAdmin: data.isPlatformAdmin,
       platformRole: data.platformRole,
+      sessionExpiresAt: data.sessionExpiresAt ?? null,
     });
     if (data.organizations[0]) setCurrentOrgId(data.organizations[0].id);
     qc.invalidateQueries({ queryKey: ["auth"] });
@@ -115,6 +118,7 @@ export function useVerifyEmail() {
         setAuth(me.user, me.organizations, {
           isPlatformAdmin: me.isPlatformAdmin,
           platformRole: me.platformRole,
+          sessionExpiresAt: me.sessionExpiresAt ?? null,
         });
       } catch {
         /* not logged in */
@@ -152,6 +156,7 @@ export function useCreateOrganization() {
         setAuth(me.user, me.organizations, {
           isPlatformAdmin: me.isPlatformAdmin,
           platformRole: me.platformRole,
+          sessionExpiresAt: me.sessionExpiresAt ?? null,
         });
       }
       qc.invalidateQueries({ queryKey: ["auth"] });

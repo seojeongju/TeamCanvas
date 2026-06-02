@@ -5,6 +5,7 @@ import { permissionsForRole, requireOrgPermission } from "../utils/permissions";
 import { requireOrgFeature, getOrgSubscription, writeAuditLog, checkMemberLimit } from "../utils/subscriptions";
 import { frontendUrl } from "../utils/email";
 import { newId, now } from "../utils/helpers";
+import { resolveBillingProvider } from "../utils/payments";
 
 export const orgAdminRoutes = new Hono<{ Bindings: Env }>();
 
@@ -137,7 +138,39 @@ orgAdminRoutes.get("/organizations/:orgId/subscription", async (c) => {
      FROM subscription_plans WHERE is_active = 1 ORDER BY sort_order`,
   ).all();
 
-  return c.json({ subscription, plans: plans ?? [] });
+  return c.json({ subscription, plans: plans ?? [], billingProvider: resolveBillingProvider(c.env) });
+});
+
+orgAdminRoutes.get("/organizations/:orgId/billing/history", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "billing:read");
+  if (access instanceof Response) return access;
+
+  const limit = Math.min(Number(c.req.query("limit") ?? 30), 100);
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, action, metadata_json, created_at
+     FROM audit_logs
+     WHERE organization_id = ? AND action LIKE 'billing.%'
+     ORDER BY created_at DESC
+     LIMIT ?`,
+  )
+    .bind(orgId, limit)
+    .all();
+
+  const events = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      action: String(r.action),
+      metadata: r.metadata_json ? JSON.parse(String(r.metadata_json)) : null,
+      createdAt: Number(r.created_at),
+    };
+  });
+
+  return c.json({ events });
 });
 
 orgAdminRoutes.post("/organizations/:orgId/members/invite", async (c) => {

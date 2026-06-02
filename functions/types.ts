@@ -10,6 +10,7 @@ export interface Env {
   FRONTEND_URL?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
+  PAYMENT_PROVIDER?: "stripe" | "mock";
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
 }

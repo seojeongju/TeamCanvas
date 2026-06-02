@@ -29,6 +29,7 @@ export function AcceptInvitePage() {
       setAuth(me.user, me.organizations, {
         isPlatformAdmin: me.isPlatformAdmin,
         platformRole: me.platformRole,
+        sessionExpiresAt: me.sessionExpiresAt ?? null,
       });
       qc.invalidateQueries({ queryKey: ["auth"] });
       navigate("/", { replace: true });

@@ -72,6 +72,7 @@ export const api = {
     }),
 
   logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
+  refreshSession: () => request<{ ok: boolean; sessionExpiresAt: number }>("/auth/refresh", { method: "POST" }),
 
   createOrganization: (name: string, slug?: string) =>
     request<{ organization: import("./types").Organization }>("/api/organizations", {
@@ -195,15 +196,29 @@ export const api = {
     }>(`/api/organizations/${orgId}/audit-logs`),
 
   startCheckout: (orgId: string, data: { planId: string; billingCycle?: "monthly" | "yearly" }) =>
-    request<{ url: string; sessionId: string }>(`/api/organizations/${orgId}/billing/checkout`, {
+    request<{ url: string; sessionId: string; provider?: "stripe" | "mock" }>(`/api/organizations/${orgId}/billing/checkout`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
+  completeMockCheckout: (orgId: string, data: { planId: string }) =>
+    request<{ ok: boolean; provider: "mock"; status: string; planId: string }>(
+      `/api/organizations/${orgId}/billing/mock/complete`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
+
   getOrgSubscription: (orgId: string) =>
-    request<{ subscription: unknown; plans: Record<string, unknown>[] }>(
+    request<{ subscription: unknown; plans: Record<string, unknown>[]; billingProvider?: "stripe" | "mock" }>(
       `/api/organizations/${orgId}/subscription`,
     ),
+
+  getBillingHistory: (orgId: string) =>
+    request<{
+      events: { id: string; action: string; metadata: unknown; createdAt: number }[];
+    }>(`/api/organizations/${orgId}/billing/history`),
 
   adminMe: () => request<{ isPlatformAdmin: boolean; role: string | null }>("/api/admin/me"),
 

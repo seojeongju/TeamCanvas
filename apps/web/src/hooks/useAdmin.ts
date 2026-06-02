@@ -70,6 +70,15 @@ export function useOrgSubscriptionDetail() {
   });
 }
 
+export function useBillingHistory() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["billing-history", orgId],
+    queryFn: () => api.getBillingHistory(orgId!),
+    enabled: !!orgId,
+  });
+}
+
 export function useStartCheckout() {
   return useMutation({
     mutationFn: ({
@@ -81,6 +90,32 @@ export function useStartCheckout() {
       planId: string;
       billingCycle?: "monthly" | "yearly";
     }) => api.startCheckout(orgId, { planId, billingCycle }),
+  });
+}
+
+export function useCompleteMockCheckout() {
+  const qc = useQueryClient();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  return useMutation({
+    mutationFn: ({ orgId, planId }: { orgId: string; planId: string }) =>
+      api.completeMockCheckout(orgId, { planId }),
+    onSuccess: async (_, vars) => {
+      try {
+        const me = await api.me();
+        setAuth(me.user, me.organizations, {
+          isPlatformAdmin: me.isPlatformAdmin,
+          platformRole: me.platformRole,
+          sessionExpiresAt: me.sessionExpiresAt ?? null,
+        });
+      } catch {
+        // keep local auth state on transient me fetch failure
+      }
+      qc.invalidateQueries({ queryKey: ["subscription", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["permissions", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["org", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["billing-history", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
   });
 }
 
@@ -195,6 +230,7 @@ export function useAdminBootstrap() {
       setAuth(me.user, me.organizations, {
         isPlatformAdmin: me.isPlatformAdmin,
         platformRole: me.platformRole,
+          sessionExpiresAt: me.sessionExpiresAt ?? null,
       });
       qc.invalidateQueries({ queryKey: ["auth"] });
     },

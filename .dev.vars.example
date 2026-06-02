@@ -17,3 +17,6 @@ FRONTEND_URL=http://localhost:5173
 # STRIPE_SECRET_KEY=sk_test_...
 # STRIPE_WEBHOOK_SECRET=whsec_...
 # subscription_plans.stripe_price_monthly_id 에 Stripe Price ID 설정
+# PAYMENT_PROVIDER=stripe
+# 로컬/스테이징에서 PG 없이 검증하려면 mock 사용:
+# PAYMENT_PROVIDER=mock

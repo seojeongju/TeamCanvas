@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Shield, CreditCard, Link2, Copy, ScrollText } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
@@ -10,8 +10,10 @@ import {
   useInviteOrgMember,
   useCreateInviteLink,
   useOrgInvites,
+  useBillingHistory,
   useOrgSubscriptionDetail,
   useStartCheckout,
+  useCompleteMockCheckout,
 } from "../../hooks/useAdmin";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { useAuthStore } from "../../stores/authStore";
@@ -180,7 +182,17 @@ export function BillingPage() {
   const sub = org?.subscription;
   const canManage = useHasPermission("billing:manage");
   const { data } = useOrgSubscriptionDetail();
+  const { data: billingHistory } = useBillingHistory();
   const checkout = useStartCheckout();
+  const completeMock = useCompleteMockCheckout();
+  const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const plans = (data?.plans ?? []) as {
     id: string;
@@ -192,15 +204,78 @@ export function BillingPage() {
     stripe_price_monthly_id: string | null;
     stripe_price_yearly_id: string | null;
   }[];
+  const billingProvider = data?.billingProvider ?? "stripe";
+  const isMockBilling = billingProvider === "mock";
+  const subscriptionStatus = String(sub?.status ?? "active");
+  const statusMeta: Record<string, { label: string; className: string; description: string }> = {
+    active: {
+      label: "정상",
+      className: "bg-emerald-500/15 text-emerald-700",
+      description: "모든 유료 기능을 정상적으로 사용할 수 있습니다.",
+    },
+    trialing: {
+      label: "체험중",
+      className: "bg-sky-500/15 text-sky-700",
+      description: "체험 기간이 끝나면 결제 상태에 따라 기능이 제한될 수 있습니다.",
+    },
+    past_due: {
+      label: "결제 필요",
+      className: "bg-amber-500/15 text-amber-700",
+      description: "결제가 지연되었습니다. 결제 상태를 확인하거나 문의해 주세요.",
+    },
+    canceled: {
+      label: "해지됨",
+      className: "bg-red-500/15 text-red-700",
+      description: "구독이 해지되어 일부 기능이 제한될 수 있습니다.",
+    },
+    suspended: {
+      label: "중지됨",
+      className: "bg-red-500/15 text-red-700",
+      description: "구독이 중지되어 기능이 제한됩니다. 관리자 문의가 필요합니다.",
+    },
+  };
+  const currentStatus = statusMeta[subscriptionStatus] ?? statusMeta.active;
+  const eventLabelMap: Record<string, string> = {
+    "billing.checkout_started": "결제 시작",
+    "billing.subscription_activated": "구독 활성화",
+    "billing.subscription_updated": "구독 갱신/변경",
+    "billing.subscription_canceled": "구독 해지",
+    "billing.payment_failed": "결제 실패",
+  };
 
   const handleUpgrade = async (planId: string) => {
     if (!orgId) return;
+    setToast({
+      tone: "info",
+      message: "결제 및 프로그램 사용문의: (주)와우쓰리디 02-3144-3137 / 054-464-3137",
+    });
     try {
       const { url } = await checkout.mutateAsync({ orgId, planId, billingCycle: "monthly" });
       window.location.href = url;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "결제 시작 실패";
-      alert(msg.includes("STRIPE") ? "Stripe가 아직 설정되지 않았습니다. 관리자에게 문의하세요." : msg);
+      setToast({
+        tone: "error",
+        message: msg.includes("STRIPE")
+          ? "Stripe가 아직 설정되지 않았습니다. 결제/사용 문의: (주)와우쓰리디 02-3144-3137 / 054-464-3137"
+          : msg,
+      });
+    }
+  };
+
+  const handleMockComplete = async (planId: string) => {
+    if (!orgId) return;
+    try {
+      await completeMock.mutateAsync({ orgId, planId });
+      setToast({
+        tone: "info",
+        message: "테스트 결제가 완료되었습니다. 현재 플랜/권한을 새로고침해 확인하세요.",
+      });
+    } catch (err) {
+      setToast({
+        tone: "error",
+        message: err instanceof Error ? err.message : "테스트 결제 완료 처리 실패",
+      });
     }
   };
 
@@ -214,6 +289,10 @@ export function BillingPage() {
           <h2 className="font-semibold text-navy-900">{sub?.planName ?? "Free"}</h2>
         </div>
         <p className="text-sm text-navy-600">상태: {sub?.status ?? "active"}</p>
+        <div className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${currentStatus.className}`}>
+          {currentStatus.label}
+        </div>
+        <p className="text-xs text-navy-600">{currentStatus.description}</p>
         <div className="flex flex-wrap gap-1">
           {(sub?.features ?? ["calendar", "tasks"]).map((f) => (
             <span
@@ -240,19 +319,79 @@ export function BillingPage() {
                 </p>
               </div>
               {plan.code !== sub?.planCode && plan.price_monthly > 0 && (
-                <Button
-                  type="button"
-                  disabled={checkout.isPending || !plan.stripe_price_monthly_id}
-                  onClick={() => handleUpgrade(plan.id)}
-                >
-                  선택
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    disabled={checkout.isPending || (!isMockBilling && !plan.stripe_price_monthly_id)}
+                    onClick={() => handleUpgrade(plan.id)}
+                  >
+                    선택
+                  </Button>
+                  {isMockBilling && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={completeMock.isPending}
+                      onClick={() => handleMockComplete(plan.id)}
+                    >
+                      테스트 결제 완료
+                    </Button>
+                  )}
+                </div>
               )}
             </GlassCard>
           ))}
           <p className="text-xs text-navy-600">
-            Stripe Price ID가 설정된 플랜만 결제할 수 있습니다.
+            {isMockBilling
+              ? "현재 MOCK 결제 모드입니다. 테스트 결제 완료 버튼으로 상태 전이를 검증할 수 있습니다."
+              : "Stripe Price ID가 설정된 플랜만 결제할 수 있습니다."}
           </p>
+        </div>
+      )}
+
+      <GlassCard className="space-y-3 p-4">
+        <h3 className="text-sm font-semibold text-navy-800">최근 결제 이벤트</h3>
+        {(billingHistory?.events ?? []).length === 0 ? (
+          <p className="text-xs text-navy-600">아직 결제 이벤트가 없습니다.</p>
+        ) : (
+          <ul className="space-y-2">
+            {(billingHistory?.events ?? []).slice(0, 8).map((event) => (
+              <li key={event.id} className="rounded-xl bg-navy-800/5 px-3 py-2">
+                <button
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => setExpandedEventId((prev) => (prev === event.id ? null : event.id))}
+                >
+                  <p className="text-xs font-medium text-navy-800">
+                    {eventLabelMap[event.action] ?? event.action}
+                  </p>
+                </button>
+                <p className="text-[11px] text-navy-600">
+                  {new Date(event.createdAt).toLocaleString("ko-KR")}
+                </p>
+                {expandedEventId === event.id && (
+                  <pre className="mt-2 overflow-x-auto rounded-lg bg-white/70 p-2 text-[10px] text-navy-700">
+                    {JSON.stringify(event.metadata ?? {}, null, 2)}
+                  </pre>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </GlassCard>
+
+      {toast && (
+        <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+          <div
+            className={`w-full max-w-lg rounded-2xl px-4 py-3 text-sm text-white shadow-lg ${
+              toast.tone === "error" ? "bg-red-500/95" : "bg-navy-900/95"
+            }`}
+            role="status"
+            aria-live="polite"
+            onClick={() => setToast(null)}
+          >
+            {toast.message}
+          </div>
         </div>
       )}
     </div>

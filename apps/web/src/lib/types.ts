@@ -74,6 +74,7 @@ export type AuthMeResponse = {
   organizations: Organization[];
   isPlatformAdmin?: boolean;
   platformRole?: string | null;
+  sessionExpiresAt?: number | null;
 };
 
 export type EmailActionResponse = {

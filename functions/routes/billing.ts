@@ -2,9 +2,16 @@ import { Hono } from "hono";
 import type { Env } from "../types";
 import { requireAuth } from "../utils/auth";
 import { requireOrgPermission } from "../utils/permissions";
-import { requireOrgFeature, getOrgSubscription, assignOrgPlan, writeAuditLog } from "../utils/subscriptions";
+import {
+  requireOrgFeature,
+  getOrgSubscription,
+  assignOrgPlan,
+  writeAuditLog,
+  type SubscriptionStatus,
+} from "../utils/subscriptions";
 import { frontendUrl } from "../utils/email";
 import { now } from "../utils/helpers";
+import { createCheckoutSession, resolveBillingProvider, verifyStripeSignature } from "../utils/payments";
 
 export const billingRoutes = new Hono<{ Bindings: Env }>();
 
@@ -15,9 +22,6 @@ billingRoutes.post("/organizations/:orgId/billing/checkout", async (c) => {
 
   const access = await requireOrgPermission(c, user.id, orgId, "billing:manage");
   if (access instanceof Response) return access;
-
-  const secret = c.env.STRIPE_SECRET_KEY;
-  if (!secret) return c.json({ error: "Stripe not configured", code: "STRIPE_NOT_CONFIGURED" }, 503);
 
   const body = await c.req.json<{ planId: string; billingCycle?: "monthly" | "yearly" }>();
   if (!body.planId) return c.json({ error: "planId required" }, 400);
@@ -37,52 +41,50 @@ billingRoutes.post("/organizations/:orgId/billing/checkout", async (c) => {
   if (!plan) return c.json({ error: "Invalid plan" }, 400);
 
   const cycle = body.billingCycle ?? "monthly";
-  const priceId =
-    cycle === "yearly" ? plan.stripe_price_yearly_id : plan.stripe_price_monthly_id;
-  if (!priceId) {
-    return c.json({ error: "Stripe price not configured for this plan", code: "NO_STRIPE_PRICE" }, 400);
-  }
+  const provider = resolveBillingProvider(c.env);
+  const priceId = cycle === "yearly" ? plan.stripe_price_yearly_id : plan.stripe_price_monthly_id;
 
   const base = frontendUrl(c.req.raw, c.env);
-  const params = new URLSearchParams({
-    mode: "subscription",
-    success_url: `${base}/settings/billing?success=1`,
-    cancel_url: `${base}/settings/billing?canceled=1`,
-    "line_items[0][price]": priceId,
-    "line_items[0][quantity]": "1",
-    "metadata[organization_id]": orgId,
-    "metadata[plan_id]": plan.id,
-    "metadata[user_id]": user.id,
-    customer_email: user.email ?? "",
-  });
-
   const sub = await getOrgSubscription(c.env.DB, orgId);
-  if (sub?.stripeCustomerId) {
-    params.delete("customer_email");
-    params.set("customer", sub.stripeCustomerId);
+  try {
+    const session = await createCheckoutSession({
+      provider,
+      stripeSecretKey: c.env.STRIPE_SECRET_KEY,
+      stripeCustomerId: sub?.stripeCustomerId ?? null,
+      planId: plan.id,
+      planCode: plan.code,
+      priceId,
+      orgId,
+      userId: user.id,
+      userEmail: user.email,
+      successUrl: `${base}/settings/billing?success=1`,
+      cancelUrl: `${base}/settings/billing?canceled=1`,
+      billingCycle: cycle,
+    });
+
+    await writeAuditLog(c.env.DB, orgId, user.id, "billing.checkout_started", "plan", plan.id, {
+      sessionId: session.sessionId,
+      cycle,
+      provider,
+    });
+
+    return c.json({ url: session.url, sessionId: session.sessionId, provider });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown billing error";
+    if (message === "STRIPE_NOT_CONFIGURED") {
+      return c.json({ error: "Stripe not configured", code: "STRIPE_NOT_CONFIGURED" }, 503);
+    }
+    if (message === "NO_STRIPE_PRICE") {
+      return c.json({ error: "Stripe price not configured for this plan", code: "NO_STRIPE_PRICE" }, 400);
+    }
+    if (message.startsWith("STRIPE_CHECKOUT_FAILED:")) {
+      return c.json(
+        { error: "Stripe checkout failed", detail: message.replace("STRIPE_CHECKOUT_FAILED:", "") },
+        502,
+      );
+    }
+    return c.json({ error: "Checkout failed", detail: message }, 500);
   }
-
-  const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: params,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return c.json({ error: "Stripe checkout failed", detail: err }, 502);
-  }
-
-  const session = (await res.json()) as { url?: string; id: string };
-  await writeAuditLog(c.env.DB, orgId, user.id, "billing.checkout_started", "plan", plan.id, {
-    sessionId: session.id,
-    cycle,
-  });
-
-  return c.json({ url: session.url, sessionId: session.id });
 });
 
 billingRoutes.post("/webhooks/stripe", async (c) => {
@@ -127,45 +129,141 @@ billingRoutes.post("/webhooks/stripe", async (c) => {
     }
   }
 
-  if (event.type === "customer.subscription.deleted") {
+  if (
+    event.type === "customer.subscription.updated" ||
+    event.type === "customer.subscription.deleted" ||
+    event.type === "invoice.payment_failed"
+  ) {
     const sub = event.data.object;
-    const subId = sub.id as string;
-    const row = await c.env.DB.prepare(
-      "SELECT organization_id FROM organization_subscriptions WHERE stripe_subscription_id = ?",
-    )
-      .bind(subId)
-      .first<{ organization_id: string }>();
-    if (row) {
-      await assignOrgPlan(c.env.DB, row.organization_id, "plan_free", "canceled");
-      await writeAuditLog(c.env.DB, row.organization_id, null, "billing.subscription_canceled", "subscription", subId);
+    const subId = String(sub.id ?? "");
+    if (subId) {
+      const orgId = await findOrgIdByStripeSubscription(c.env.DB, subId);
+      if (orgId) {
+        const nextStatus =
+          event.type === "invoice.payment_failed"
+            ? "past_due"
+            : mapStripeStatus((sub.status as string | undefined) ?? "active");
+
+        await syncStripeSubscriptionSnapshot(c.env.DB, orgId, sub, nextStatus);
+
+        if (event.type === "customer.subscription.deleted") {
+          await assignOrgPlan(c.env.DB, orgId, "plan_free", "canceled");
+          await writeAuditLog(c.env.DB, orgId, null, "billing.subscription_canceled", "subscription", subId, {
+            status: nextStatus,
+          });
+        } else if (event.type === "invoice.payment_failed") {
+          await writeAuditLog(c.env.DB, orgId, null, "billing.payment_failed", "subscription", subId, {
+            status: nextStatus,
+          });
+        } else {
+          await writeAuditLog(c.env.DB, orgId, null, "billing.subscription_updated", "subscription", subId, {
+            status: nextStatus,
+          });
+        }
+      }
     }
   }
 
   return c.json({ received: true });
 });
 
-async function verifyStripeSignature(payload: string, header: string, secret: string): Promise<boolean> {
-  const parts = Object.fromEntries(
-    header.split(",").map((p) => {
-      const [k, v] = p.split("=");
-      return [k, v];
-    }),
-  ) as { t?: string; v1?: string };
+billingRoutes.post("/organizations/:orgId/billing/mock/complete", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
 
-  if (!parts.t || !parts.v1) return false;
+  const access = await requireOrgPermission(c, user.id, orgId, "billing:manage");
+  if (access instanceof Response) return access;
 
-  const signed = await crypto.subtle.sign(
-    "HMAC",
-    await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    ),
-    new TextEncoder().encode(`${parts.t}.${payload}`),
-  );
+  const provider = resolveBillingProvider(c.env);
+  if (provider !== "mock") {
+    return c.json({ error: "Mock completion is only available when PAYMENT_PROVIDER=mock" }, 403);
+  }
 
-  const expected = [...new Uint8Array(signed)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  return expected === parts.v1;
+  const body = await c.req.json<{ planId: string }>();
+  if (!body.planId) return c.json({ error: "planId required" }, 400);
+
+  await assignOrgPlan(c.env.DB, orgId, body.planId, "active");
+  await writeAuditLog(c.env.DB, orgId, user.id, "billing.subscription_activated", "plan", body.planId, {
+    provider: "mock",
+    completedAt: now(),
+  });
+
+  return c.json({ ok: true, provider: "mock", status: "active", planId: body.planId });
+});
+
+function mapStripeStatus(status: string): SubscriptionStatus {
+  switch (status) {
+    case "trialing":
+      return "trialing";
+    case "active":
+      return "active";
+    case "past_due":
+    case "unpaid":
+    case "incomplete":
+    case "incomplete_expired":
+      return "past_due";
+    case "canceled":
+      return "canceled";
+    default:
+      return "active";
+  }
+}
+
+async function findOrgIdByStripeSubscription(db: D1Database, stripeSubscriptionId: string): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT organization_id FROM organization_subscriptions WHERE stripe_subscription_id = ?")
+    .bind(stripeSubscriptionId)
+    .first<{ organization_id: string }>();
+  return row?.organization_id ?? null;
+}
+
+async function syncStripeSubscriptionSnapshot(
+  db: D1Database,
+  orgId: string,
+  subscription: Record<string, unknown>,
+  status: SubscriptionStatus,
+): Promise<void> {
+  const stripeSubId = String(subscription.id ?? "");
+  const stripeCustomerId = (subscription.customer as string | undefined) ?? null;
+  const periodStartSec = Number(subscription.current_period_start ?? 0);
+  const periodEndSec = Number(subscription.current_period_end ?? 0);
+  const canceledAtSec = Number(subscription.canceled_at ?? 0);
+  const cancelAtPeriodEnd = Boolean(subscription.cancel_at_period_end);
+  const items = subscription.items as { data?: Array<Record<string, unknown>> } | undefined;
+  const firstItem = items?.data?.[0];
+  const recurringInterval = (firstItem?.price as { recurring?: { interval?: string } } | undefined)?.recurring
+    ?.interval;
+  const billingCycle = recurringInterval === "year" ? "yearly" : "monthly";
+  const ts = now();
+
+  await db
+    .prepare(
+      `UPDATE organization_subscriptions
+       SET status = ?,
+           billing_cycle = ?,
+           current_period_start = CASE WHEN ? > 0 THEN ? ELSE current_period_start END,
+           current_period_end = CASE WHEN ? > 0 THEN ? ELSE current_period_end END,
+           canceled_at = CASE WHEN ? > 0 OR ? THEN ? ELSE NULL END,
+           stripe_subscription_id = COALESCE(?, stripe_subscription_id),
+           stripe_customer_id = COALESCE(?, stripe_customer_id),
+           updated_at = ?
+       WHERE organization_id = ?`,
+    )
+    .bind(
+      status,
+      billingCycle,
+      periodStartSec,
+      periodStartSec > 0 ? periodStartSec * 1000 : null,
+      periodEndSec,
+      periodEndSec > 0 ? periodEndSec * 1000 : null,
+      canceledAtSec,
+      cancelAtPeriodEnd ? 1 : 0,
+      canceledAtSec > 0 ? canceledAtSec * 1000 : ts,
+      stripeSubId || null,
+      stripeCustomerId,
+      ts,
+      orgId,
+    )
+    .run();
 }

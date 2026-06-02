@@ -7,10 +7,16 @@ interface AuthState {
   organizations: Organization[];
   isPlatformAdmin: boolean;
   platformRole: string | null;
+  sessionExpiresAt: number | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  setAuth: (user: User, organizations: Organization[], extras?: { isPlatformAdmin?: boolean; platformRole?: string | null }) => void;
+  setAuth: (
+    user: User,
+    organizations: Organization[],
+    extras?: { isPlatformAdmin?: boolean; platformRole?: string | null; sessionExpiresAt?: number | null },
+  ) => void;
   setLoading: (loading: boolean) => void;
+  setSessionExpiresAt: (expiresAt: number | null) => void;
   clearAuth: () => void;
 }
 
@@ -21,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
       organizations: [],
       isPlatformAdmin: false,
       platformRole: null,
+      sessionExpiresAt: null,
       isLoading: true,
       isAuthenticated: false,
       setAuth: (user, organizations, extras) =>
@@ -29,16 +36,19 @@ export const useAuthStore = create<AuthState>()(
           organizations,
           isPlatformAdmin: extras?.isPlatformAdmin ?? false,
           platformRole: extras?.platformRole ?? null,
+          sessionExpiresAt: extras?.sessionExpiresAt ?? null,
           isAuthenticated: true,
           isLoading: false,
         }),
       setLoading: (isLoading) => set({ isLoading }),
+      setSessionExpiresAt: (sessionExpiresAt) => set({ sessionExpiresAt }),
       clearAuth: () =>
         set({
           user: null,
           organizations: [],
           isPlatformAdmin: false,
           platformRole: null,
+          sessionExpiresAt: null,
           isAuthenticated: false,
           isLoading: false,
         }),
@@ -49,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
         user: s.user,
         organizations: s.organizations,
         isPlatformAdmin: s.isPlatformAdmin,
+        sessionExpiresAt: s.sessionExpiresAt,
         isAuthenticated: s.isAuthenticated,
       }),
     },
