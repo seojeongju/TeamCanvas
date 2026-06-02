@@ -1,0 +1,14 @@
+JWT_SECRET=dev-secret-change-in-production
+ALLOW_DEV_AUTH=true
+APP_URL=http://localhost:8788
+FRONTEND_URL=http://localhost:5173
+
+# Resend (https://resend.com) — 프로덕션 이메일 발송
+# RESEND_API_KEY=re_xxxxxxxx
+# EMAIL_FROM=TeamCanvas <noreply@yourdomain.com>
+
+# OAuth (프로덕션/스테이징)
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# KAKAO_CLIENT_ID=
+# KAKAO_CLIENT_SECRET=
