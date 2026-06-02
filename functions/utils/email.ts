@@ -99,3 +99,23 @@ export async function sendPasswordResetEmail(
   );
   return sendEmail(env, to, "[TeamCanvas] 비밀번호 재설정", html);
 }
+
+export async function sendOrgInviteEmail(
+  env: Env,
+  request: Request,
+  to: string,
+  orgName: string,
+  inviteUrl: string,
+): Promise<{ sent: boolean; devLink?: string }> {
+  const html = emailShell(
+    "조직 초대",
+    `<strong>${orgName}</strong> 조직에 초대되었습니다.<br>아래 버튼을 눌러 참여하세요.`,
+    "초대 수락하기",
+    inviteUrl,
+  );
+  const result = await sendEmail(env, to, `[TeamCanvas] ${orgName} 조직 초대`, html);
+  if (!result.sent && !env.RESEND_API_KEY) {
+    return { sent: false, devLink: inviteUrl };
+  }
+  return result;
+}

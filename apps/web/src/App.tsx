@@ -14,6 +14,8 @@ import { TasksPage } from "./pages/TasksPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
 import { MembersPage, BillingPage } from "./pages/settings/MembersPage";
+import { AuditLogsPage } from "./pages/settings/AuditLogsPage";
+import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
 import { AdminOrgDetailPage } from "./pages/admin/AdminOrgDetailPage";
@@ -50,6 +52,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/invite/:token" element={<AcceptInvitePage />} />
         <Route
           path="/onboarding"
           element={
@@ -66,6 +69,7 @@ export default function App() {
           <Route path="more" element={<MorePage />} />
           <Route path="settings/members" element={<MembersPage />} />
           <Route path="settings/billing" element={<BillingPage />} />
+          <Route path="settings/audit" element={<AuditLogsPage />} />
         </Route>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboardPage />} />

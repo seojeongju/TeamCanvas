@@ -10,7 +10,8 @@ export interface Env {
   FRONTEND_URL?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
-  ALLOW_DEV_AUTH?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
 }
 
 export type UserRow = {

@@ -31,6 +31,8 @@ export type OrgSubscription = {
   features: PlanFeature[];
   priceMonthly: number;
   priceYearly: number;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
 };
 
 export type SubscriptionPlan = {
@@ -75,6 +77,8 @@ function mapSubscriptionRow(row: Record<string, unknown>): OrgSubscription {
     features: parseFeatures(row.features_json as string),
     priceMonthly: row.price_monthly as number,
     priceYearly: row.price_yearly as number,
+    stripeCustomerId: (row.stripe_customer_id as string | null) ?? null,
+    stripeSubscriptionId: (row.stripe_subscription_id as string | null) ?? null,
   };
 }
 

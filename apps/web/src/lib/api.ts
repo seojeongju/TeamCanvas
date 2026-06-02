@@ -154,8 +154,53 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  createOrgInviteLink: (orgId: string, data?: { email?: string; role?: string }) =>
+    request<{ inviteUrl: string; expiresAt: number; email?: { sent: boolean; devLink?: string } }>(
+      `/api/organizations/${orgId}/invites`,
+      { method: "POST", body: JSON.stringify(data ?? {}) },
+    ),
+
+  getOrgInvites: (orgId: string) =>
+    request<{ invites: Record<string, unknown>[] }>(`/api/organizations/${orgId}/invites`),
+
+  getInvite: (token: string) =>
+    request<{
+      valid: boolean;
+      organizationName?: string;
+      role?: string;
+      email?: string | null;
+      expiresAt?: number;
+    }>(`/api/invites/${token}`),
+
+  acceptInvite: (token: string) =>
+    request<{ ok: boolean; organizationId: string }>(`/api/invites/${token}/accept`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  getAuditLogs: (orgId: string) =>
+    request<{
+      logs: {
+        id: string;
+        action: string;
+        entityType: string | null;
+        entityId: string | null;
+        metadata: unknown;
+        createdAt: number;
+        actorName: string;
+      }[];
+    }>(`/api/organizations/${orgId}/audit-logs`),
+
+  startCheckout: (orgId: string, data: { planId: string; billingCycle?: "monthly" | "yearly" }) =>
+    request<{ url: string; sessionId: string }>(`/api/organizations/${orgId}/billing/checkout`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   getOrgSubscription: (orgId: string) =>
-    request<{ subscription: unknown; plans: unknown[] }>(`/api/organizations/${orgId}/subscription`),
+    request<{ subscription: unknown; plans: Record<string, unknown>[] }>(
+      `/api/organizations/${orgId}/subscription`,
+    ),
 
   adminMe: () => request<{ isPlatformAdmin: boolean; role: string | null }>("/api/admin/me"),
 

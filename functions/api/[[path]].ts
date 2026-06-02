@@ -11,6 +11,7 @@ import {
 } from "../utils/db";
 import { adminRoutes } from "../routes/admin";
 import { orgAdminRoutes } from "../routes/orgAdmin";
+import { billingRoutes } from "../routes/billing";
 import {
   newId,
   now,
@@ -24,6 +25,7 @@ const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
 app.route("/admin", adminRoutes);
 app.route("/", orgAdminRoutes);
+app.route("/", billingRoutes);
 
 app.get("/health", async (c) => {
   let dbStatus = "ok";

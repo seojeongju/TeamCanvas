@@ -34,6 +34,56 @@ export function useInviteOrgMember() {
   });
 }
 
+export function useCreateInviteLink() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data?: { email?: string; role?: string }) => api.createOrgInviteLink(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["invites", orgId] }),
+  });
+}
+
+export function useOrgInvites() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["invites", orgId],
+    queryFn: () => api.getOrgInvites(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useAuditLogs() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["audit-logs", orgId],
+    queryFn: () => api.getAuditLogs(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useOrgSubscriptionDetail() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["subscription", orgId],
+    queryFn: () => api.getOrgSubscription(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useStartCheckout() {
+  return useMutation({
+    mutationFn: ({
+      orgId,
+      planId,
+      billingCycle,
+    }: {
+      orgId: string;
+      planId: string;
+      billingCycle?: "monthly" | "yearly";
+    }) => api.startCheckout(orgId, { planId, billingCycle }),
+  });
+}
+
 export function useAdminDashboard() {
   return useQuery({
     queryKey: ["admin", "dashboard"],
