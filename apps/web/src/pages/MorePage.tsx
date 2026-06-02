@@ -1,4 +1,4 @@
-import { Building2, Users, Settings, LogOut, Shield, ChevronRight, CreditCard } from "lucide-react";
+import { Building2, Users, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -51,6 +51,13 @@ export function MorePage() {
       label: "권한 및 보안",
       desc: org?.role ?? "member",
       onClick: () => {},
+      show: true,
+    },
+    {
+      icon: Bell,
+      label: "알림 설정",
+      desc: "인앱/푸시/이메일",
+      onClick: () => navigate("/settings/notifications"),
       show: true,
     },
     {

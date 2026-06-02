@@ -45,9 +45,27 @@ export type CalendarEvent = {
   startAt: number;
   endAt: number;
   allDay: boolean;
+  visibility?: "private" | "team" | "org" | string;
+  recurrenceRule?: string | null;
   color: string;
   teamName: string;
   time: string;
+};
+
+export type EventReminder = {
+  id: string;
+  eventId: string;
+  title: string;
+  startAt: number;
+  remindAt: number;
+  reminderMinutes: number;
+};
+
+export type EventAttendee = {
+  user_id: string;
+  name: string;
+  email: string | null;
+  rsvp: "pending" | "accepted" | "declined" | string;
 };
 
 export type Task = {
@@ -67,6 +85,12 @@ export type Notification = {
   body: string | null;
   unread: boolean;
   time: string;
+};
+
+export type NotificationPreferences = {
+  inAppEnabled: boolean;
+  pushEnabled: boolean;
+  emailEnabled: boolean;
 };
 
 export type AuthMeResponse = {

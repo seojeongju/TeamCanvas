@@ -15,6 +15,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
 import { MembersPage, BillingPage } from "./pages/settings/MembersPage";
 import { AuditLogsPage } from "./pages/settings/AuditLogsPage";
+import { NotificationSettingsPage } from "./pages/settings/NotificationSettingsPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="more" element={<MorePage />} />
           <Route path="settings/members" element={<MembersPage />} />
           <Route path="settings/billing" element={<BillingPage />} />
+          <Route path="settings/notifications" element={<NotificationSettingsPage />} />
           <Route path="settings/audit" element={<AuditLogsPage />} />
         </Route>
         <Route path="/admin" element={<AdminLayout />}>

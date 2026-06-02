@@ -95,6 +95,11 @@ export const api = {
     );
   },
 
+  getEventParticipants: (orgId: string) =>
+    request<{ participants: { id: string; name: string; email: string | null }[] }>(
+      `/api/organizations/${orgId}/event-participants`,
+    ),
+
   createEvent: (
     orgId: string,
     data: {
@@ -104,6 +109,10 @@ export const api = {
       allDay?: boolean;
       description?: string;
       color?: string;
+      visibility?: "private" | "team" | "org";
+      attendeeUserIds?: string[];
+      reminderMinutes?: number[];
+      recurrenceRule?: string | null;
     },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/events`, {
@@ -113,6 +122,31 @@ export const api = {
 
   getTasks: (orgId: string) =>
     request<{ tasks: import("./types").Task[] }>(`/api/organizations/${orgId}/tasks`),
+
+  getEventReminders: (orgId: string, from?: number, to?: number) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", String(from));
+    if (to) params.set("to", String(to));
+    const qs = params.toString();
+    return request<{ reminders: import("./types").EventReminder[] }>(
+      `/api/organizations/${orgId}/reminders${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  markEventReminderDelivered: (orgId: string, reminderId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/reminders/${reminderId}/delivered`, {
+      method: "PATCH",
+      body: JSON.stringify({}),
+    }),
+
+  getEventAttendees: (eventId: string) =>
+    request<{ attendees: import("./types").EventAttendee[] }>(`/api/events/${eventId}/attendees`),
+
+  updateEventRsvp: (eventId: string, data: { rsvp: "pending" | "accepted" | "declined" }) =>
+    request<{ ok: boolean; rsvp: string }>(`/api/events/${eventId}/rsvp`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
   createTask: (
     orgId: string,
@@ -134,6 +168,18 @@ export const api = {
 
   markNotificationRead: (id: string) =>
     request<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: "PATCH" }),
+
+  getNotificationPreferences: () =>
+    request<{ preferences: import("./types").NotificationPreferences }>("/api/notification-preferences"),
+
+  updateNotificationPreferences: (data: import("./types").NotificationPreferences) =>
+    request<{ ok: boolean; preferences: import("./types").NotificationPreferences }>(
+      "/api/notification-preferences",
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+    ),
 
   getOrgPermissions: (orgId: string) =>
     request<import("./types").OrgPermissionsResponse>(`/api/organizations/${orgId}/permissions`),

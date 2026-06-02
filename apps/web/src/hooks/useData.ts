@@ -21,6 +21,54 @@ export function useEvents(from?: number, to?: number) {
   });
 }
 
+export function useEventParticipants() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["event-participants", orgId],
+    queryFn: () => api.getEventParticipants(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useEventReminders(from?: number, to?: number) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["event-reminders", orgId, from, to],
+    queryFn: () => api.getEventReminders(orgId!, from, to),
+    enabled: !!orgId,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkReminderDelivered() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (reminderId: string) => api.markEventReminderDelivered(orgId!, reminderId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["event-reminders"] }),
+  });
+}
+
+export function useEventAttendees(eventId?: string) {
+  return useQuery({
+    queryKey: ["event-attendees", eventId],
+    queryFn: () => api.getEventAttendees(eventId!),
+    enabled: !!eventId,
+  });
+}
+
+export function useUpdateEventRsvp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, rsvp }: { eventId: string; rsvp: "pending" | "accepted" | "declined" }) =>
+      api.updateEventRsvp(eventId, { rsvp }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["event-attendees", vars.eventId] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
 export function useTodayEvents() {
   const from = startOfDay(Date.now());
   const to = endOfDay(Date.now());
@@ -38,9 +86,14 @@ export function useCreateEvent() {
       endAt: number;
       allDay?: boolean;
       description?: string;
+      visibility?: "private" | "team" | "org";
+      attendeeUserIds?: string[];
+      reminderMinutes?: number[];
+      recurrenceRule?: string | null;
     }) => api.createEvent(orgId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["event-reminders"] });
     },
   });
 }
@@ -77,5 +130,21 @@ export function useNotifications() {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => api.getNotifications(),
+  });
+}
+
+export function useNotificationPreferences() {
+  return useQuery({
+    queryKey: ["notification-preferences"],
+    queryFn: () => api.getNotificationPreferences(),
+  });
+}
+
+export function useUpdateNotificationPreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: import("../lib/types").NotificationPreferences) =>
+      api.updateNotificationPreferences(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notification-preferences"] }),
   });
 }

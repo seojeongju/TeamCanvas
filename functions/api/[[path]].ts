@@ -110,9 +110,23 @@ app.get("/organizations/:orgId/events", async (c) => {
      FROM events e
      LEFT JOIN teams t ON t.id = e.team_id
      WHERE e.organization_id = ? AND e.start_at < ? AND e.end_at > ?
+       AND (
+         e.visibility = 'org'
+         OR e.creator_id = ?
+         OR EXISTS (
+           SELECT 1 FROM event_attendees ea
+           WHERE ea.event_id = e.id AND ea.user_id = ?
+         )
+         OR (
+           e.visibility = 'team' AND e.team_id IS NOT NULL AND EXISTS (
+             SELECT 1 FROM team_members tm
+             WHERE tm.team_id = e.team_id AND tm.user_id = ?
+           )
+         )
+       )
      ORDER BY e.start_at ASC`,
   )
-    .bind(orgId, to, from)
+    .bind(orgId, to, from, user.id, user.id, user.id)
     .all();
 
   const events = (results ?? []).map((row) => {
@@ -125,6 +139,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       endAt: r.end_at,
       allDay: Boolean(r.all_day),
       visibility: r.visibility,
+      recurrenceRule: r.recurrence_rule,
       color: r.color ?? "#4A9FE8",
       teamName: r.team_name ?? "조직",
       time: formatEventTime(r.start_at as number, r.end_at as number, Boolean(r.all_day)),
@@ -132,6 +147,26 @@ app.get("/organizations/:orgId/events", async (c) => {
   });
 
   return c.json({ events });
+});
+
+app.get("/organizations/:orgId/event-participants", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.name, u.email
+     FROM memberships m
+     JOIN users u ON u.id = m.user_id
+     WHERE m.organization_id = ? AND m.status = 'active'
+     ORDER BY u.name`,
+  )
+    .bind(orgId)
+    .all();
+
+  return c.json({ participants: results ?? [] });
 });
 
 app.post("/organizations/:orgId/events", async (c) => {
@@ -152,6 +187,10 @@ app.post("/organizations/:orgId/events", async (c) => {
     allDay?: boolean;
     teamId?: string;
     color?: string;
+    visibility?: "private" | "team" | "org";
+    attendeeUserIds?: string[];
+    reminderMinutes?: number[];
+    recurrenceRule?: string | null;
   }>();
 
   if (!body.title?.trim() || !body.startAt || !body.endAt) {
@@ -160,9 +199,18 @@ app.post("/organizations/:orgId/events", async (c) => {
 
   const id = newId();
   const ts = now();
+  const visibility = body.visibility ?? (body.teamId ? "team" : "org");
+  const attendeeUserIds = Array.from(new Set((body.attendeeUserIds ?? []).filter(Boolean)));
+  const reminderMinutes = Array.from(
+    new Set((body.reminderMinutes ?? [10]).filter((m) => Number.isFinite(m) && m > 0 && m <= 10080)),
+  );
+
   await c.env.DB.prepare(
-    `INSERT INTO events (id, organization_id, team_id, creator_id, title, description, start_at, end_at, all_day, color, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO events (
+      id, organization_id, team_id, creator_id, title, description,
+      start_at, end_at, all_day, visibility, recurrence_rule, color, created_at, updated_at
+    )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -174,13 +222,162 @@ app.post("/organizations/:orgId/events", async (c) => {
       body.startAt,
       body.endAt,
       body.allDay ? 1 : 0,
+      visibility,
+      body.recurrenceRule ?? null,
       body.color ?? "#4A9FE8",
       ts,
       ts,
     )
     .run();
 
+  const memberRows = await c.env.DB
+    .prepare("SELECT user_id FROM memberships WHERE organization_id = ? AND status = 'active'")
+    .bind(orgId)
+    .all<{ user_id: string }>();
+  const activeMembers = new Set((memberRows.results ?? []).map((m) => m.user_id));
+
+  const validAttendees = attendeeUserIds.filter((uid) => uid !== user.id && activeMembers.has(uid));
+  for (const attendeeId of validAttendees) {
+    await c.env.DB
+      .prepare("INSERT OR IGNORE INTO event_attendees (event_id, user_id, rsvp) VALUES (?, ?, 'pending')")
+      .bind(id, attendeeId)
+      .run();
+  }
+
+  const reminderTargets = new Set<string>([user.id, ...validAttendees]);
+  for (const targetUserId of reminderTargets) {
+    for (const minutes of reminderMinutes) {
+      const remindAt = body.startAt - minutes * 60 * 1000;
+      if (remindAt <= ts) continue;
+      await c.env.DB
+        .prepare(
+          `INSERT INTO event_reminders (id, event_id, organization_id, user_id, reminder_minutes, remind_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(newId(), id, orgId, targetUserId, minutes, remindAt, ts)
+        .run();
+    }
+  }
+
   return c.json({ id }, 201);
+});
+
+app.get("/events/:eventId/attendees", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB
+    .prepare("SELECT organization_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ organization_id: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const access = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (access instanceof Response) return access;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT ea.user_id, ea.rsvp, u.name, u.email
+     FROM event_attendees ea
+     JOIN users u ON u.id = ea.user_id
+     WHERE ea.event_id = ?
+     ORDER BY u.name`,
+  )
+    .bind(eventId)
+    .all();
+
+  return c.json({ attendees: results ?? [] });
+});
+
+app.patch("/events/:eventId/rsvp", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB
+    .prepare("SELECT organization_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ organization_id: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const access = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ rsvp?: "pending" | "accepted" | "declined" }>();
+  const rsvp = body.rsvp;
+  if (!rsvp || !["pending", "accepted", "declined"].includes(rsvp)) {
+    return c.json({ error: "Invalid RSVP" }, 400);
+  }
+
+  await c.env.DB
+    .prepare(
+      `INSERT INTO event_attendees (event_id, user_id, rsvp)
+       VALUES (?, ?, ?)
+       ON CONFLICT(event_id, user_id) DO UPDATE SET rsvp = excluded.rsvp`,
+    )
+    .bind(eventId, user.id, rsvp)
+    .run();
+
+  return c.json({ ok: true, rsvp });
+});
+
+app.get("/organizations/:orgId/reminders", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (access instanceof Response) return access;
+
+  const from = Number(c.req.query("from") ?? now());
+  const to = Number(c.req.query("to") ?? from + 24 * 60 * 60 * 1000);
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT r.id, r.event_id, r.reminder_minutes, r.remind_at, e.title, e.start_at
+     FROM event_reminders r
+     JOIN events e ON e.id = r.event_id
+     WHERE r.organization_id = ?
+       AND r.user_id = ?
+       AND r.remind_at BETWEEN ? AND ?
+       AND r.delivered_at IS NULL
+     ORDER BY r.remind_at ASC`,
+  )
+    .bind(orgId, user.id, from, to)
+    .all();
+
+  return c.json({
+    reminders: (results ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        id: row.id,
+        eventId: row.event_id,
+        title: row.title,
+        startAt: row.start_at,
+        remindAt: row.remind_at,
+        reminderMinutes: row.reminder_minutes,
+      };
+    }),
+  });
+});
+
+app.patch("/organizations/:orgId/reminders/:reminderId/delivered", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const reminderId = c.req.param("reminderId");
+  const access = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (access instanceof Response) return access;
+
+  const result = await c.env.DB
+    .prepare(
+      `UPDATE event_reminders
+       SET delivered_at = ?
+       WHERE id = ? AND organization_id = ? AND user_id = ?`,
+    )
+    .bind(now(), reminderId, orgId, user.id)
+    .run();
+
+  if ((result.meta.changes ?? 0) === 0) return c.json({ error: "Reminder not found" }, 404);
+  return c.json({ ok: true });
 });
 
 app.delete("/events/:eventId", async (c) => {
@@ -372,6 +569,65 @@ app.patch("/notifications/:id/read", async (c) => {
     .bind(now(), c.req.param("id"), user.id)
     .run();
   return c.json({ ok: true });
+});
+
+app.get("/notification-preferences", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+
+  const pref = await c.env.DB
+    .prepare(
+      `SELECT in_app_enabled, push_enabled, email_enabled
+       FROM notification_preferences
+       WHERE user_id = ?`,
+    )
+    .bind(user.id)
+    .first<{ in_app_enabled: number; push_enabled: number; email_enabled: number }>();
+
+  return c.json({
+    preferences: {
+      inAppEnabled: pref ? Boolean(pref.in_app_enabled) : true,
+      pushEnabled: pref ? Boolean(pref.push_enabled) : false,
+      emailEnabled: pref ? Boolean(pref.email_enabled) : false,
+    },
+  });
+});
+
+app.patch("/notification-preferences", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+
+  const body = await c.req.json<{
+    inAppEnabled?: boolean;
+    pushEnabled?: boolean;
+    emailEnabled?: boolean;
+  }>();
+  const pref = {
+    inAppEnabled: body.inAppEnabled ?? true,
+    pushEnabled: body.pushEnabled ?? false,
+    emailEnabled: body.emailEnabled ?? false,
+  };
+
+  await c.env.DB
+    .prepare(
+      `INSERT INTO notification_preferences (user_id, in_app_enabled, push_enabled, email_enabled, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         in_app_enabled = excluded.in_app_enabled,
+         push_enabled = excluded.push_enabled,
+         email_enabled = excluded.email_enabled,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(
+      user.id,
+      pref.inAppEnabled ? 1 : 0,
+      pref.pushEnabled ? 1 : 0,
+      pref.emailEnabled ? 1 : 0,
+      now(),
+    )
+    .run();
+
+  return c.json({ ok: true, preferences: pref });
 });
 
 export const onRequest = handle(app);
