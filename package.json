@@ -14,7 +14,8 @@
     "deploy": "npm run build && npm run db:migrate:remote && npx wrangler pages deploy apps/web/dist --project-name=teamcanvas --branch=main",
     "db:migrate:local": "npx wrangler d1 migrations apply teamcanvas-db --local",
     "db:migrate:remote": "npx wrangler d1 migrations apply teamcanvas-db --remote",
-    "cf:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-cloudflare.ps1"
+    "cf:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-cloudflare.ps1",
+    "cf:secrets:github": "powershell -ExecutionPolicy Bypass -File scripts/setup-github-secrets.ps1"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
