@@ -98,6 +98,15 @@ export function useAdminOrganizations(q?: string) {
   });
 }
 
+export function useAdminCreateOrganization() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; slug?: string; ownerEmail?: string; ownerUserId?: string }) =>
+      api.adminCreateOrganization(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "organizations"] }),
+  });
+}
+
 export function useAdminOrganization(orgId: string) {
   return useQuery({
     queryKey: ["admin", "organization", orgId],
@@ -128,6 +137,50 @@ export function useAdminUpdateOrganization() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["admin"] });
       qc.invalidateQueries({ queryKey: ["admin", "organization", vars.orgId] });
+    },
+  });
+}
+
+export function useAdminUpdateOrganizationMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orgId,
+      userId,
+      ...data
+    }: {
+      orgId: string;
+      userId: string;
+      role?: string;
+      status?: string;
+    }) => api.adminUpdateOrganizationMember(orgId, userId, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin", "organization", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["admin", "organizations"] });
+    },
+  });
+}
+
+export function useAdminRemoveOrganizationMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, userId }: { orgId: string; userId: string }) =>
+      api.adminRemoveOrganizationMember(orgId, userId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin", "organization", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["admin", "organizations"] });
+    },
+  });
+}
+
+export function useAdminTransferOrganizationOwner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, newOwnerUserId }: { orgId: string; newOwnerUserId: string }) =>
+      api.adminTransferOrganizationOwner(orgId, newOwnerUserId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin", "organization", vars.orgId] });
+      qc.invalidateQueries({ queryKey: ["admin", "organizations"] });
     },
   });
 }

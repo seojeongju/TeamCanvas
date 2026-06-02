@@ -228,6 +228,17 @@ export const api = {
       `/api/admin/organizations/${orgId}`,
     ),
 
+  adminCreateOrganization: (data: {
+    name: string;
+    slug?: string;
+    ownerEmail?: string;
+    ownerUserId?: string;
+  }) =>
+    request<{ organization: { id: string; name: string; slug: string } }>(`/api/admin/organizations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   adminUpdateOrganization: (
     orgId: string,
     data: { status?: string; planId?: string; subscriptionStatus?: string },
@@ -235,6 +246,27 @@ export const api = {
     request<{ ok: boolean }>(`/api/admin/organizations/${orgId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    }),
+
+  adminUpdateOrganizationMember: (
+    orgId: string,
+    userId: string,
+    data: { role?: string; status?: string },
+  ) =>
+    request<{ ok: boolean }>(`/api/admin/organizations/${orgId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  adminRemoveOrganizationMember: (orgId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/admin/organizations/${orgId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+
+  adminTransferOrganizationOwner: (orgId: string, newOwnerUserId: string) =>
+    request<{ ok: boolean }>(`/api/admin/organizations/${orgId}/owner`, {
+      method: "PATCH",
+      body: JSON.stringify({ newOwnerUserId }),
     }),
 
   adminPlans: () => request<{ plans: import("./types").SubscriptionPlan[] }>("/api/admin/plans"),

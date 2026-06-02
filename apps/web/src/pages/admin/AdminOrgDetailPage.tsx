@@ -1,13 +1,23 @@
 import { useParams } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
-import { useAdminOrganization, useAdminPlans, useAdminUpdateOrganization } from "../../hooks/useAdmin";
+import {
+  useAdminOrganization,
+  useAdminPlans,
+  useAdminRemoveOrganizationMember,
+  useAdminTransferOrganizationOwner,
+  useAdminUpdateOrganization,
+  useAdminUpdateOrganizationMember,
+} from "../../hooks/useAdmin";
 
 export function AdminOrgDetailPage() {
   const { orgId = "" } = useParams();
   const { data, isLoading } = useAdminOrganization(orgId);
   const { data: plansData } = useAdminPlans();
   const updateOrg = useAdminUpdateOrganization();
+  const updateMember = useAdminUpdateOrganizationMember();
+  const removeMember = useAdminRemoveOrganizationMember();
+  const transferOwner = useAdminTransferOrganizationOwner();
 
   const org = data?.organization as Record<string, unknown> | undefined;
   const subscription = data?.subscription as Record<string, unknown> | null;
@@ -61,13 +71,55 @@ export function AdminOrgDetailPage() {
 
       <GlassCard className="p-5">
         <h2 className="mb-3 font-semibold text-navy-900">멤버 ({members.length})</h2>
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {members.map((m) => (
-            <li key={String(m.user_id)} className="flex justify-between text-sm">
-              <span className="text-navy-900">{String(m.name)}</span>
-              <span className="text-navy-600">
-                {String(m.role)} · {String(m.email)}
-              </span>
+            <li key={String(m.user_id)} className="rounded-xl bg-navy-800/5 p-3 text-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-medium text-navy-900">{String(m.name)}</span>
+                <span className="text-xs text-navy-600">{String(m.email)}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="rounded-lg border border-sky-200 bg-white px-2 py-1 text-xs"
+                  value={String(m.role)}
+                  onChange={(e) =>
+                    updateMember.mutate({ orgId, userId: String(m.user_id), role: e.target.value })
+                  }
+                >
+                  <option value="owner">owner</option>
+                  <option value="admin">admin</option>
+                  <option value="member">member</option>
+                  <option value="guest">guest</option>
+                </select>
+                <select
+                  className="rounded-lg border border-sky-200 bg-white px-2 py-1 text-xs"
+                  value={String(m.status)}
+                  onChange={(e) =>
+                    updateMember.mutate({ orgId, userId: String(m.user_id), status: e.target.value })
+                  }
+                >
+                  <option value="active">active</option>
+                  <option value="suspended">suspended</option>
+                </select>
+                {String(m.role) !== "owner" && (
+                  <button
+                    type="button"
+                    onClick={() => removeMember.mutate({ orgId, userId: String(m.user_id) })}
+                    className="rounded-lg bg-red-50 px-2 py-1 text-xs text-red-500"
+                  >
+                    제거
+                  </button>
+                )}
+                {String(m.role) !== "owner" && (
+                  <button
+                    type="button"
+                    onClick={() => transferOwner.mutate({ orgId, newOwnerUserId: String(m.user_id) })}
+                    className="rounded-lg bg-primary-400/10 px-2 py-1 text-xs text-primary-600"
+                  >
+                    소유자 이관
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

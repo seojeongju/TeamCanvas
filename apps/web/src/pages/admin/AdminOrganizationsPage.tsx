@@ -4,7 +4,7 @@ import { Search, ChevronRight } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
-import { useAdminOrganizations } from "../../hooks/useAdmin";
+import { useAdminCreateOrganization, useAdminOrganizations } from "../../hooks/useAdmin";
 
 const statusColors: Record<string, string> = {
   active: "text-emerald-600",
@@ -17,7 +17,10 @@ const statusColors: Record<string, string> = {
 export function AdminOrganizationsPage() {
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
+  const [newOrgName, setNewOrgName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
   const { data, isLoading } = useAdminOrganizations(search);
+  const createOrg = useAdminCreateOrganization();
 
   return (
     <div className="space-y-6">
@@ -46,6 +49,39 @@ export function AdminOrganizationsPage() {
           검색
         </button>
       </form>
+
+      <GlassCard className="space-y-3 p-4">
+        <p className="text-sm font-semibold text-navy-900">조직 생성 (플랫폼 관리자)</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input
+            value={newOrgName}
+            onChange={(e) => setNewOrgName(e.target.value)}
+            placeholder="새 조직 이름"
+          />
+          <Input
+            type="email"
+            value={ownerEmail}
+            onChange={(e) => setOwnerEmail(e.target.value)}
+            placeholder="소유자 이메일(필수)"
+          />
+        </div>
+        <button
+          type="button"
+          disabled={createOrg.isPending || !newOrgName.trim() || !ownerEmail.trim()}
+          onClick={async () => {
+            try {
+              await createOrg.mutateAsync({ name: newOrgName.trim(), ownerEmail: ownerEmail.trim() });
+              setNewOrgName("");
+              setOwnerEmail("");
+            } catch (err) {
+              alert(err instanceof Error ? err.message : "조직 생성 실패");
+            }
+          }}
+          className="rounded-xl bg-primary-400 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {createOrg.isPending ? "생성 중..." : "조직 생성"}
+        </button>
+      </GlassCard>
 
       {isLoading ? (
         <p className="text-sm text-navy-600">로딩 중...</p>

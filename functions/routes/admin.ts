@@ -9,6 +9,7 @@ import {
 } from "../utils/permissions";
 import {
   assignOrgPlan,
+  createOrgSubscription,
   getOrgSubscription,
   listPlans,
   writeAuditLog,
@@ -16,6 +17,48 @@ import {
 import { newId, now } from "../utils/helpers";
 
 export const adminRoutes = new Hono<{ Bindings: Env }>();
+
+async function createOrganizationForOwner(
+  db: D1Database,
+  ownerUserId: string,
+  name: string,
+  slug: string,
+): Promise<{ id: string; name: string; slug: string }> {
+  const orgId = newId();
+  const ts = now();
+
+  await db
+    .prepare(
+      `INSERT INTO organizations (id, name, slug, owner_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(orgId, name, slug, ownerUserId, ts, ts)
+    .run();
+
+  await db
+    .prepare(
+      `INSERT INTO memberships (id, organization_id, user_id, role, status, joined_at)
+       VALUES (?, ?, ?, 'owner', 'active', ?)`,
+    )
+    .bind(newId(), orgId, ownerUserId, ts)
+    .run();
+
+  const defaultTeamId = newId();
+  await db
+    .prepare(
+      `INSERT INTO teams (id, organization_id, name, color, created_at) VALUES (?, ?, '기본 팀', '#4A9FE8', ?)`,
+    )
+    .bind(defaultTeamId, orgId, ts)
+    .run();
+
+  await db
+    .prepare(`INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'lead')`)
+    .bind(defaultTeamId, ownerUserId)
+    .run();
+
+  await createOrgSubscription(db, orgId, "plan_free", { status: "active" });
+  return { id: orgId, name, slug };
+}
 
 adminRoutes.get("/me", async (c) => {
   const user = await requireAuth(c);
@@ -117,6 +160,51 @@ adminRoutes.get("/organizations", async (c) => {
   return c.json({ organizations: results ?? [], limit, offset });
 });
 
+adminRoutes.post("/organizations", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const admin = await requirePlatformAdmin(c, user.id);
+  if (admin instanceof Response) return admin;
+
+  const body = await c.req.json<{ name?: string; slug?: string; ownerEmail?: string; ownerUserId?: string }>();
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+  if (!body.ownerEmail?.trim() && !body.ownerUserId?.trim()) {
+    return c.json({ error: "ownerEmail or ownerUserId required" }, 400);
+  }
+
+  const owner = body.ownerUserId
+    ? await c.env.DB.prepare("SELECT id, email, name FROM users WHERE id = ?")
+        .bind(body.ownerUserId.trim())
+        .first<{ id: string; email: string | null; name: string }>()
+    : await c.env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?")
+        .bind(body.ownerEmail!.trim().toLowerCase())
+        .first<{ id: string; email: string | null; name: string }>();
+
+  if (!owner) return c.json({ error: "Owner user not found" }, 404);
+
+  const activeOrg = await c.env.DB.prepare(
+    "SELECT organization_id FROM memberships WHERE user_id = ? AND status = 'active' LIMIT 1",
+  )
+    .bind(owner.id)
+    .first<{ organization_id: string }>();
+  if (activeOrg) {
+    return c.json({ error: "Owner already belongs to an organization", code: "ONE_ORG_POLICY" }, 409);
+  }
+
+  let slug = body.slug?.trim().toLowerCase() || body.name.trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+  if (!slug) slug = `org-${Date.now().toString(36)}`;
+  const existing = await c.env.DB.prepare("SELECT id FROM organizations WHERE slug = ?").bind(slug).first();
+  if (existing) slug = `${slug}-${Date.now().toString(36)}`;
+
+  const org = await createOrganizationForOwner(c.env.DB, owner.id, body.name.trim(), slug);
+  await writeAuditLog(c.env.DB, org.id, user.id, "admin.org_created", "organization", org.id, {
+    ownerUserId: owner.id,
+    ownerEmail: owner.email,
+  });
+
+  return c.json({ organization: org, owner }, 201);
+});
+
 adminRoutes.get("/organizations/:orgId", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
@@ -181,6 +269,104 @@ adminRoutes.patch("/organizations/:orgId", async (c) => {
 
   const subscription = await getOrgSubscription(c.env.DB, orgId);
   return c.json({ ok: true, subscription });
+});
+
+adminRoutes.patch("/organizations/:orgId/members/:userId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const admin = await requirePlatformAdmin(c, user.id);
+  if (admin instanceof Response) return admin;
+
+  const orgId = c.req.param("orgId");
+  const targetUserId = c.req.param("userId");
+  const body = await c.req.json<{ role?: string; status?: string }>();
+
+  const target = await c.env.DB.prepare(
+    "SELECT role, status FROM memberships WHERE organization_id = ? AND user_id = ?",
+  )
+    .bind(orgId, targetUserId)
+    .first<{ role: string; status: string }>();
+  if (!target) return c.json({ error: "Member not found" }, 404);
+
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  if (body.role) {
+    updates.push("role = ?");
+    values.push(body.role);
+  }
+  if (body.status) {
+    updates.push("status = ?");
+    values.push(body.status);
+  }
+  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
+
+  values.push(orgId, targetUserId);
+  await c.env.DB.prepare(`UPDATE memberships SET ${updates.join(", ")} WHERE organization_id = ? AND user_id = ?`)
+    .bind(...values)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "admin.member_updated", "membership", targetUserId, body);
+  return c.json({ ok: true });
+});
+
+adminRoutes.delete("/organizations/:orgId/members/:userId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const admin = await requirePlatformAdmin(c, user.id);
+  if (admin instanceof Response) return admin;
+
+  const orgId = c.req.param("orgId");
+  const targetUserId = c.req.param("userId");
+  const owner = await c.env.DB.prepare("SELECT owner_id FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ owner_id: string }>();
+  if (!owner) return c.json({ error: "Organization not found" }, 404);
+  if (owner.owner_id === targetUserId) return c.json({ error: "Cannot remove current owner" }, 400);
+
+  await c.env.DB.prepare("DELETE FROM memberships WHERE organization_id = ? AND user_id = ?")
+    .bind(orgId, targetUserId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "admin.member_removed", "membership", targetUserId);
+  return c.json({ ok: true });
+});
+
+adminRoutes.patch("/organizations/:orgId/owner", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const admin = await requirePlatformAdmin(c, user.id);
+  if (admin instanceof Response) return admin;
+
+  const orgId = c.req.param("orgId");
+  const body = await c.req.json<{ newOwnerUserId?: string }>();
+  if (!body.newOwnerUserId) return c.json({ error: "newOwnerUserId required" }, 400);
+
+  const newOwner = await c.env.DB.prepare(
+    "SELECT user_id FROM memberships WHERE organization_id = ? AND user_id = ? AND status = 'active'",
+  )
+    .bind(orgId, body.newOwnerUserId)
+    .first<{ user_id: string }>();
+  if (!newOwner) return c.json({ error: "New owner must be an active member" }, 400);
+
+  const prev = await c.env.DB.prepare("SELECT owner_id FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ owner_id: string }>();
+  if (!prev) return c.json({ error: "Organization not found" }, 404);
+
+  await c.env.DB.prepare("UPDATE organizations SET owner_id = ?, updated_at = ? WHERE id = ?")
+    .bind(body.newOwnerUserId, now(), orgId)
+    .run();
+  await c.env.DB.prepare(
+    "UPDATE memberships SET role = CASE WHEN user_id = ? THEN 'owner' WHEN user_id = ? AND role = 'owner' THEN 'admin' ELSE role END WHERE organization_id = ?",
+  )
+    .bind(body.newOwnerUserId, prev.owner_id, orgId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "admin.owner_transferred", "organization", orgId, {
+    previousOwnerUserId: prev.owner_id,
+    newOwnerUserId: body.newOwnerUserId,
+  });
+  return c.json({ ok: true });
 });
 
 adminRoutes.get("/users", async (c) => {
