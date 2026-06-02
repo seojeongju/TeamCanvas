@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { handle } from "hono/cloudflare-pages";
 import type { Env } from "../types";
 import { requireAuth } from "../utils/auth";
-import { requireOrgPermission, requirePlatformAdmin } from "../utils/permissions";
+import { requireOrgPermission } from "../utils/permissions";
 import { requireOrgFeature } from "../utils/subscriptions";
 import {
   createOrganization,
@@ -49,10 +49,6 @@ app.get("/organizations", async (c) => {
 app.post("/organizations", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
-  const admin = await requirePlatformAdmin(c, user.id);
-  if (admin instanceof Response) {
-    return c.json({ error: "Organization creation is restricted to platform admins." }, 403);
-  }
 
   const body = await c.req.json<{ name: string; slug?: string }>();
   if (!body.name?.trim()) return c.json({ error: "name required" }, 400);

@@ -11,7 +11,6 @@ import { useCreateOrganization } from "../hooks/useAuth";
 export function OnboardingPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const organizations = useAuthStore((s) => s.organizations);
-  const isPlatformAdmin = useAuthStore((s) => s.isPlatformAdmin);
   const createOrg = useCreateOrganization();
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -33,47 +32,29 @@ export function OnboardingPage() {
           <Building2 className="h-8 w-8 text-primary-500" />
         </div>
         <PageHeader
-          title={isPlatformAdmin ? "조직 만들기" : "초대 대기"}
-          subtitle={
-            isPlatformAdmin
-              ? "플랫폼 관리자 권한으로 새 조직을 생성할 수 있습니다"
-              : "초대 링크를 통해 조직에 참여해주세요"
-          }
+          title="조직 만들기"
+          subtitle="로그인한 사용자는 조직 1개를 생성할 수 있습니다"
           className="flex-col items-center text-center"
         />
       </div>
 
       <GlassCard className="p-6">
-        {isPlatformAdmin ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="조직 이름"
-              placeholder="예: TeamCanvas Inc."
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoFocus
-            />
-            <Button type="submit" fullWidth disabled={createOrg.isPending}>
-              {createOrg.isPending ? "생성 중..." : "시작하기"}
-            </Button>
-            <p className="text-xs text-navy-600">
-              정책: 한 사용자는 하나의 조직만 소속될 수 있습니다.
-            </p>
-          </form>
-        ) : (
-          <div className="space-y-3 text-center">
-            <p className="text-sm text-navy-700">
-              현재 계정은 조직에 속해 있지 않습니다.
-            </p>
-            <p className="text-xs text-navy-600">
-              조직 관리자에게 초대 링크를 요청한 후, 링크로 가입해주세요.
-            </p>
-            <Button type="button" fullWidth onClick={() => navigate("/login", { replace: true })}>
-              다른 계정으로 로그인
-            </Button>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="조직 이름"
+            placeholder="예: TeamCanvas Inc."
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoFocus
+          />
+          <Button type="submit" fullWidth disabled={createOrg.isPending}>
+            {createOrg.isPending ? "생성 중..." : "시작하기"}
+          </Button>
+          <p className="text-xs text-navy-600">
+            정책: 한 사용자는 하나의 조직만 소속될 수 있습니다.
+          </p>
+        </form>
       </GlassCard>
     </div>
   );

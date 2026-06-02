@@ -17,6 +17,16 @@ export function AdminDashboardPage() {
         <p className="text-sm text-navy-600">로딩 중...</p>
       ) : (
         <>
+          <GlassCard className="space-y-2 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-500">운영 정책</p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-primary-400/10 px-2 py-1 text-primary-600">로그인 사용자 조직 1개 생성</span>
+              <span className="rounded-full bg-primary-400/10 px-2 py-1 text-primary-600">초대/링크 가입 지원</span>
+              <span className="rounded-full bg-primary-400/10 px-2 py-1 text-primary-600">사용자 1인 1조직</span>
+              <span className="rounded-full bg-primary-400/10 px-2 py-1 text-primary-600">무료 플랜: 소유자+초대 3명</span>
+            </div>
+          </GlassCard>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
               icon={<Building2 className="h-5 w-5" />}

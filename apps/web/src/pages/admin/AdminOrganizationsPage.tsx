@@ -26,6 +26,16 @@ export function AdminOrganizationsPage() {
     <div className="space-y-6">
       <PageHeader title="조직 관리" subtitle="전체 테넌트 목록" />
 
+      <GlassCard className="space-y-2 p-4 text-xs">
+        <p className="font-semibold text-navy-900">정책 가이드</p>
+        <p className="text-navy-600">
+          로그인한 사용자는 조직 1개를 생성할 수 있습니다. 관리자 화면에서는 소유자 이메일을 지정해 조직을 대신 생성할 수 있습니다.
+        </p>
+        <p className="text-navy-600">
+          한 사용자는 하나의 활성 조직에만 소속될 수 있습니다. 무료 플랜은 소유자 포함 최대 4명(추가 초대 3명)입니다.
+        </p>
+      </GlassCard>
+
       <form
         className="flex gap-2"
         onSubmit={(e) => {

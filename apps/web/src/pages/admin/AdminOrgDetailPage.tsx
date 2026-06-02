@@ -30,6 +30,16 @@ export function AdminOrgDetailPage() {
     <div className="space-y-6">
       <PageHeader title={String(org.name)} subtitle={String(org.slug)} />
 
+      <GlassCard className="space-y-1 p-4 text-xs">
+        <p className="font-semibold text-navy-900">조직 정책</p>
+        <p className="text-navy-600">
+          이 조직의 멤버는 다른 활성 조직에 중복 소속될 수 없습니다.
+        </p>
+        <p className="text-navy-600">
+          무료 플랜일 경우 소유자 포함 최대 4명(초대 3명)까지 허용됩니다.
+        </p>
+      </GlassCard>
+
       <GlassCard className="space-y-4 p-5">
         <h2 className="font-semibold text-navy-900">구독 · 플랜</h2>
         <p className="text-sm text-navy-600">
