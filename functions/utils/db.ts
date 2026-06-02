@@ -47,6 +47,45 @@ export async function upsertOAuthUser(
     return toAuthUser(user!);
   }
 
+  // If an email account already exists, link this OAuth provider to that user.
+  // This prevents UNIQUE(email) violations and lets existing users use social login.
+  if (profile.email) {
+    const byEmail = await db
+      .prepare("SELECT id FROM users WHERE email = ?")
+      .bind(profile.email)
+      .first<{ id: string }>();
+
+    if (byEmail) {
+      await db
+        .prepare(
+          "UPDATE users SET name = ?, avatar_url = COALESCE(?, avatar_url), email_verified = 1, updated_at = ? WHERE id = ?",
+        )
+        .bind(profile.name, profile.avatarUrl ?? null, now(), byEmail.id)
+        .run();
+
+      await db
+        .prepare(
+          `INSERT INTO oauth_accounts (id, user_id, provider, provider_user_id)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(provider, provider_user_id) DO NOTHING`,
+        )
+        .bind(newId(), byEmail.id, provider, providerUserId)
+        .run();
+
+      const user = await db
+        .prepare("SELECT id, email, name, avatar_url, email_verified FROM users WHERE id = ?")
+        .bind(byEmail.id)
+        .first<{
+          id: string;
+          email: string | null;
+          name: string;
+          avatar_url: string | null;
+          email_verified: number;
+        }>();
+      return toAuthUser(user!);
+    }
+  }
+
   const userId = newId();
   const ts = now();
   await db
