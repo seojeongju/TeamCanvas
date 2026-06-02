@@ -66,10 +66,6 @@ export function LoginPage() {
 
   const isPending = emailLogin.isPending || emailRegister.isPending;
 
-  const handleOAuth = (provider: "google" | "kakao") => {
-    window.location.href = oauthUrl(provider);
-  };
-
   const afterAuth = (organizations: { length: number }) => {
     if (redirectAfterLogin?.startsWith("/")) {
       navigate(redirectAfterLogin, { replace: true });
@@ -211,26 +207,20 @@ export function LoginPage() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button
-              variant="google"
-              fullWidth
-              type="button"
-              disabled={providers !== undefined && !providers.google}
-              onClick={() => handleOAuth("google")}
+            <a
+              href={oauthUrl("google")}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-white px-5 py-3 text-[15px] font-semibold text-navy-800 shadow-soft transition-all duration-200 hover:bg-sky-50 active:scale-[0.98]"
             >
               <GoogleIcon />
               Google로 계속하기
-            </Button>
-            <Button
-              variant="kakao"
-              fullWidth
-              type="button"
-              disabled={providers !== undefined && !providers.kakao}
-              onClick={() => handleOAuth("kakao")}
+            </a>
+            <a
+              href={oauthUrl("kakao")}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#FEE500] px-5 py-3 text-[15px] font-semibold text-[#191919] transition-all duration-200 hover:bg-[#F5DC00] active:scale-[0.98]"
             >
               <KakaoIcon />
               카카오로 계속하기
-            </Button>
+            </a>
             {providers && !providers.google && !providers.kakao && (
               <p className="text-center text-xs text-navy-600">
                 소셜 로그인은 서버에 OAuth 키 설정 후 사용할 수 있습니다.
