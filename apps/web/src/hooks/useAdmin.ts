@@ -52,6 +52,15 @@ export function useOrgInvites() {
   });
 }
 
+export function useRevokeOrgInvite() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (inviteId: string) => api.revokeOrgInvite(orgId!, inviteId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["invites", orgId] }),
+  });
+}
+
 export function useAuditLogs() {
   const orgId = useCurrentOrgId();
   return useQuery({
@@ -230,7 +239,7 @@ export function useAdminBootstrap() {
       setAuth(me.user, me.organizations, {
         isPlatformAdmin: me.isPlatformAdmin,
         platformRole: me.platformRole,
-          sessionExpiresAt: me.sessionExpiresAt ?? null,
+        sessionExpiresAt: me.sessionExpiresAt ?? null,
       });
       qc.invalidateQueries({ queryKey: ["auth"] });
     },

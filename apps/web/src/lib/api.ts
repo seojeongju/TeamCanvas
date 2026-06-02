@@ -167,6 +167,9 @@ export const api = {
   getOrgInvites: (orgId: string) =>
     request<{ invites: Record<string, unknown>[] }>(`/api/organizations/${orgId}/invites`),
 
+  revokeOrgInvite: (orgId: string, inviteId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/invites/${inviteId}`, { method: "DELETE" }),
+
   getInvite: (token: string) =>
     request<{
       valid: boolean;

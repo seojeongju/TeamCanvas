@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, CreditCard, Link2, Copy, ScrollText } from "lucide-react";
+import { Users, Shield, CreditCard, Link2, Copy, ScrollText, X } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
+import { ToastMessage } from "../../components/ui/ToastMessage";
 import {
   useOrgMembers,
   useInviteOrgMember,
   useCreateInviteLink,
   useOrgInvites,
+  useRevokeOrgInvite,
   useBillingHistory,
   useOrgSubscriptionDetail,
   useStartCheckout,
@@ -33,9 +35,17 @@ export function MembersPage() {
   const { data: invitesData } = useOrgInvites();
   const invite = useInviteOrgMember();
   const createLink = useCreateInviteLink();
+  const revokeInvite = useRevokeOrgInvite();
   const [email, setEmail] = useState("");
   const [linkEmail, setLinkEmail] = useState("");
   const [lastLink, setLastLink] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +53,9 @@ export function MembersPage() {
     try {
       await invite.mutateAsync({ email: email.trim(), role: "member" });
       setEmail("");
+      setToast({ tone: "info", message: "멤버 초대를 완료했습니다." });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "초대 실패");
+      setToast({ tone: "error", message: err instanceof Error ? err.message : "초대 실패" });
     }
   };
 
@@ -55,13 +66,38 @@ export function MembersPage() {
       );
       setLastLink(res.inviteUrl);
       if (res.email?.devLink) setLastLink(res.email.devLink);
+      setToast({ tone: "info", message: "초대 링크를 생성했습니다." });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "링크 생성 실패");
+      setToast({ tone: "error", message: err instanceof Error ? err.message : "링크 생성 실패" });
     }
   };
 
   const copyLink = () => {
-    if (lastLink) navigator.clipboard.writeText(lastLink);
+    if (!lastLink) return;
+    navigator.clipboard.writeText(lastLink);
+    setToast({ tone: "info", message: "초대 링크를 복사했습니다." });
+  };
+
+  const formatRemaining = (expiresAt: number) => {
+    const diff = Math.max(0, expiresAt - Date.now());
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    if (days > 0) return `${days}일 ${hours}시간 남음`;
+    const minutes = Math.max(1, Math.floor(diff / (60 * 1000)));
+    return `${minutes}분 남음`;
+  };
+
+  const handleReissue = async (inv: Record<string, unknown>) => {
+    const email = typeof inv.email === "string" ? inv.email : undefined;
+    const role = typeof inv.role === "string" ? inv.role : undefined;
+    try {
+      await revokeInvite.mutateAsync(String(inv.id));
+      const res = await createLink.mutateAsync({ email, role });
+      setLastLink(res.email?.devLink ?? res.inviteUrl);
+      setToast({ tone: "info", message: "초대를 재발급했습니다." });
+    } catch (err) {
+      setToast({ tone: "error", message: err instanceof Error ? err.message : "재발급 실패" });
+    }
   };
 
   return (
@@ -124,10 +160,40 @@ export function MembersPage() {
       {(invitesData?.invites ?? []).length > 0 && (
         <GlassCard className="p-4">
           <p className="mb-2 text-sm font-medium text-navy-800">대기 중인 초대</p>
-          <ul className="space-y-1 text-xs text-navy-600">
+          <ul className="space-y-2 text-xs text-navy-600">
             {invitesData!.invites.map((inv) => (
-              <li key={String(inv.id)}>
-                {String(inv.email ?? "링크 초대")} · {roleLabels[String(inv.role)] ?? String(inv.role)}
+              <li key={String(inv.id)} className="flex items-center justify-between gap-2 rounded-lg bg-navy-800/5 px-2 py-2">
+                <div className="min-w-0">
+                  <p className="truncate">
+                    {String(inv.email ?? "링크 초대")} · {roleLabels[String(inv.role)] ?? String(inv.role)}
+                  </p>
+                  {typeof inv.expires_at === "number" && (
+                    <p className="mt-0.5 text-[11px] text-navy-500">
+                      만료: {new Date(inv.expires_at).toLocaleString("ko-KR")} ({formatRemaining(inv.expires_at)})
+                    </p>
+                  )}
+                </div>
+                {canManage && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="rounded-md px-2 py-1 text-[11px] text-primary-600 hover:bg-primary-50"
+                      onClick={() => handleReissue(inv as Record<string, unknown>)}
+                      disabled={revokeInvite.isPending || createLink.isPending}
+                    >
+                      재발급
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1 text-red-500 hover:bg-red-50"
+                      aria-label="초대 취소"
+                      onClick={() => revokeInvite.mutate(String(inv.id))}
+                      disabled={revokeInvite.isPending}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -172,6 +238,14 @@ export function MembersPage() {
         <ScrollText className="h-5 w-5 text-primary-500" />
         <span className="text-sm font-medium text-navy-900">감사 로그</span>
       </button>
+
+      {toast && (
+        <ToastMessage
+          message={toast.message}
+          tone={toast.tone}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
@@ -381,18 +455,11 @@ export function BillingPage() {
       </GlassCard>
 
       {toast && (
-        <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
-          <div
-            className={`w-full max-w-lg rounded-2xl px-4 py-3 text-sm text-white shadow-lg ${
-              toast.tone === "error" ? "bg-red-500/95" : "bg-navy-900/95"
-            }`}
-            role="status"
-            aria-live="polite"
-            onClick={() => setToast(null)}
-          >
-            {toast.message}
-          </div>
-        </div>
+        <ToastMessage
+          message={toast.message}
+          tone={toast.tone}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

@@ -152,3 +152,18 @@ export async function listOrgInvites(db: D1Database, orgId: string) {
     .all();
   return results ?? [];
 }
+
+export async function revokeOrgInvite(
+  db: D1Database,
+  orgId: string,
+  inviteId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `DELETE FROM org_invites
+       WHERE id = ? AND organization_id = ? AND accepted_at IS NULL`,
+    )
+    .bind(inviteId, orgId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}

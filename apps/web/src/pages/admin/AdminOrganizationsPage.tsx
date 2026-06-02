@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Search, ChevronRight } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
+import { ToastMessage } from "../../components/ui/ToastMessage";
 import { useAdminCreateOrganization, useAdminOrganizations } from "../../hooks/useAdmin";
 
 const statusColors: Record<string, string> = {
@@ -19,8 +20,15 @@ export function AdminOrganizationsPage() {
   const [search, setSearch] = useState("");
   const [newOrgName, setNewOrgName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
   const { data, isLoading } = useAdminOrganizations(search);
   const createOrg = useAdminCreateOrganization();
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   return (
     <div className="space-y-6">
@@ -83,8 +91,9 @@ export function AdminOrganizationsPage() {
               await createOrg.mutateAsync({ name: newOrgName.trim(), ownerEmail: ownerEmail.trim() });
               setNewOrgName("");
               setOwnerEmail("");
+              setToast({ tone: "info", message: "조직을 생성했습니다." });
             } catch (err) {
-              alert(err instanceof Error ? err.message : "조직 생성 실패");
+              setToast({ tone: "error", message: err instanceof Error ? err.message : "조직 생성 실패" });
             }
           }}
           className="rounded-xl bg-primary-400 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
@@ -117,6 +126,14 @@ export function AdminOrganizationsPage() {
             </Link>
           ))}
         </div>
+      )}
+
+      {toast && (
+        <ToastMessage
+          message={toast.message}
+          tone={toast.tone}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

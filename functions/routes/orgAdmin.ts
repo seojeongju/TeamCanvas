@@ -283,6 +283,22 @@ orgAdminRoutes.post("/organizations/:orgId/invites", async (c) => {
   return c.json({ inviteUrl, expiresAt, email: emailResult }, 201);
 });
 
+orgAdminRoutes.delete("/organizations/:orgId/invites/:inviteId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const inviteId = c.req.param("inviteId");
+  const access = await requireOrgPermission(c, user.id, orgId, "members:manage");
+  if (access instanceof Response) return access;
+
+  const { revokeOrgInvite } = await import("../utils/invites");
+  const revoked = await revokeOrgInvite(c.env.DB, orgId, inviteId);
+  if (!revoked) return c.json({ error: "Invite not found" }, 404);
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "invite.revoked", "org_invite", inviteId);
+  return c.json({ ok: true });
+});
+
 orgAdminRoutes.get("/invites/:token", async (c) => {
   const { findValidInvite } = await import("../utils/invites");
   const invite = await findValidInvite(c.env.DB, c.req.param("token"));
