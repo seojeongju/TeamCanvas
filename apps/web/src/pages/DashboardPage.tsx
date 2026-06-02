@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { CalendarDays, CheckSquare, Users, TrendingUp, ChevronRight, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { CalendarDays, CheckSquare, Users, TrendingUp, ChevronRight, Plus, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { StatCard } from "../components/ui/StatCard";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { useAuthStore } from "../stores/authStore";
 import { useOrgDetail, useTodayEvents, useTasks } from "../hooks/useData";
+import { useLogout } from "../hooks/useAuth";
 import { colorClass } from "../lib/dates";
 
 export function DashboardPage() {
@@ -15,6 +16,8 @@ export function DashboardPage() {
   const { data: eventsData } = useTodayEvents();
   const { data: tasksData } = useTasks();
   const [showCreate, setShowCreate] = useState(false);
+  const logout = useLogout();
+  const navigate = useNavigate();
 
   const org = orgData?.organization;
   const stats = orgData?.stats;
@@ -28,6 +31,20 @@ export function DashboardPage() {
       <PageHeader
         title={`안녕하세요, ${firstName}님`}
         subtitle={org?.name ?? "조직"}
+        action={
+          <button
+            type="button"
+            onClick={async () => {
+              await logout.mutateAsync();
+              navigate("/login", { replace: true });
+            }}
+            disabled={logout.isPending}
+            className="glass flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-white/90 disabled:opacity-50"
+          >
+            <LogOut className="h-4 w-4" />
+            {logout.isPending ? "..." : "로그아웃"}
+          </button>
+        }
       />
 
       <GlassCard className="overflow-hidden p-5">

@@ -69,7 +69,19 @@ export function MorePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="더보기" />
+      <PageHeader
+        title="더보기"
+        action={
+          <button
+            onClick={handleLogout}
+            disabled={logout.isPending}
+            className="glass flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-red-500 hover:bg-red-50/60 disabled:opacity-50"
+          >
+            <LogOut className="h-4 w-4" />
+            {logout.isPending ? "..." : "로그아웃"}
+          </button>
+        }
+      />
 
       <GlassCard className="flex items-center gap-4 p-5">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-400 text-xl font-bold text-white shadow-glow">
