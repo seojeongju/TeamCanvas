@@ -22,14 +22,21 @@
 
 @layer base {
   html {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
     margin: 0;
+    width: 100%;
     min-height: 100dvh;
+    overflow-x: hidden;
     color: var(--color-navy-800);
     background: linear-gradient(
       165deg,

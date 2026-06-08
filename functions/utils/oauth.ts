@@ -9,9 +9,36 @@ export function oauthRedirectUri(c: Context<{ Bindings: Env }>, provider: "googl
   return `${base}/auth/callback/${provider}`;
 }
 
+export function htmlRedirect(url: string, title = "이동 중…"): Response {
+  const safeUrl = JSON.stringify(url);
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
+  <title>${title}</title>
+  <style>
+    body { margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+      font-family: system-ui, sans-serif; background: #f0f7ff; color: #1e3a5f; }
+  </style>
+</head>
+<body>
+  <p>${title}</p>
+  <script>location.replace(${safeUrl})</script>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export function loginRedirect(c: Context<{ Bindings: Env }>, error: string): Response {
   const url = `${frontendUrl(c.req.raw, c.env)}/login?error=${encodeURIComponent(error)}`;
-  return c.redirect(url);
+  return htmlRedirect(url, "로그인 페이지로 이동 중…");
 }
 
 export async function completeOAuthLogin(
@@ -22,7 +49,8 @@ export async function completeOAuthLogin(
   await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
-  return c.redirect(`${frontendUrl(c.req.raw, c.env)}${path}`);
+  const url = `${frontendUrl(c.req.raw, c.env)}${path}`;
+  return htmlRedirect(url, "로그인 중…");
 }
 
 export const OAUTH_ERROR_MESSAGES: Record<string, string> = {
