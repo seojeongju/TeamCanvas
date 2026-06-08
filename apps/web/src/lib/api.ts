@@ -95,9 +95,39 @@ export const api = {
     );
   },
 
+  getTeams: (orgId: string) =>
+    request<{ teams: import("./types").Team[] }>(`/api/organizations/${orgId}/teams`),
+
   getEventParticipants: (orgId: string) =>
     request<{ participants: { id: string; name: string; email: string | null }[] }>(
       `/api/organizations/${orgId}/event-participants`,
+    ),
+
+  getFreeBusy: (orgId: string, userIds: string[], from?: number, to?: number) => {
+    const params = new URLSearchParams();
+    params.set("userIds", userIds.join(","));
+    if (from) params.set("from", String(from));
+    if (to) params.set("to", String(to));
+    return request<{
+      from: number;
+      to: number;
+      users: Record<string, import("./types").FreeBusyUser>;
+    }>(`/api/organizations/${orgId}/free-busy?${params}`);
+  },
+
+  suggestEventTimes: (
+    orgId: string,
+    data: {
+      prompt?: string;
+      durationMinutes?: number;
+      attendeeUserIds?: string[];
+      from?: number;
+      to?: number;
+    },
+  ) =>
+    request<{ suggestions: import("./types").EventSuggestion[]; aiUsed: boolean }>(
+      `/api/organizations/${orgId}/events/suggest`,
+      { method: "POST", body: JSON.stringify(data) },
     ),
 
   createEvent: (
@@ -108,6 +138,8 @@ export const api = {
       endAt: number;
       allDay?: boolean;
       description?: string;
+      location?: string;
+      teamId?: string | null;
       color?: string;
       visibility?: "private" | "team" | "org";
       attendeeUserIds?: string[];
@@ -147,6 +179,31 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+
+  updateEvent: (
+    eventId: string,
+    data: {
+      title: string;
+      startAt: number;
+      endAt: number;
+      allDay?: boolean;
+      description?: string;
+      location?: string;
+      teamId?: string | null;
+      color?: string;
+      visibility?: "private" | "team" | "org";
+      attendeeUserIds?: string[];
+      reminderMinutes?: number[];
+      recurrenceRule?: string | null;
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteEvent: (eventId: string) =>
+    request<{ ok: boolean }>(`/api/events/${eventId}`, { method: "DELETE" }),
 
   createTask: (
     orgId: string,

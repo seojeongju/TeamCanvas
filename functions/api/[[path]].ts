@@ -20,6 +20,8 @@ import {
   endOfDay,
   formatEventTime,
 } from "../utils/helpers";
+import { getUserBusyBlocks } from "../utils/freeBusy";
+import { enhanceWithAi, findFreeSlots } from "../utils/eventSuggestions";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
@@ -90,6 +92,33 @@ app.get("/organizations/:orgId", async (c) => {
   return c.json({ organization: { ...org, role: member.role }, stats });
 });
 
+app.get("/organizations/:orgId/teams", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (member instanceof Response) return member;
+
+  const isAdmin = member.role === "owner" || member.role === "admin";
+  const { results } = isAdmin
+    ? await c.env.DB.prepare(
+        `SELECT id, name, color FROM teams WHERE organization_id = ? ORDER BY name`,
+      )
+        .bind(orgId)
+        .all()
+    : await c.env.DB.prepare(
+        `SELECT t.id, t.name, t.color
+         FROM teams t
+         INNER JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+         WHERE t.organization_id = ?
+         ORDER BY t.name`,
+      )
+        .bind(user.id, orgId)
+        .all();
+
+  return c.json({ teams: results ?? [] });
+});
+
 // ── Events ──
 
 app.get("/organizations/:orgId/events", async (c) => {
@@ -140,6 +169,8 @@ app.get("/organizations/:orgId/events", async (c) => {
       allDay: Boolean(r.all_day),
       visibility: r.visibility,
       recurrenceRule: r.recurrence_rule,
+      location: r.location ?? null,
+      teamId: r.team_id ?? null,
       color: r.color ?? "#4A9FE8",
       teamName: r.team_name ?? "조직",
       time: formatEventTime(r.start_at as number, r.end_at as number, Boolean(r.all_day)),
@@ -182,6 +213,7 @@ app.post("/organizations/:orgId/events", async (c) => {
   const body = await c.req.json<{
     title: string;
     description?: string;
+    location?: string;
     startAt: number;
     endAt: number;
     allDay?: boolean;
@@ -207,10 +239,10 @@ app.post("/organizations/:orgId/events", async (c) => {
 
   await c.env.DB.prepare(
     `INSERT INTO events (
-      id, organization_id, team_id, creator_id, title, description,
+      id, organization_id, team_id, creator_id, title, description, location,
       start_at, end_at, all_day, visibility, recurrence_rule, color, created_at, updated_at
     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -219,6 +251,7 @@ app.post("/organizations/:orgId/events", async (c) => {
       user.id,
       body.title.trim(),
       body.description ?? null,
+      body.location?.trim() || null,
       body.startAt,
       body.endAt,
       body.allDay ? 1 : 0,
@@ -260,6 +293,85 @@ app.post("/organizations/:orgId/events", async (c) => {
   }
 
   return c.json({ id }, 201);
+});
+
+app.get("/organizations/:orgId/free-busy", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const userIdsParam = c.req.query("userIds") ?? "";
+  const userIds = userIdsParam
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (userIds.length === 0) {
+    return c.json({ error: "userIds required" }, 400);
+  }
+
+  const from = Number(c.req.query("from") ?? startOfDay(now()));
+  const to = Number(c.req.query("to") ?? endOfDay(now()) + 86400000 * 7);
+
+  const users: Record<string, { userId: string; blocks: Awaited<ReturnType<typeof getUserBusyBlocks>> }> = {};
+  for (const uid of userIds.slice(0, 20)) {
+    const memberCheck = await c.env.DB.prepare(
+      "SELECT 1 FROM memberships WHERE organization_id = ? AND user_id = ? AND status = 'active'",
+    )
+      .bind(orgId, uid)
+      .first();
+    if (!memberCheck) continue;
+    users[uid] = {
+      userId: uid,
+      blocks: await getUserBusyBlocks(c.env.DB, orgId, uid, user.id, from, to),
+    };
+  }
+
+  return c.json({ from, to, users });
+});
+
+app.post("/organizations/:orgId/events/suggest", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{
+    prompt?: string;
+    durationMinutes?: number;
+    attendeeUserIds?: string[];
+    from?: number;
+    to?: number;
+  }>();
+
+  const durationMinutes = Math.min(480, Math.max(15, body.durationMinutes ?? 60));
+  const from = body.from ?? startOfDay(now());
+  const to = body.to ?? endOfDay(now()) + 86400000 * 14;
+  const attendeeIds = Array.from(new Set([user.id, ...(body.attendeeUserIds ?? [])]));
+
+  const allBusy = [];
+  for (const uid of attendeeIds) {
+    const blocks = await getUserBusyBlocks(c.env.DB, orgId, uid, user.id, from, to);
+    allBusy.push(...blocks);
+  }
+
+  let slots = findFreeSlots(allBusy, from, to, durationMinutes, now());
+  const { slots: enhanced, aiUsed, suggestedTitle } = await enhanceWithAi(
+    c.env.AI,
+    body.prompt ?? "",
+    slots,
+  );
+  slots = enhanced;
+
+  return c.json({
+    suggestions: slots.map((s) => ({
+      ...s,
+      suggestedTitle: s.suggestedTitle ?? suggestedTitle,
+    })),
+    aiUsed,
+  });
 });
 
 app.get("/events/:eventId/attendees", async (c) => {
@@ -377,6 +489,108 @@ app.patch("/organizations/:orgId/reminders/:reminderId/delivered", async (c) => 
     .run();
 
   if ((result.meta.changes ?? 0) === 0) return c.json({ error: "Reminder not found" }, 404);
+  return c.json({ ok: true });
+});
+
+app.patch("/events/:eventId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare(
+    "SELECT organization_id, creator_id, start_at FROM events WHERE id = ?",
+  )
+    .bind(eventId)
+    .first<{ organization_id: string; creator_id: string; start_at: number }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{
+    title: string;
+    description?: string;
+    location?: string;
+    startAt: number;
+    endAt: number;
+    allDay?: boolean;
+    teamId?: string | null;
+    color?: string;
+    visibility?: "private" | "team" | "org";
+    attendeeUserIds?: string[];
+    reminderMinutes?: number[];
+    recurrenceRule?: string | null;
+  }>();
+
+  if (!body.title?.trim() || !body.startAt || !body.endAt) {
+    return c.json({ error: "title, startAt, endAt required" }, 400);
+  }
+
+  const orgId = event.organization_id;
+  const ts = now();
+  const visibility = body.visibility ?? (body.teamId ? "team" : "org");
+  const attendeeUserIds = Array.from(new Set((body.attendeeUserIds ?? []).filter(Boolean)));
+  const reminderMinutes = Array.from(
+    new Set((body.reminderMinutes ?? [10]).filter((m) => Number.isFinite(m) && m > 0 && m <= 10080)),
+  );
+
+  await c.env.DB.prepare(
+    `UPDATE events SET
+      title = ?, description = ?, location = ?, start_at = ?, end_at = ?,
+      all_day = ?, team_id = ?, color = ?, visibility = ?, recurrence_rule = ?, updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(
+      body.title.trim(),
+      body.description ?? null,
+      body.location?.trim() || null,
+      body.startAt,
+      body.endAt,
+      body.allDay ? 1 : 0,
+      body.teamId ?? null,
+      body.color ?? "#4A9FE8",
+      visibility,
+      body.recurrenceRule ?? null,
+      ts,
+      eventId,
+    )
+    .run();
+
+  const memberRows = await c.env.DB
+    .prepare("SELECT user_id FROM memberships WHERE organization_id = ? AND status = 'active'")
+    .bind(orgId)
+    .all<{ user_id: string }>();
+  const activeMembers = new Set((memberRows.results ?? []).map((m) => m.user_id));
+  const validAttendees = attendeeUserIds.filter((uid) => uid !== user.id && activeMembers.has(uid));
+
+  await c.env.DB.prepare("DELETE FROM event_attendees WHERE event_id = ?").bind(eventId).run();
+  for (const attendeeId of validAttendees) {
+    await c.env.DB
+      .prepare("INSERT OR IGNORE INTO event_attendees (event_id, user_id, rsvp) VALUES (?, ?, 'pending')")
+      .bind(eventId, attendeeId)
+      .run();
+  }
+
+  await c.env.DB
+    .prepare("DELETE FROM event_reminders WHERE event_id = ? AND delivered_at IS NULL")
+    .bind(eventId)
+    .run();
+
+  const reminderTargets = new Set<string>([event.creator_id, ...validAttendees]);
+  for (const targetUserId of reminderTargets) {
+    for (const minutes of reminderMinutes) {
+      const remindAt = body.startAt - minutes * 60 * 1000;
+      if (remindAt <= ts) continue;
+      await c.env.DB
+        .prepare(
+          `INSERT INTO event_reminders (id, event_id, organization_id, user_id, reminder_minutes, remind_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(newId(), eventId, orgId, targetUserId, minutes, remindAt, ts)
+        .run();
+    }
+  }
+
   return c.json({ ok: true });
 });
 

@@ -1,6 +1,9 @@
 export interface Env {
   DB: D1Database;
   FILES: R2Bucket;
+  AI?: {
+    run: (model: string, input: Record<string, unknown>) => Promise<unknown>;
+  };
   JWT_SECRET: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;

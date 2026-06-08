@@ -16,6 +16,7 @@ export function DashboardPage() {
   const { data: eventsData } = useTodayEvents();
   const { data: tasksData } = useTasks();
   const [showCreate, setShowCreate] = useState(false);
+  const [createPrefillDate, setCreatePrefillDate] = useState<Date | null>(null);
   const logout = useLogout();
   const navigate = useNavigate();
 
@@ -106,8 +107,18 @@ export function DashboardPage() {
           </Link>
         </div>
         {events.length === 0 ? (
-          <GlassCard className="p-6 text-center text-sm text-navy-600">
-            오늘 예정된 일정이 없습니다.
+          <GlassCard className="p-6 text-center">
+            <p className="text-sm text-navy-600">오늘 예정된 일정이 없습니다.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setCreatePrefillDate(new Date());
+                setShowCreate(true);
+              }}
+              className="mt-3 rounded-xl bg-primary-400/10 px-4 py-2 text-sm font-medium text-primary-600 hover:bg-primary-400/20"
+            >
+              + 일정 추가
+            </button>
           </GlassCard>
         ) : (
           <div className="space-y-2">
@@ -127,14 +138,25 @@ export function DashboardPage() {
       </section>
 
       <button
-        onClick={() => setShowCreate(true)}
+        type="button"
+        onClick={() => {
+          setCreatePrefillDate(new Date());
+          setShowCreate(true);
+        }}
         className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-400 text-white shadow-glow transition hover:bg-primary-500 active:scale-95"
         aria-label="일정 추가"
       >
         <Plus className="h-6 w-6" />
       </button>
 
-      <CreateEventModal open={showCreate} onClose={() => setShowCreate(false)} />
+      <CreateEventModal
+        open={showCreate}
+        onClose={() => {
+          setShowCreate(false);
+          setCreatePrefillDate(null);
+        }}
+        prefillDate={createPrefillDate}
+      />
     </div>
   );
 }

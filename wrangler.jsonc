@@ -16,5 +16,8 @@
       "binding": "FILES",
       "bucket_name": "teamcanvas-files"
     }
-  ]
+  ],
+  "ai": {
+    "binding": "AI"
+  }
 }

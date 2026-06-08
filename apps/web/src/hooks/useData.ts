@@ -21,6 +21,15 @@ export function useEvents(from?: number, to?: number) {
   });
 }
 
+export function useTeams() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["teams", orgId],
+    queryFn: () => api.getTeams(orgId!),
+    enabled: !!orgId,
+  });
+}
+
 export function useEventParticipants() {
   const orgId = useCurrentOrgId();
   return useQuery({
@@ -75,22 +84,73 @@ export function useTodayEvents() {
   return useEvents(from, to);
 }
 
+type EventPayload = {
+  title: string;
+  startAt: number;
+  endAt: number;
+  allDay?: boolean;
+  description?: string;
+  location?: string;
+  teamId?: string | null;
+  color?: string;
+  visibility?: "private" | "team" | "org";
+  attendeeUserIds?: string[];
+  reminderMinutes?: number[];
+  recurrenceRule?: string | null;
+};
+
 export function useCreateEvent() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();
 
   return useMutation({
+    mutationFn: (data: EventPayload) => api.createEvent(orgId!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["event-reminders"] });
+    },
+  });
+}
+
+export function useUpdateEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, ...data }: EventPayload & { eventId: string }) =>
+      api.updateEvent(eventId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["event-reminders"] });
+      qc.invalidateQueries({ queryKey: ["event-attendees"] });
+    },
+  });
+}
+
+export function useFreeBusy(userIds: string[], from?: number, to?: number) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["free-busy", orgId, userIds.join(","), from, to],
+    queryFn: () => api.getFreeBusy(orgId!, userIds, from, to),
+    enabled: !!orgId && userIds.length > 0 && !!from && !!to,
+  });
+}
+
+export function useSuggestEventTimes() {
+  const orgId = useCurrentOrgId();
+  return useMutation({
     mutationFn: (data: {
-      title: string;
-      startAt: number;
-      endAt: number;
-      allDay?: boolean;
-      description?: string;
-      visibility?: "private" | "team" | "org";
+      prompt?: string;
+      durationMinutes?: number;
       attendeeUserIds?: string[];
-      reminderMinutes?: number[];
-      recurrenceRule?: string | null;
-    }) => api.createEvent(orgId!, data),
+      from?: number;
+      to?: number;
+    }) => api.suggestEventTimes(orgId!, data),
+  });
+}
+
+export function useDeleteEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: string) => api.deleteEvent(eventId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["event-reminders"] });

@@ -38,18 +38,46 @@ export type OrgStats = {
   teams: number;
 };
 
+export type Team = {
+  id: string;
+  name: string;
+  color: string;
+};
+
 export type CalendarEvent = {
   id: string;
   title: string;
   description?: string | null;
+  location?: string | null;
   startAt: number;
   endAt: number;
   allDay: boolean;
   visibility?: "private" | "team" | "org" | string;
   recurrenceRule?: string | null;
+  teamId?: string | null;
   color: string;
   teamName: string;
   time: string;
+};
+
+export type BusyBlock = {
+  startAt: number;
+  endAt: number;
+  allDay: boolean;
+  title: string | null;
+};
+
+export type FreeBusyUser = {
+  userId: string;
+  blocks: BusyBlock[];
+};
+
+export type EventSuggestion = {
+  startAt: number;
+  endAt: number;
+  score: number;
+  reason: string;
+  suggestedTitle?: string;
 };
 
 export type EventReminder = {
