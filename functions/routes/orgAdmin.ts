@@ -95,7 +95,9 @@ orgAdminRoutes.get("/organizations/:orgId/settings", async (c) => {
   if (access instanceof Response) return access;
 
   const org = await c.env.DB.prepare(
-    "SELECT id, name, slug, timezone, logo_r2_key, settings_json FROM organizations WHERE id = ?",
+    `SELECT id, name, slug, timezone, logo_r2_key, settings_json, status,
+            deactivated_at, delete_scheduled_at
+     FROM organizations WHERE id = ?`,
   )
     .bind(orgId)
     .first<{
@@ -105,6 +107,9 @@ orgAdminRoutes.get("/organizations/:orgId/settings", async (c) => {
       timezone: string;
       logo_r2_key: string | null;
       settings_json: string | null;
+      status: string;
+      deactivated_at: number | null;
+      delete_scheduled_at: number | null;
     }>();
 
   if (!org) return c.json({ error: "Not found" }, 404);
@@ -115,6 +120,9 @@ orgAdminRoutes.get("/organizations/:orgId/settings", async (c) => {
       name: org.name,
       slug: org.slug,
       timezone: org.timezone,
+      status: org.status,
+      deactivatedAt: org.deactivated_at,
+      deleteScheduledAt: org.delete_scheduled_at,
       hasLogo: Boolean(org.logo_r2_key),
       settings: parseOrgSettings(org.settings_json),
     },
@@ -129,7 +137,11 @@ orgAdminRoutes.patch("/organizations/:orgId/settings", async (c) => {
   const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
   if (access instanceof Response) return access;
 
-  const body = await c.req.json<{ workHours?: { start?: string; end?: string }; workDays?: number[] }>();
+  const body = await c.req.json<{
+    workHours?: { start?: string; end?: string };
+    workDays?: number[];
+    calendarPolicy?: "own_teams" | "all_teams";
+  }>();
   const org = await c.env.DB.prepare("SELECT settings_json FROM organizations WHERE id = ?")
     .bind(orgId)
     .first<{ settings_json: string | null }>();
@@ -1143,6 +1155,372 @@ orgAdminRoutes.delete("/organizations/:orgId/departments/:deptId", async (c) => 
 
   await c.env.DB.prepare("DELETE FROM departments WHERE id = ?").bind(deptId).run();
   await writeAuditLog(c.env.DB, orgId, user.id, "department.deleted", "department", deptId);
+  return c.json({ ok: true });
+});
+
+// ── Organization lifecycle ──
+
+const DELETION_GRACE_MS = 30 * 86400000;
+
+orgAdminRoutes.post("/organizations/:orgId/deactivate", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+  if (access.role !== "owner") return c.json({ error: "Only owner can deactivate organization" }, 403);
+
+  const org = await c.env.DB.prepare("SELECT status FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ status: string }>();
+  if (!org) return c.json({ error: "Not found" }, 404);
+  if (org.status === "pending_deletion") {
+    return c.json({ error: "Organization already scheduled for deletion" }, 400);
+  }
+
+  const ts = now();
+  const deleteAt = ts + DELETION_GRACE_MS;
+  await c.env.DB.prepare(
+    `UPDATE organizations SET status = 'pending_deletion', deactivated_at = ?, delete_scheduled_at = ?, updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(ts, deleteAt, ts, orgId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "org.deactivate_scheduled", "organization", orgId, {
+    deleteScheduledAt: deleteAt,
+  });
+  return c.json({ ok: true, deleteScheduledAt: deleteAt });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/reactivate", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+  if (access.role !== "owner") return c.json({ error: "Only owner can reactivate organization" }, 403);
+
+  const org = await c.env.DB.prepare(
+    "SELECT status, delete_scheduled_at FROM organizations WHERE id = ?",
+  )
+    .bind(orgId)
+    .first<{ status: string; delete_scheduled_at: number | null }>();
+  if (!org) return c.json({ error: "Not found" }, 404);
+  if (org.status !== "pending_deletion") {
+    return c.json({ error: "Organization is not scheduled for deletion" }, 400);
+  }
+
+  const ts = now();
+  await c.env.DB.prepare(
+    `UPDATE organizations SET status = 'active', deactivated_at = NULL, delete_scheduled_at = NULL, updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(ts, orgId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "org.reactivated", "organization", orgId);
+  return c.json({ ok: true });
+});
+
+// ── Team creation requests ──
+
+orgAdminRoutes.get("/organizations/:orgId/team-requests", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "teams:read");
+  if (access instanceof Response) return access;
+
+  const isAdmin = access.role === "owner" || access.role === "admin";
+  const { results } = isAdmin
+    ? await c.env.DB.prepare(
+        `SELECT r.*, u.name as requester_name
+         FROM team_creation_requests r
+         JOIN users u ON u.id = r.requester_id
+         WHERE r.organization_id = ?
+         ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.created_at DESC`,
+      )
+        .bind(orgId)
+        .all()
+    : await c.env.DB.prepare(
+        `SELECT r.*, u.name as requester_name
+         FROM team_creation_requests r
+         JOIN users u ON u.id = r.requester_id
+         WHERE r.organization_id = ? AND r.requester_id = ?
+         ORDER BY r.created_at DESC`,
+      )
+        .bind(orgId, user.id)
+        .all();
+
+  const requests = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      color: r.color,
+      departmentId: r.department_id,
+      status: r.status,
+      requesterId: r.requester_id,
+      requesterName: r.requester_name,
+      rejectReason: r.reject_reason,
+      createdAt: r.created_at,
+      reviewedAt: r.reviewed_at,
+    };
+  });
+
+  return c.json({ requests });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/team-requests", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "teams:read");
+  if (access instanceof Response) return access;
+  if (access.role === "owner" || access.role === "admin") {
+    return c.json({ error: "Admins can create teams directly" }, 400);
+  }
+
+  const body = await c.req.json<{
+    name: string;
+    description?: string;
+    color?: string;
+    departmentId?: string | null;
+  }>();
+  const name = body.name?.trim();
+  if (!name) return c.json({ error: "name required" }, 400);
+
+  const pending = await c.env.DB.prepare(
+    `SELECT id FROM team_creation_requests
+     WHERE organization_id = ? AND requester_id = ? AND status = 'pending'`,
+  )
+    .bind(orgId, user.id)
+    .first();
+  if (pending) return c.json({ error: "You already have a pending team request" }, 409);
+
+  const color = body.color?.trim() || "#4A9FE8";
+  if (!isValidTeamColor(color)) return c.json({ error: "Invalid color" }, 400);
+
+  const id = newId();
+  await c.env.DB.prepare(
+    `INSERT INTO team_creation_requests (
+      id, organization_id, requester_id, name, description, color, department_id, status, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+  )
+    .bind(
+      id,
+      orgId,
+      user.id,
+      name,
+      body.description?.trim() || null,
+      color,
+      body.departmentId ?? null,
+      now(),
+    )
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "team.request_created", "team_request", id, { name });
+  return c.json({ ok: true, id }, 201);
+});
+
+orgAdminRoutes.post("/organizations/:orgId/team-requests/:requestId/approve", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const requestId = c.req.param("requestId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "teams:manage");
+  if (access instanceof Response) return access;
+
+  const feature = await requireOrgFeature(c, orgId, "teams");
+  if (feature instanceof Response) return feature;
+
+  const limits = await checkTeamLimit(c.env.DB, orgId);
+  if (!limits.ok) {
+    return c.json({ error: "Team limit reached", code: "TEAM_LIMIT", ...limits }, 402);
+  }
+
+  const req = await c.env.DB.prepare(
+    `SELECT * FROM team_creation_requests WHERE id = ? AND organization_id = ? AND status = 'pending'`,
+  )
+    .bind(requestId, orgId)
+    .first<Record<string, unknown>>();
+  if (!req) return c.json({ error: "Request not found" }, 404);
+
+  const teamId = newId();
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO teams (id, organization_id, department_id, name, description, color, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      teamId,
+      orgId,
+      req.department_id ?? null,
+      req.name,
+      req.description ?? null,
+      req.color ?? "#4A9FE8",
+      ts,
+    )
+    .run();
+
+  await c.env.DB.prepare("INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'lead')")
+    .bind(teamId, req.requester_id)
+    .run();
+
+  await c.env.DB.prepare(
+    `UPDATE team_creation_requests SET status = 'approved', reviewed_by = ?, reviewed_at = ? WHERE id = ?`,
+  )
+    .bind(user.id, ts, requestId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "team.request_approved", "team_request", requestId, {
+    teamId,
+  });
+  return c.json({ ok: true, teamId });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/team-requests/:requestId/reject", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const requestId = c.req.param("requestId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "teams:manage");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ reason?: string }>();
+  const req = await c.env.DB.prepare(
+    `SELECT id FROM team_creation_requests WHERE id = ? AND organization_id = ? AND status = 'pending'`,
+  )
+    .bind(requestId, orgId)
+    .first();
+  if (!req) return c.json({ error: "Request not found" }, 404);
+
+  await c.env.DB.prepare(
+    `UPDATE team_creation_requests
+     SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, reject_reason = ?
+     WHERE id = ?`,
+  )
+    .bind(user.id, now(), body.reason?.trim() || null, requestId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "team.request_rejected", "team_request", requestId, body);
+  return c.json({ ok: true });
+});
+
+// ── Holidays ──
+
+orgAdminRoutes.get("/organizations/:orgId/holidays", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (access instanceof Response) return access;
+
+  const from = c.req.query("from");
+  const to = c.req.query("to");
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, name, date, yearly, created_at FROM org_holidays
+     WHERE organization_id = ?
+     ORDER BY date`,
+  )
+    .bind(orgId)
+    .all();
+
+  let holidays = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      name: r.name,
+      date: r.date,
+      yearly: Boolean(r.yearly),
+      createdAt: r.created_at,
+    };
+  });
+
+  if (from && to) {
+    const fromYear = new Date(Number(from)).getFullYear();
+    const toYear = new Date(Number(to)).getFullYear();
+    holidays = holidays.filter((h) => {
+      if (!h.yearly) {
+        const ts = new Date(`${h.date}T00:00:00`).getTime();
+        return ts >= Number(from) && ts <= Number(to);
+      }
+      const [, month, day] = h.date.includes("-") && h.date.length === 10
+        ? h.date.split("-").map(Number)
+        : [0, ...h.date.split("-").map(Number)];
+      for (let y = fromYear; y <= toYear; y++) {
+        const ts = new Date(y, month - 1, day).getTime();
+        if (ts >= Number(from) && ts <= Number(to)) return true;
+      }
+      return false;
+    });
+  }
+
+  return c.json({ holidays });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/holidays", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ name: string; date: string; yearly?: boolean }>();
+  const name = body.name?.trim();
+  if (!name || !body.date?.trim()) return c.json({ error: "name and date required" }, 400);
+
+  const yearly = body.yearly !== false;
+  const date = body.date.trim();
+  if (yearly && !/^\d{2}-\d{2}$/.test(date) && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return c.json({ error: "yearly holiday date must be MM-DD or YYYY-MM-DD" }, 400);
+  }
+  if (!yearly && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return c.json({ error: "one-time holiday date must be YYYY-MM-DD" }, 400);
+  }
+
+  const normalizedDate = yearly && date.length === 10 ? date.slice(5) : date;
+  const id = newId();
+  await c.env.DB.prepare(
+    `INSERT INTO org_holidays (id, organization_id, name, date, yearly, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, orgId, name, normalizedDate, yearly ? 1 : 0, now())
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "holiday.created", "org_holiday", id, { name, date });
+  return c.json({ ok: true, id }, 201);
+});
+
+orgAdminRoutes.delete("/organizations/:orgId/holidays/:holidayId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const holidayId = c.req.param("holidayId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const row = await c.env.DB.prepare(
+    "SELECT id FROM org_holidays WHERE id = ? AND organization_id = ?",
+  )
+    .bind(holidayId, orgId)
+    .first();
+  if (!row) return c.json({ error: "Not found" }, 404);
+
+  await c.env.DB.prepare("DELETE FROM org_holidays WHERE id = ?").bind(holidayId).run();
+  await writeAuditLog(c.env.DB, orgId, user.id, "holiday.deleted", "org_holiday", holidayId);
   return c.json({ ok: true });
 });
 

@@ -82,7 +82,9 @@ app.get("/organizations/:orgId", async (c) => {
   if (member instanceof Response) return member;
 
   const org = await c.env.DB.prepare(
-    "SELECT id, name, slug, timezone, logo_r2_key, settings_json FROM organizations WHERE id = ?",
+    `SELECT id, name, slug, timezone, logo_r2_key, settings_json, status,
+            deactivated_at, delete_scheduled_at
+     FROM organizations WHERE id = ?`,
   )
     .bind(orgId)
     .first<{
@@ -92,6 +94,9 @@ app.get("/organizations/:orgId", async (c) => {
       timezone: string;
       logo_r2_key: string | null;
       settings_json: string | null;
+      status: string;
+      deactivated_at: number | null;
+      delete_scheduled_at: number | null;
     }>();
 
   if (!org) return c.json({ error: "Not found" }, 404);
@@ -104,6 +109,9 @@ app.get("/organizations/:orgId", async (c) => {
       slug: org.slug,
       timezone: org.timezone,
       role: member.role,
+      status: org.status,
+      deactivatedAt: org.deactivated_at,
+      deleteScheduledAt: org.delete_scheduled_at,
       hasLogo: Boolean(org.logo_r2_key),
       settings: parseOrgSettings(org.settings_json),
     },
@@ -174,6 +182,15 @@ app.get("/organizations/:orgId/events", async (c) => {
   const from = Number(c.req.query("from") ?? startOfDay(now()));
   const to = Number(c.req.query("to") ?? endOfDay(now()) + 86400000 * 30);
 
+  const orgRow = await c.env.DB.prepare("SELECT settings_json FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ settings_json: string | null }>();
+  const { parseOrgSettings } = await import("../utils/orgSettings");
+  const { teamVisibilitySql } = await import("../utils/orgGovernance");
+  const calendarPolicy = parseOrgSettings(orgRow?.settings_json).calendarPolicy;
+  const teamSql = teamVisibilitySql(calendarPolicy, member.role);
+  const teamBindNeeded = calendarPolicy !== "all_teams" || member.role === "guest";
+
   const { results } = await c.env.DB.prepare(
     `SELECT e.*, t.name as team_name
      FROM events e
@@ -186,16 +203,18 @@ app.get("/organizations/:orgId/events", async (c) => {
            SELECT 1 FROM event_attendees ea
            WHERE ea.event_id = e.id AND ea.user_id = ?
          )
-         OR (
-           e.visibility = 'team' AND e.team_id IS NOT NULL AND EXISTS (
-             SELECT 1 FROM team_members tm
-             WHERE tm.team_id = e.team_id AND tm.user_id = ?
-           )
-         )
+         OR ${teamSql}
        )
      ORDER BY e.start_at ASC`,
   )
-    .bind(orgId, to, from, user.id, user.id, user.id)
+    .bind(
+      orgId,
+      to,
+      from,
+      user.id,
+      user.id,
+      ...(teamBindNeeded ? [user.id] : []),
+    )
     .all();
 
   const events = (results ?? []).map((row) => {

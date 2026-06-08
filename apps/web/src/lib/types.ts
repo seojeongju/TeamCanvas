@@ -31,6 +31,9 @@ export type Organization = {
   slug: string;
   role: OrgRole | string;
   timezone?: string;
+  status?: string;
+  deactivatedAt?: number | null;
+  deleteScheduledAt?: number | null;
   hasLogo?: boolean;
   settings?: OrgWorkSettings;
   subscription?: OrgSubscriptionSummary;
@@ -41,9 +44,34 @@ export type OrgStats = {
   teams: number;
 };
 
+export type CalendarPolicy = "own_teams" | "all_teams";
+
 export type OrgWorkSettings = {
   workHours: { start: string; end: string };
   workDays: number[];
+  calendarPolicy: CalendarPolicy;
+};
+
+export type OrgHoliday = {
+  id: string;
+  name: string;
+  date: string;
+  yearly: boolean;
+  createdAt?: number;
+};
+
+export type TeamCreationRequest = {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  departmentId: string | null;
+  status: string;
+  requesterId: string;
+  requesterName: string;
+  rejectReason: string | null;
+  createdAt: number;
+  reviewedAt: number | null;
 };
 
 export type Department = {

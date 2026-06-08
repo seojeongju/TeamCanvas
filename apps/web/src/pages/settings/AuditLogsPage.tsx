@@ -28,6 +28,13 @@ const actionLabels: Record<string, string> = {
   "department.created": "부서 생성",
   "department.updated": "부서 수정",
   "department.deleted": "부서 삭제",
+  "org.deactivate_scheduled": "조직 삭제 예약",
+  "org.reactivated": "조직 복구",
+  "team.request_created": "팀 생성 요청",
+  "team.request_approved": "팀 생성 요청 승인",
+  "team.request_rejected": "팀 생성 요청 거절",
+  "holiday.created": "휴일 추가",
+  "holiday.deleted": "휴일 삭제",
 };
 
 function formatTime(ts: number) {

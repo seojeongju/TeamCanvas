@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, ChevronLeft, ChevronRight, ImagePlus, Trash2 } from "lucide-react";
+import { Building2, Calendar, ChevronLeft, ChevronRight, ImagePlus, Trash2 } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
@@ -13,8 +13,11 @@ import {
   useUpdateOrgWorkSettings,
   useUploadOrgLogo,
   useDeleteOrgLogo,
+  useDeactivateOrganization,
+  useReactivateOrganization,
 } from "../../hooks/useOrgSettings";
-import { useHasPermission } from "../../hooks/usePermissions";
+import { useHasPermission, useCurrentOrgRole } from "../../hooks/usePermissions";
+import type { CalendarPolicy } from "../../lib/types";
 import { useAuthStore } from "../../stores/authStore";
 import { useCurrentOrgId } from "../../stores/orgStore";
 import { api } from "../../lib/api";
@@ -43,6 +46,9 @@ export function OrgSettingsPage() {
   const orgId = useCurrentOrgId();
   const org = useAuthStore((s) => s.organizations.find((o) => o.id === orgId));
   const canEdit = useHasPermission("org:settings");
+  const role = useCurrentOrgRole();
+  const deactivate = useDeactivateOrganization();
+  const reactivateOrg = useReactivateOrganization();
   const { data, isLoading } = useOrgDetail();
   const { data: settingsData } = useOrgSettingsDetail();
   const update = useUpdateOrganization();
@@ -56,6 +62,7 @@ export function OrgSettingsPage() {
   const [workStart, setWorkStart] = useState("09:00");
   const [workEnd, setWorkEnd] = useState("18:00");
   const [workDays, setWorkDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [calendarPolicy, setCalendarPolicy] = useState<CalendarPolicy>("own_teams");
   const [logoVersion, setLogoVersion] = useState(0);
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
 
@@ -74,6 +81,7 @@ export function OrgSettingsPage() {
       setWorkStart(s.workHours.start);
       setWorkEnd(s.workHours.end);
       setWorkDays(s.workDays);
+      setCalendarPolicy(s.calendarPolicy ?? "own_teams");
     }
   }, [settingsData]);
 
@@ -91,6 +99,7 @@ export function OrgSettingsPage() {
       await updateWork.mutateAsync({
         workHours: { start: workStart, end: workEnd },
         workDays,
+        calendarPolicy,
       });
       setToast({ tone: "info", message: "조직 설정을 저장했습니다." });
     } catch (err) {
@@ -273,6 +282,35 @@ export function OrgSettingsPage() {
                 </div>
               </div>
 
+              <div>
+                <p className="mb-2 text-sm font-medium text-navy-700">캘린더 공유 정책</p>
+                <div className="space-y-2">
+                  {(
+                    [
+                      { value: "own_teams" as const, label: "소속 팀만", desc: "팀 공유 일정은 소속 멤버만 조회" },
+                      { value: "all_teams" as const, label: "전체 팀", desc: "멤버는 모든 팀 공유 일정 조회" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={!canEdit}
+                      onClick={() => setCalendarPolicy(opt.value)}
+                      className={cn(
+                        "w-full rounded-xl border px-3 py-2.5 text-left transition",
+                        calendarPolicy === opt.value
+                          ? "border-primary-400 bg-primary-400/10"
+                          : "border-sky-200 bg-white",
+                        !canEdit && "opacity-60",
+                      )}
+                    >
+                      <span className="block text-sm font-medium text-navy-900">{opt.label}</span>
+                      <span className="block text-xs text-navy-600">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="rounded-xl bg-sky-50/60 px-3 py-2 text-xs text-navy-600">
                 <p>조직 URL: {data?.organization.slug ?? "—"}</p>
                 <p className="mt-1">
@@ -302,6 +340,67 @@ export function OrgSettingsPage() {
               <ChevronRight className="h-5 w-5 text-navy-600/40" />
             </GlassCard>
           </button>
+
+          <button type="button" onClick={() => navigate("/settings/holidays")} className="w-full text-left">
+            <GlassCard className="flex items-center gap-4 p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-400/10">
+                <Calendar className="h-5 w-5 text-primary-500" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-navy-900">휴일 캘린더</p>
+                <p className="text-xs text-navy-600">공휴일·기념일 관리</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-navy-600/40" />
+            </GlassCard>
+          </button>
+
+          {role === "owner" && data?.organization.status !== "pending_deletion" && (
+            <GlassCard className="border border-red-100 p-5">
+              <p className="text-sm font-semibold text-red-600">위험 구역</p>
+              <p className="mt-1 text-xs text-navy-600">
+                조직을 비활성화하면 30일 후 데이터가 삭제됩니다. 그동안 조회만 가능합니다.
+              </p>
+              <Button
+                type="button"
+                className="mt-3 w-full bg-red-500 hover:bg-red-600"
+                disabled={deactivate.isPending}
+                onClick={async () => {
+                  if (!confirm("정말 조직 삭제를 예약할까요? 30일 내 복구할 수 있습니다.")) return;
+                  try {
+                    await deactivate.mutateAsync();
+                    setToast({ tone: "info", message: "조직 삭제가 예약되었습니다." });
+                  } catch (err) {
+                    setToast({
+                      tone: "error",
+                      message: err instanceof Error ? err.message : "처리 실패",
+                    });
+                  }
+                }}
+              >
+                {deactivate.isPending ? "처리 중..." : "조직 삭제 예약"}
+              </Button>
+            </GlassCard>
+          )}
+
+          {role === "owner" && data?.organization.status === "pending_deletion" && (
+            <GlassCard className="border border-amber-200 p-5">
+              <p className="text-sm font-medium text-amber-900">삭제 예정 조직</p>
+              <p className="mt-1 text-xs text-amber-800">
+                {data.organization.deleteScheduledAt
+                  ? new Date(data.organization.deleteScheduledAt).toLocaleDateString("ko-KR")
+                  : "—"}
+                에 삭제됩니다.
+              </p>
+              <Button
+                type="button"
+                className="mt-3 w-full"
+                disabled={reactivateOrg.isPending}
+                onClick={() => reactivateOrg.mutate()}
+              >
+                {reactivateOrg.isPending ? "복구 중..." : "삭제 취소 · 조직 복구"}
+              </Button>
+            </GlassCard>
+          )}
         </>
       )}
 

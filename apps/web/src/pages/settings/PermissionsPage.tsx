@@ -87,6 +87,9 @@ export function PermissionsPage() {
               <p><strong className="text-navy-800">멤버</strong> — 소속 팀 조회, 일정·업무 작성</p>
               <p><strong className="text-navy-800">게스트</strong> — 초대받은 일정·업무만 조회</p>
               <p className="pt-1">팀 리드는 소속 팀의 멤버 추가·제거가 가능합니다.</p>
+              <p className="pt-1">
+                캘린더 정책(소속 팀만 / 전체 팀)은 조직 설정에서 변경할 수 있습니다.
+              </p>
             </GlassCard>
           </section>
 

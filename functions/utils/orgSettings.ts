@@ -1,11 +1,15 @@
+import type { CalendarPolicy } from "./orgGovernance";
+
 export type OrgWorkSettings = {
   workHours: { start: string; end: string };
   workDays: number[];
+  calendarPolicy: CalendarPolicy;
 };
 
 export const DEFAULT_ORG_SETTINGS: OrgWorkSettings = {
   workHours: { start: "09:00", end: "18:00" },
   workDays: [1, 2, 3, 4, 5],
+  calendarPolicy: "own_teams",
 };
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -24,12 +28,18 @@ export function parseOrgSettings(json: string | null | undefined): OrgWorkSettin
     const workDays = Array.isArray(raw.workDays)
       ? raw.workDays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
       : [...DEFAULT_ORG_SETTINGS.workDays];
+    const calendarPolicy =
+      raw.calendarPolicy === "all_teams" ? "all_teams" : DEFAULT_ORG_SETTINGS.calendarPolicy;
     return {
       workHours: { start, end },
       workDays: workDays.length ? workDays : [...DEFAULT_ORG_SETTINGS.workDays],
+      calendarPolicy,
     };
   } catch {
-    return { ...DEFAULT_ORG_SETTINGS, workDays: [...DEFAULT_ORG_SETTINGS.workDays] };
+    return {
+      ...DEFAULT_ORG_SETTINGS,
+      workDays: [...DEFAULT_ORG_SETTINGS.workDays],
+    };
   }
 }
 
@@ -41,6 +51,7 @@ export function mergeOrgSettings(
   const next: OrgWorkSettings = {
     workHours: { ...current.workHours },
     workDays: [...current.workDays],
+    calendarPolicy: current.calendarPolicy,
   };
 
   if (patch.workHours) {
@@ -54,6 +65,9 @@ export function mergeOrgSettings(
   if (patch.workDays) {
     const days = patch.workDays.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
     if (days.length) next.workDays = days;
+  }
+  if (patch.calendarPolicy === "all_teams" || patch.calendarPolicy === "own_teams") {
+    next.calendarPolicy = patch.calendarPolicy;
   }
 
   return next;

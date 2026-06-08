@@ -244,3 +244,103 @@ export function useTeamSummary(teamId: string | undefined) {
     enabled: !!orgId && !!teamId,
   });
 }
+
+export function useDeactivateOrganization() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.deactivateOrganization(orgId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org", orgId] });
+      qc.invalidateQueries({ queryKey: ["org-settings", orgId] });
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
+export function useReactivateOrganization() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.reactivateOrganization(orgId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org", orgId] });
+      qc.invalidateQueries({ queryKey: ["org-settings", orgId] });
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
+export function useTeamRequests() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["team-requests", orgId],
+    queryFn: () => api.getTeamRequests(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateTeamRequest() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      description?: string;
+      color?: string;
+      departmentId?: string | null;
+    }) => api.createTeamRequest(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team-requests", orgId] }),
+  });
+}
+
+export function useApproveTeamRequest() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (requestId: string) => api.approveTeamRequest(orgId!, requestId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team-requests", orgId] });
+      qc.invalidateQueries({ queryKey: ["teams-manage", orgId] });
+      qc.invalidateQueries({ queryKey: ["teams", orgId] });
+    },
+  });
+}
+
+export function useRejectTeamRequest() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ requestId, reason }: { requestId: string; reason?: string }) =>
+      api.rejectTeamRequest(orgId!, requestId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team-requests", orgId] }),
+  });
+}
+
+export function useHolidays(from?: number, to?: number) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["holidays", orgId, from, to],
+    queryFn: () => api.getHolidays(orgId!, from, to),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateHoliday() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: { name: string; date: string; yearly?: boolean }) =>
+      api.createHoliday(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["holidays", orgId] }),
+  });
+}
+
+export function useDeleteHoliday() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (holidayId: string) => api.deleteHoliday(orgId!, holidayId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["holidays", orgId] }),
+  });
+}

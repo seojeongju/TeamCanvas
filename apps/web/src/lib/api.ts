@@ -143,6 +143,65 @@ export const api = {
   getTeamSummary: (orgId: string, teamId: string) =>
     request<import("./types").TeamSummary>(`/api/organizations/${orgId}/teams/${teamId}/summary`),
 
+  deactivateOrganization: (orgId: string) =>
+    request<{ ok: boolean; deleteScheduledAt: number }>(`/api/organizations/${orgId}/deactivate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  reactivateOrganization: (orgId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/reactivate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  getTeamRequests: (orgId: string) =>
+    request<{ requests: import("./types").TeamCreationRequest[] }>(
+      `/api/organizations/${orgId}/team-requests`,
+    ),
+
+  createTeamRequest: (
+    orgId: string,
+    data: { name: string; description?: string; color?: string; departmentId?: string | null },
+  ) =>
+    request<{ ok: boolean; id: string }>(`/api/organizations/${orgId}/team-requests`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  approveTeamRequest: (orgId: string, requestId: string) =>
+    request<{ ok: boolean; teamId: string }>(
+      `/api/organizations/${orgId}/team-requests/${requestId}/approve`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
+
+  rejectTeamRequest: (orgId: string, requestId: string, reason?: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/team-requests/${requestId}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  getHolidays: (orgId: string, from?: number, to?: number) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", String(from));
+    if (to) params.set("to", String(to));
+    const qs = params.toString();
+    return request<{ holidays: import("./types").OrgHoliday[] }>(
+      `/api/organizations/${orgId}/holidays${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  createHoliday: (orgId: string, data: { name: string; date: string; yearly?: boolean }) =>
+    request<{ ok: boolean; id: string }>(`/api/organizations/${orgId}/holidays`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  deleteHoliday: (orgId: string, holidayId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/holidays/${holidayId}`, {
+      method: "DELETE",
+    }),
+
   getTeamsManage: (orgId: string) =>
     request<{
       teams: import("./types").Team[];

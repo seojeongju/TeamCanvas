@@ -4,6 +4,7 @@ import { EmailVerificationBanner } from "../auth/EmailVerificationBanner";
 import { SessionActivityRefresher } from "../auth/SessionActivityRefresher";
 import { SessionExpiryBanner } from "../auth/SessionExpiryBanner";
 import { SubscriptionStatusBanner } from "../auth/SubscriptionStatusBanner";
+import { OrgDeletionBanner } from "../auth/OrgDeletionBanner";
 import { OrgSwitcher } from "./OrgSwitcher";
 
 export function AppShell() {
@@ -17,6 +18,7 @@ export function AppShell() {
         <EmailVerificationBanner />
         <SessionExpiryBanner />
         <SubscriptionStatusBanner />
+        <OrgDeletionBanner />
         <Outlet />
       </main>
       <BottomNav />

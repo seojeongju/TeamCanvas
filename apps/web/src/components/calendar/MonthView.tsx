@@ -1,6 +1,7 @@
 import { cn } from "../../lib/cn";
 import { colorClass } from "../../lib/dates";
-import type { CalendarEvent } from "../../lib/types";
+import { holidaysForDay } from "../../lib/holidays";
+import type { CalendarEvent, OrgHoliday } from "../../lib/types";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -16,12 +17,14 @@ export function MonthView({
   year,
   month,
   events,
+  holidays = [],
   onDayClick,
   onEventClick,
 }: {
   year: number;
   month: number;
   events: CalendarEvent[];
+  holidays?: OrgHoliday[];
   onDayClick: (date: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
 }) {
@@ -63,6 +66,7 @@ export function MonthView({
           const isToday =
             day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
           const dayEvents = eventsByDay.get(day) ?? [];
+          const dayHolidays = holidaysForDay(year, month, day, holidays);
 
           return (
             <button
@@ -77,6 +81,17 @@ export function MonthView({
               )}
             >
               <span className="mt-1">{day}</span>
+              {dayHolidays.length > 0 && (
+                <span
+                  className={cn(
+                    "max-w-full truncate px-0.5 text-[8px] font-medium",
+                    isToday ? "text-white/90" : "text-red-500",
+                  )}
+                  title={dayHolidays.map((h) => h.name).join(", ")}
+                >
+                  {dayHolidays[0].name}
+                </span>
+              )}
               {dayEvents.length > 0 && (
                 <div className="mt-auto flex w-full flex-col gap-0.5 px-0.5 pb-0.5">
                   {dayEvents.slice(0, 2).map((e) => (

@@ -200,13 +200,13 @@ export function resolveDisplayName(name: string | undefined, email: string): str
 export async function getUserOrganizations(db: D1Database, userId: string): Promise<AuthOrg[]> {
   const { results } = await db
     .prepare(
-      `SELECT o.id, o.name, o.slug, m.role,
-              p.code as plan_code, p.name as plan_name, s.status as sub_status, p.features_json
+      `SELECT o.id, o.name, o.slug, o.status as org_status, o.delete_scheduled_at,
+              m.role, p.code as plan_code, p.name as plan_name, s.status as sub_status, p.features_json
        FROM memberships m
        JOIN organizations o ON o.id = m.organization_id
        LEFT JOIN organization_subscriptions s ON s.organization_id = o.id
        LEFT JOIN subscription_plans p ON p.id = s.plan_id
-       WHERE m.user_id = ? AND m.status = 'active' AND o.status = 'active'
+       WHERE m.user_id = ? AND m.status = 'active' AND o.status IN ('active', 'pending_deletion')
        ORDER BY o.name`,
     )
     .bind(userId)
@@ -214,6 +214,8 @@ export async function getUserOrganizations(db: D1Database, userId: string): Prom
       id: string;
       name: string;
       slug: string;
+      org_status: string;
+      delete_scheduled_at: number | null;
       role: string;
       plan_code: string | null;
       plan_name: string | null;
@@ -233,6 +235,8 @@ export async function getUserOrganizations(db: D1Database, userId: string): Prom
       name: r.name,
       slug: r.slug,
       role: r.role,
+      status: r.org_status,
+      deleteScheduledAt: r.delete_scheduled_at,
       subscription: r.plan_code
         ? {
             planCode: r.plan_code,

@@ -21,6 +21,7 @@ import { TeamsPage } from "./pages/settings/TeamsPage";
 import { TeamDetailPage } from "./pages/settings/TeamDetailPage";
 import { PermissionsPage } from "./pages/settings/PermissionsPage";
 import { DepartmentsPage } from "./pages/settings/DepartmentsPage";
+import { HolidaysPage } from "./pages/settings/HolidaysPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="more" element={<MorePage />} />
           <Route path="settings/org" element={<OrgSettingsPage />} />
           <Route path="settings/departments" element={<DepartmentsPage />} />
+          <Route path="settings/holidays" element={<HolidaysPage />} />
           <Route path="settings/teams" element={<TeamsPage />} />
           <Route path="settings/teams/:teamId" element={<TeamDetailPage />} />
           <Route path="settings/members" element={<MembersPage />} />

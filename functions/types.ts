@@ -88,6 +88,8 @@ export type AuthOrg = {
   name: string;
   slug: string;
   role: string;
+  status?: string;
+  deleteScheduledAt?: number | null;
   subscription?: {
     planCode: string;
     planName: string;

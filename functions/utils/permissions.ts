@@ -99,12 +99,28 @@ export async function requireOrgPermission(
 
   if (!membership) return c.json({ error: "Forbidden" }, 403);
 
-  const org = await c.env.DB.prepare("SELECT status FROM organizations WHERE id = ?")
+  const org = await c.env.DB.prepare(
+    "SELECT status, delete_scheduled_at FROM organizations WHERE id = ?",
+  )
     .bind(orgId)
-    .first<{ status: string }>();
+    .first<{ status: string; delete_scheduled_at: number | null }>();
 
   if (!org || org.status === "suspended") {
     return c.json({ error: "Organization suspended" }, 403);
+  }
+
+  if (org.status === "pending_deletion") {
+    const { isWritePermission } = await import("./orgGovernance");
+    if (isWritePermission(permission)) {
+      return c.json(
+        {
+          error: "Organization is scheduled for deletion. Only read access is available.",
+          code: "ORG_PENDING_DELETION",
+          deleteScheduledAt: org.delete_scheduled_at,
+        },
+        403,
+      );
+    }
   }
 
   if (!roleHasPermission(membership.role, permission)) {
