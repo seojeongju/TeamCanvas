@@ -12,8 +12,8 @@
     "check": "npx wrangler check",
     "pages:dev": "npm run build && npx wrangler pages dev apps/web/dist --port 8788",
     "deploy": "npm run build && npm run db:migrate:remote && npx wrangler pages deploy apps/web/dist --project-name=teamcanvas --branch=main",
-    "db:migrate:local": "npx wrangler d1 migrations apply teamcanvas-db --local",
-    "db:migrate:remote": "npx wrangler d1 migrations apply teamcanvas-db --remote",
+    "db:migrate:local": "npx wrangler d1 migrations apply teamcanvas-db --local -c wrangler.d1.jsonc",
+    "db:migrate:remote": "npx wrangler d1 migrations apply teamcanvas-db --remote -c wrangler.d1.jsonc",
     "cf:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-cloudflare.ps1",
     "cf:secrets:github": "powershell -ExecutionPolicy Bypass -File scripts/setup-github-secrets.ps1"
   },

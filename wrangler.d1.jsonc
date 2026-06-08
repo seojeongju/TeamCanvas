@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "teamcanvas",
+  "compatibility_date": "2026-01-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "teamcanvas-db",
+      "database_id": "31be2075-d9da-473f-ab5d-06ad58f8828d",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

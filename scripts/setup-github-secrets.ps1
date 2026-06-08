@@ -42,6 +42,7 @@ Cloudflare API 토큰을 발급받으세요:
      - Account > Cloudflare Pages > Edit
      - Account > D1 > Edit
      - Account > Workers R2 Storage > Edit
+     - Account > Workers AI > Edit
   4. Account Resources: Jayseo36@gmail.com's Account
   5. Create Token → 토큰 복사 (한 번만 표시됨)
 
