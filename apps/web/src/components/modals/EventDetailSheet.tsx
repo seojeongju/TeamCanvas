@@ -34,9 +34,9 @@ export function EventDetailSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
       <button className="absolute inset-0 bg-navy-900/30 backdrop-blur-sm" onClick={onClose} aria-label="닫기" />
-      <div className="glass-strong relative z-10 w-full max-w-lg rounded-t-3xl p-6 shadow-soft sm:rounded-3xl safe-bottom">
+      <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-y-auto overscroll-contain rounded-t-3xl p-6 shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
         <div className="mb-4 flex items-start gap-3">
           <div className={cn("mt-1 h-10 w-1.5 shrink-0 rounded-full", colorClass(event.color))} />
           <div className="min-w-0 flex-1">
