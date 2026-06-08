@@ -15,6 +15,13 @@ const actionLabels: Record<string, string> = {
   "billing.subscription_activated": "구독 활성화",
   "billing.subscription_canceled": "구독 취소",
   "admin.org_updated": "관리자 조직 변경",
+  "org.updated": "조직 설정 변경",
+  "team.created": "팀 생성",
+  "team.updated": "팀 수정",
+  "team.deleted": "팀 삭제",
+  "team.member_added": "팀 멤버 추가",
+  "team.member_updated": "팀 멤버 역할 변경",
+  "team.member_removed": "팀 멤버 제거",
 };
 
 function formatTime(ts: number) {

@@ -137,6 +137,17 @@ export async function checkMemberLimit(db: D1Database, orgId: string): Promise<{
   return { ok: current < limit, limit, current };
 }
 
+export async function checkTeamLimit(db: D1Database, orgId: string): Promise<{ ok: boolean; limit: number; current: number }> {
+  const sub = await getOrgSubscription(db, orgId);
+  const limit = sub?.maxTeams ?? 3;
+  const row = await db
+    .prepare("SELECT COUNT(*) as c FROM teams WHERE organization_id = ?")
+    .bind(orgId)
+    .first<{ c: number }>();
+  const current = row?.c ?? 0;
+  return { ok: current < limit, limit, current };
+}
+
 export async function createOrgSubscription(
   db: D1Database,
   orgId: string,

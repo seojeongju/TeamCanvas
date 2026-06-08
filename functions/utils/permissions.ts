@@ -12,6 +12,9 @@ export type Permission =
   | "org:settings"
   | "members:read"
   | "members:manage"
+  | "teams:read"
+  | "teams:manage"
+  | "teams:members"
   | "events:read"
   | "events:write"
   | "events:delete"
@@ -27,6 +30,9 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     "org:settings",
     "members:read",
     "members:manage",
+    "teams:read",
+    "teams:manage",
+    "teams:members",
     "events:read",
     "events:write",
     "events:delete",
@@ -41,6 +47,9 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     "org:settings",
     "members:read",
     "members:manage",
+    "teams:read",
+    "teams:manage",
+    "teams:members",
     "events:read",
     "events:write",
     "events:delete",
@@ -52,6 +61,7 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
   member: [
     "org:read",
     "members:read",
+    "teams:read",
     "events:read",
     "events:write",
     "events:delete",

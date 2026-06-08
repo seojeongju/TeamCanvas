@@ -81,9 +81,60 @@ export const api = {
     }),
 
   getOrganization: (orgId: string) =>
-    request<{ organization: import("./types").Organization; stats: import("./types").OrgStats }>(
+    request<{ organization: import("./types").Organization & { timezone?: string }; stats: import("./types").OrgStats }>(
       `/api/organizations/${orgId}`,
     ),
+
+  updateOrganization: (orgId: string, data: { name?: string; timezone?: string }) =>
+    request<{ ok: boolean; organization: import("./types").OrgSettings }>(
+      `/api/organizations/${orgId}`,
+      { method: "PATCH", body: JSON.stringify(data) },
+    ),
+
+  getTeamsManage: (orgId: string) =>
+    request<{
+      teams: import("./types").Team[];
+      limits: { ok: boolean; limit: number; current: number };
+    }>(`/api/organizations/${orgId}/teams/manage`),
+
+  getTeamDetail: (orgId: string, teamId: string) =>
+    request<import("./types").TeamDetail>(`/api/organizations/${orgId}/teams/${teamId}`),
+
+  createTeam: (orgId: string, data: { name: string; color?: string; description?: string }) =>
+    request<{ ok: boolean; team: import("./types").Team }>(`/api/organizations/${orgId}/teams`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateTeam: (
+    orgId: string,
+    teamId: string,
+    data: { name?: string; color?: string; description?: string | null },
+  ) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/teams/${teamId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteTeam: (orgId: string, teamId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/teams/${teamId}`, { method: "DELETE" }),
+
+  addTeamMember: (orgId: string, teamId: string, data: { userId: string; role?: string }) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/teams/${teamId}/members`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateTeamMember: (orgId: string, teamId: string, userId: string, data: { role: string }) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/teams/${teamId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  removeTeamMember: (orgId: string, teamId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/teams/${teamId}/members/${userId}`, {
+      method: "DELETE",
+    }),
 
   getEvents: (orgId: string, from?: number, to?: number) => {
     const params = new URLSearchParams();

@@ -16,6 +16,10 @@ import { MorePage } from "./pages/MorePage";
 import { MembersPage, BillingPage } from "./pages/settings/MembersPage";
 import { AuditLogsPage } from "./pages/settings/AuditLogsPage";
 import { NotificationSettingsPage } from "./pages/settings/NotificationSettingsPage";
+import { OrgSettingsPage } from "./pages/settings/OrgSettingsPage";
+import { TeamsPage } from "./pages/settings/TeamsPage";
+import { TeamDetailPage } from "./pages/settings/TeamDetailPage";
+import { PermissionsPage } from "./pages/settings/PermissionsPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
@@ -68,8 +72,12 @@ export default function App() {
           <Route path="tasks" element={<TasksPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="more" element={<MorePage />} />
+          <Route path="settings/org" element={<OrgSettingsPage />} />
+          <Route path="settings/teams" element={<TeamsPage />} />
+          <Route path="settings/teams/:teamId" element={<TeamDetailPage />} />
           <Route path="settings/members" element={<MembersPage />} />
           <Route path="settings/billing" element={<BillingPage />} />
+          <Route path="settings/permissions" element={<PermissionsPage />} />
           <Route path="settings/notifications" element={<NotificationSettingsPage />} />
           <Route path="settings/audit" element={<AuditLogsPage />} />
         </Route>

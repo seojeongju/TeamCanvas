@@ -42,6 +42,30 @@ export type Team = {
   id: string;
   name: string;
   color: string;
+  description?: string | null;
+  memberCount?: number;
+  createdAt?: number;
+};
+
+export type TeamMember = {
+  userId: string;
+  role: string;
+  name: string;
+  email: string | null;
+  avatarUrl: string | null;
+};
+
+export type TeamDetail = {
+  team: Team & { memberCount: number };
+  members: TeamMember[];
+  canManage: boolean;
+};
+
+export type OrgSettings = {
+  id: string;
+  name: string;
+  slug: string;
+  timezone: string;
 };
 
 export type CalendarEvent = {
@@ -158,6 +182,9 @@ export type Permission =
   | "org:settings"
   | "members:read"
   | "members:manage"
+  | "teams:read"
+  | "teams:manage"
+  | "teams:members"
   | "events:read"
   | "events:write"
   | "events:delete"

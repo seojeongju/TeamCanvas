@@ -40,7 +40,7 @@ export function DashboardPage() {
               navigate("/login", { replace: true });
             }}
             disabled={logout.isPending}
-            className="glass flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-white/90 disabled:opacity-50"
+            className="glass flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-white/90 disabled:opacity-50"
           >
             <LogOut className="h-4 w-4" />
             {logout.isPending ? "..." : "로그아웃"}

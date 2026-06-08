@@ -1,4 +1,4 @@
-import { Building2, Users, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell } from "lucide-react";
+import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -29,7 +29,14 @@ export function MorePage() {
       icon: Building2,
       label: "조직 설정",
       desc: org?.name ?? "—",
-      onClick: () => {},
+      onClick: () => navigate("/settings/org"),
+      show: true,
+    },
+    {
+      icon: Users2,
+      label: "팀 관리",
+      desc: `${stats?.teams ?? 0}개 팀`,
+      onClick: () => navigate("/settings/teams"),
       show: true,
     },
     {
@@ -50,7 +57,7 @@ export function MorePage() {
       icon: Shield,
       label: "권한 및 보안",
       desc: org?.role ?? "member",
-      onClick: () => {},
+      onClick: () => navigate("/settings/permissions"),
       show: true,
     },
     {
