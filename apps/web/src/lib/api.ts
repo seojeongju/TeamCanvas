@@ -1,11 +1,12 @@
 const API_BASE = "";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
   });
@@ -91,6 +92,57 @@ export const api = {
       { method: "PATCH", body: JSON.stringify(data) },
     ),
 
+  getOrgSettings: (orgId: string) =>
+    request<{
+      organization: import("./types").OrgSettings & {
+        hasLogo: boolean;
+        settings: import("./types").OrgWorkSettings;
+      };
+    }>(`/api/organizations/${orgId}/settings`),
+
+  updateOrgWorkSettings: (orgId: string, data: Partial<import("./types").OrgWorkSettings>) =>
+    request<{ ok: boolean; settings: import("./types").OrgWorkSettings }>(
+      `/api/organizations/${orgId}/settings`,
+      { method: "PATCH", body: JSON.stringify(data) },
+    ),
+
+  uploadOrgLogo: (orgId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ ok: boolean; hasLogo: boolean }>(`/api/organizations/${orgId}/logo`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  deleteOrgLogo: (orgId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/logo`, { method: "DELETE" }),
+
+  orgLogoUrl: (orgId: string) => `/api/organizations/${orgId}/logo`,
+
+  getDepartments: (orgId: string) =>
+    request<{ departments: import("./types").Department[] }>(`/api/organizations/${orgId}/departments`),
+
+  createDepartment: (orgId: string, data: { name: string; parentId?: string | null }) =>
+    request<{ ok: boolean; department: { id: string; name: string } }>(
+      `/api/organizations/${orgId}/departments`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  updateDepartment: (orgId: string, deptId: string, data: { name: string }) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/departments/${deptId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteDepartment: (orgId: string, deptId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/departments/${deptId}`, {
+      method: "DELETE",
+    }),
+
+  getTeamSummary: (orgId: string, teamId: string) =>
+    request<import("./types").TeamSummary>(`/api/organizations/${orgId}/teams/${teamId}/summary`),
+
   getTeamsManage: (orgId: string) =>
     request<{
       teams: import("./types").Team[];
@@ -100,7 +152,10 @@ export const api = {
   getTeamDetail: (orgId: string, teamId: string) =>
     request<import("./types").TeamDetail>(`/api/organizations/${orgId}/teams/${teamId}`),
 
-  createTeam: (orgId: string, data: { name: string; color?: string; description?: string }) =>
+  createTeam: (
+    orgId: string,
+    data: { name: string; color?: string; description?: string; departmentId?: string | null },
+  ) =>
     request<{ ok: boolean; team: import("./types").Team }>(`/api/organizations/${orgId}/teams`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -109,7 +164,12 @@ export const api = {
   updateTeam: (
     orgId: string,
     teamId: string,
-    data: { name?: string; color?: string; description?: string | null },
+    data: {
+      name?: string;
+      color?: string;
+      description?: string | null;
+      departmentId?: string | null;
+    },
   ) =>
     request<{ ok: boolean }>(`/api/organizations/${orgId}/teams/${teamId}`, {
       method: "PATCH",

@@ -12,11 +12,23 @@ export async function getTeamInOrg(
   db: D1Database,
   orgId: string,
   teamId: string,
-): Promise<{ id: string; name: string; color: string; description: string | null } | null> {
+): Promise<{
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  department_id: string | null;
+} | null> {
   return db
-    .prepare("SELECT id, name, color, description FROM teams WHERE id = ? AND organization_id = ?")
+    .prepare("SELECT id, name, color, description, department_id FROM teams WHERE id = ? AND organization_id = ?")
     .bind(teamId, orgId)
-    .first<{ id: string; name: string; color: string; description: string | null }>();
+    .first<{
+      id: string;
+      name: string;
+      color: string;
+      description: string | null;
+      department_id: string | null;
+    }>();
 }
 
 export async function isTeamLead(db: D1Database, teamId: string, userId: string): Promise<boolean> {

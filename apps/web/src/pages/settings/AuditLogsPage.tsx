@@ -22,6 +22,12 @@ const actionLabels: Record<string, string> = {
   "team.member_added": "팀 멤버 추가",
   "team.member_updated": "팀 멤버 역할 변경",
   "team.member_removed": "팀 멤버 제거",
+  "org.settings_updated": "조직 근무 설정 변경",
+  "org.logo_updated": "조직 로고 업로드",
+  "org.logo_removed": "조직 로고 삭제",
+  "department.created": "부서 생성",
+  "department.updated": "부서 수정",
+  "department.deleted": "부서 삭제",
 };
 
 function formatTime(ts: number) {

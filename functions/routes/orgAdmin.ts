@@ -21,6 +21,8 @@ import {
 import { frontendUrl } from "../utils/email";
 import { newId, now } from "../utils/helpers";
 import { resolveBillingProvider } from "../utils/payments";
+import { mergeOrgSettings, parseOrgSettings, serializeOrgSettings } from "../utils/orgSettings";
+import { LOGO_MAX_BYTES, LOGO_MIME_TYPES, logoExtension, orgLogoKey } from "../utils/storage";
 
 export const orgAdminRoutes = new Hono<{ Bindings: Env }>();
 
@@ -84,6 +86,135 @@ orgAdminRoutes.patch("/organizations/:orgId", async (c) => {
   return c.json({ ok: true, organization: org });
 });
 
+orgAdminRoutes.get("/organizations/:orgId/settings", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (access instanceof Response) return access;
+
+  const org = await c.env.DB.prepare(
+    "SELECT id, name, slug, timezone, logo_r2_key, settings_json FROM organizations WHERE id = ?",
+  )
+    .bind(orgId)
+    .first<{
+      id: string;
+      name: string;
+      slug: string;
+      timezone: string;
+      logo_r2_key: string | null;
+      settings_json: string | null;
+    }>();
+
+  if (!org) return c.json({ error: "Not found" }, 404);
+
+  return c.json({
+    organization: {
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      timezone: org.timezone,
+      hasLogo: Boolean(org.logo_r2_key),
+      settings: parseOrgSettings(org.settings_json),
+    },
+  });
+});
+
+orgAdminRoutes.patch("/organizations/:orgId/settings", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ workHours?: { start?: string; end?: string }; workDays?: number[] }>();
+  const org = await c.env.DB.prepare("SELECT settings_json FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ settings_json: string | null }>();
+  if (!org) return c.json({ error: "Not found" }, 404);
+
+  const next = mergeOrgSettings(org.settings_json, body);
+  if (next.workHours.start >= next.workHours.end) {
+    return c.json({ error: "Work start must be before work end" }, 400);
+  }
+
+  await c.env.DB.prepare("UPDATE organizations SET settings_json = ?, updated_at = ? WHERE id = ?")
+    .bind(serializeOrgSettings(next), now(), orgId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "org.settings_updated", "organization", orgId, body);
+  return c.json({ ok: true, settings: next });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/logo", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.parseBody();
+  const file = body.file;
+  if (!(file instanceof File)) return c.json({ error: "file required" }, 400);
+  if (!LOGO_MIME_TYPES.has(file.type)) {
+    return c.json({ error: "Only PNG, JPEG, or WebP images are allowed" }, 400);
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    return c.json({ error: "Logo must be 2MB or smaller" }, 400);
+  }
+
+  const ext = logoExtension(file.type);
+  if (!ext) return c.json({ error: "Unsupported image type" }, 400);
+
+  const org = await c.env.DB.prepare("SELECT logo_r2_key FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ logo_r2_key: string | null }>();
+  if (!org) return c.json({ error: "Not found" }, 404);
+
+  const key = orgLogoKey(orgId, ext);
+  const bytes = await file.arrayBuffer();
+  await c.env.FILES.put(key, bytes, {
+    httpMetadata: { contentType: file.type },
+  });
+
+  if (org.logo_r2_key && org.logo_r2_key !== key) {
+    await c.env.FILES.delete(org.logo_r2_key);
+  }
+
+  await c.env.DB.prepare("UPDATE organizations SET logo_r2_key = ?, updated_at = ? WHERE id = ?")
+    .bind(key, now(), orgId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "org.logo_updated", "organization", orgId);
+  return c.json({ ok: true, hasLogo: true });
+});
+
+orgAdminRoutes.delete("/organizations/:orgId/logo", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const org = await c.env.DB.prepare("SELECT logo_r2_key FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ logo_r2_key: string | null }>();
+  if (!org) return c.json({ error: "Not found" }, 404);
+
+  if (org.logo_r2_key) await c.env.FILES.delete(org.logo_r2_key);
+
+  await c.env.DB.prepare("UPDATE organizations SET logo_r2_key = NULL, updated_at = ? WHERE id = ?")
+    .bind(now(), orgId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "org.logo_removed", "organization", orgId);
+  return c.json({ ok: true });
+});
+
 orgAdminRoutes.get("/organizations/:orgId/members", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
@@ -104,8 +235,33 @@ orgAdminRoutes.get("/organizations/:orgId/members", async (c) => {
     .bind(orgId)
     .all();
 
+  const { results: teamLinks } = await c.env.DB.prepare(
+    `SELECT tm.user_id, t.id, t.name, t.color
+     FROM team_members tm
+     JOIN teams t ON t.id = tm.team_id
+     WHERE t.organization_id = ?
+     ORDER BY t.name`,
+  )
+    .bind(orgId)
+    .all();
+
+  const teamsByUser = new Map<string, { id: string; name: string; color: string }[]>();
+  for (const row of teamLinks ?? []) {
+    const r = row as Record<string, unknown>;
+    const userId = String(r.user_id);
+    const list = teamsByUser.get(userId) ?? [];
+    list.push({ id: String(r.id), name: String(r.name), color: String(r.color) });
+    teamsByUser.set(userId, list);
+  }
+
+  const members = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const userId = String(r.user_id);
+    return { ...r, teams: teamsByUser.get(userId) ?? [] };
+  });
+
   const limits = await checkMemberLimit(c.env.DB, orgId);
-  return c.json({ members: results ?? [], limits });
+  return c.json({ members, limits });
 });
 
 orgAdminRoutes.patch("/organizations/:orgId/members/:memberUserId", async (c) => {
@@ -518,7 +674,14 @@ orgAdminRoutes.get("/organizations/:orgId/teams/:teamId", async (c) => {
     isAdmin || (await isTeamLead(c.env.DB, teamId, user.id));
 
   return c.json({
-    team: { ...team, memberCount: members.length },
+    team: {
+      id: team.id,
+      name: team.name,
+      color: team.color,
+      description: team.description,
+      departmentId: team.department_id,
+      memberCount: members.length,
+    },
     members,
     canManage,
   });
@@ -540,20 +703,35 @@ orgAdminRoutes.post("/organizations/:orgId/teams", async (c) => {
     return c.json({ error: "Team limit reached", code: "TEAM_LIMIT", ...limits }, 402);
   }
 
-  const body = await c.req.json<{ name: string; color?: string; description?: string }>();
+  const body = await c.req.json<{
+    name: string;
+    color?: string;
+    description?: string;
+    departmentId?: string | null;
+  }>();
   const name = body.name?.trim();
   if (!name) return c.json({ error: "name required" }, 400);
 
   const color = body.color?.trim() || "#4A9FE8";
   if (!isValidTeamColor(color)) return c.json({ error: "Invalid color" }, 400);
 
+  let departmentId: string | null = body.departmentId ?? null;
+  if (departmentId) {
+    const dept = await c.env.DB.prepare(
+      "SELECT id FROM departments WHERE id = ? AND organization_id = ?",
+    )
+      .bind(departmentId, orgId)
+      .first();
+    if (!dept) return c.json({ error: "Department not found" }, 400);
+  }
+
   const teamId = newId();
   const ts = now();
   await c.env.DB.prepare(
-    `INSERT INTO teams (id, organization_id, name, description, color, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO teams (id, organization_id, department_id, name, description, color, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(teamId, orgId, name, body.description?.trim() || null, color, ts)
+    .bind(teamId, orgId, departmentId, name, body.description?.trim() || null, color, ts)
     .run();
 
   await c.env.DB.prepare("INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'lead')")
@@ -577,7 +755,12 @@ orgAdminRoutes.patch("/organizations/:orgId/teams/:teamId", async (c) => {
   const team = await getTeamInOrg(c.env.DB, orgId, teamId);
   if (!team) return c.json({ error: "Team not found" }, 404);
 
-  const body = await c.req.json<{ name?: string; color?: string; description?: string | null }>();
+  const body = await c.req.json<{
+    name?: string;
+    color?: string;
+    description?: string | null;
+    departmentId?: string | null;
+  }>();
   const updates: string[] = [];
   const values: unknown[] = [];
 
@@ -595,6 +778,18 @@ orgAdminRoutes.patch("/organizations/:orgId/teams/:teamId", async (c) => {
   if (body.description !== undefined) {
     updates.push("description = ?");
     values.push(body.description?.trim() || null);
+  }
+  if (body.departmentId !== undefined) {
+    if (body.departmentId) {
+      const dept = await c.env.DB.prepare(
+        "SELECT id FROM departments WHERE id = ? AND organization_id = ?",
+      )
+        .bind(body.departmentId, orgId)
+        .first();
+      if (!dept) return c.json({ error: "Department not found" }, 400);
+    }
+    updates.push("department_id = ?");
+    values.push(body.departmentId);
   }
   if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
 
@@ -759,6 +954,195 @@ orgAdminRoutes.delete("/organizations/:orgId/teams/:teamId/members/:memberUserId
   await writeAuditLog(c.env.DB, orgId, user.id, "team.member_removed", "team", teamId, {
     userId: memberUserId,
   });
+  return c.json({ ok: true });
+});
+
+orgAdminRoutes.get("/organizations/:orgId/teams/:teamId/summary", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const teamId = c.req.param("teamId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "teams:read");
+  if (access instanceof Response) return access;
+
+  const team = await getTeamInOrg(c.env.DB, orgId, teamId);
+  if (!team) return c.json({ error: "Team not found" }, 404);
+
+  const isAdmin = access.role === "owner" || access.role === "admin";
+  if (!isAdmin && !(await isTeamMember(c.env.DB, teamId, user.id))) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const from = now();
+  const to = from + 7 * 86400000;
+
+  const eventCount = await c.env.DB.prepare(
+    "SELECT COUNT(*) as c FROM events WHERE team_id = ? AND start_at < ? AND end_at > ?",
+  )
+    .bind(teamId, to, from)
+    .first<{ c: number }>();
+
+  const { results: upcomingEvents } = await c.env.DB.prepare(
+    `SELECT id, title, start_at, end_at, all_day
+     FROM events WHERE team_id = ? AND start_at >= ? AND start_at < ?
+     ORDER BY start_at ASC LIMIT 5`,
+  )
+    .bind(teamId, from, to)
+    .all();
+
+  const taskStats = await c.env.DB.prepare(
+    `SELECT status, COUNT(*) as c FROM tasks WHERE team_id = ? GROUP BY status`,
+  )
+    .bind(teamId)
+    .all();
+
+  const tasks = { todo: 0, doing: 0, done: 0 };
+  for (const row of taskStats ?? []) {
+    const r = row as Record<string, unknown>;
+    const status = String(r.status);
+    const count = Number(r.c ?? 0);
+    if (status in tasks) tasks[status as keyof typeof tasks] = count;
+  }
+
+  return c.json({
+    eventsThisWeek: eventCount?.c ?? 0,
+    upcomingEvents: (upcomingEvents ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r.id,
+        title: r.title,
+        startAt: r.start_at,
+        endAt: r.end_at,
+        allDay: Boolean(r.all_day),
+      };
+    }),
+    tasks,
+  });
+});
+
+// ── Departments ──
+
+orgAdminRoutes.get("/organizations/:orgId/departments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (access instanceof Response) return access;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT d.id, d.name, d.parent_id, d.sort_order,
+            (SELECT COUNT(*) FROM teams t WHERE t.department_id = d.id) as team_count
+     FROM departments d
+     WHERE d.organization_id = ?
+     ORDER BY d.sort_order, d.name`,
+  )
+    .bind(orgId)
+    .all();
+
+  const departments = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      name: r.name,
+      parentId: r.parent_id ?? null,
+      sortOrder: r.sort_order ?? 0,
+      teamCount: Number(r.team_count ?? 0),
+    };
+  });
+
+  return c.json({ departments });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/departments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ name: string; parentId?: string | null }>();
+  const name = body.name?.trim();
+  if (!name) return c.json({ error: "name required" }, 400);
+
+  if (body.parentId) {
+    const parent = await c.env.DB.prepare(
+      "SELECT id FROM departments WHERE id = ? AND organization_id = ?",
+    )
+      .bind(body.parentId, orgId)
+      .first();
+    if (!parent) return c.json({ error: "Parent department not found" }, 400);
+  }
+
+  const deptId = newId();
+  await c.env.DB.prepare(
+    `INSERT INTO departments (id, organization_id, name, parent_id, sort_order)
+     VALUES (?, ?, ?, ?, 0)`,
+  )
+    .bind(deptId, orgId, name, body.parentId ?? null)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "department.created", "department", deptId, { name });
+  return c.json({ ok: true, department: { id: deptId, name } }, 201);
+});
+
+orgAdminRoutes.patch("/organizations/:orgId/departments/:deptId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const deptId = c.req.param("deptId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ name?: string }>();
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+
+  const dept = await c.env.DB.prepare(
+    "SELECT id FROM departments WHERE id = ? AND organization_id = ?",
+  )
+    .bind(deptId, orgId)
+    .first();
+  if (!dept) return c.json({ error: "Department not found" }, 404);
+
+  await c.env.DB.prepare("UPDATE departments SET name = ? WHERE id = ?")
+    .bind(body.name.trim(), deptId)
+    .run();
+
+  await writeAuditLog(c.env.DB, orgId, user.id, "department.updated", "department", deptId, body);
+  return c.json({ ok: true });
+});
+
+orgAdminRoutes.delete("/organizations/:orgId/departments/:deptId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const deptId = c.req.param("deptId");
+
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const dept = await c.env.DB.prepare(
+    "SELECT id FROM departments WHERE id = ? AND organization_id = ?",
+  )
+    .bind(deptId, orgId)
+    .first();
+  if (!dept) return c.json({ error: "Department not found" }, 404);
+
+  const child = await c.env.DB.prepare("SELECT id FROM departments WHERE parent_id = ? LIMIT 1")
+    .bind(deptId)
+    .first();
+  if (child) return c.json({ error: "Remove child departments first" }, 400);
+
+  const teams = await c.env.DB.prepare("SELECT id FROM teams WHERE department_id = ? LIMIT 1")
+    .bind(deptId)
+    .first();
+  if (teams) return c.json({ error: "Reassign teams before deleting department" }, 400);
+
+  await c.env.DB.prepare("DELETE FROM departments WHERE id = ?").bind(deptId).run();
+  await writeAuditLog(c.env.DB, orgId, user.id, "department.deleted", "department", deptId);
   return c.json({ ok: true });
 });
 

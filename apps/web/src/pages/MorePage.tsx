@@ -9,6 +9,7 @@ import { useHasPermission } from "../hooks/usePermissions";
 import { useCurrentOrgId } from "../stores/orgStore";
 import { DeveloperCredit } from "../components/layout/DeveloperCredit";
 import { useAdminBootstrap } from "../hooks/useAdmin";
+import { api } from "../lib/api";
 
 export function MorePage() {
   const user = useAuthStore((s) => s.user);
@@ -98,8 +99,16 @@ export function MorePage() {
       />
 
       <GlassCard className="flex items-center gap-4 p-5">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-400 text-xl font-bold text-white shadow-glow">
-          {user?.name?.[0] ?? "T"}
+        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-primary-400 text-xl font-bold text-white shadow-glow">
+          {orgData?.organization.hasLogo && orgId ? (
+            <img
+              src={api.orgLogoUrl(orgId)}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            user?.name?.[0] ?? "T"
+          )}
         </div>
         <div>
           <p className="font-semibold text-navy-900">{user?.name ?? "게스트"}</p>

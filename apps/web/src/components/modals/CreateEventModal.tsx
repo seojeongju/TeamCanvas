@@ -11,6 +11,7 @@ import {
   useCreateEvent,
   useEventAttendees,
   useEventParticipants,
+  useOrgDetail,
   useTeams,
   useUpdateEvent,
 } from "../../hooks/useData";
@@ -116,6 +117,8 @@ export function CreateEventModal({
   const [teamError, setTeamError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
 
+  const { data: orgData } = useOrgDetail();
+  const workHours = orgData?.organization.settings?.workHours;
   const teams = teamsData?.teams ?? [];
   const typeConfig = getEventType(eventType);
 
@@ -147,7 +150,7 @@ export function CreateEventModal({
     const template = templateId ? getEventTemplate(templateId) : null;
     const range = prefillRange
       ? { start: prefillRange.start, end: prefillRange.end }
-      : getSmartDefaultRange(prefillDate ?? undefined);
+      : getSmartDefaultRange(prefillDate ?? undefined, workHours);
 
     if (template && !prefillRange) {
       range.end = range.start + template.durationMinutes * 60 * 1000;
@@ -171,7 +174,7 @@ export function CreateEventModal({
     setRecurrence(template?.recurrence ?? INITIAL_ADVANCED.recurrence);
     setTimeError(null);
     setTeamError(null);
-  }, [open, prefillDate, prefillRange, templateId, editEvent, editAttendeesData]);
+  }, [open, prefillDate, prefillRange, templateId, editEvent, editAttendeesData, workHours]);
 
   useEffect(() => {
     if (!toast) return;

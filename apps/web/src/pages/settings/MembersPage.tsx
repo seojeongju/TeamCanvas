@@ -319,6 +319,19 @@ export function MembersPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-navy-900">{m.name}</p>
                 <p className="truncate text-xs text-navy-600">{m.email}</p>
+                {(m.teams?.length ?? 0) > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {m.teams!.map((t) => (
+                      <span
+                        key={t.id}
+                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
+                        style={{ backgroundColor: t.color }}
+                      >
+                        {t.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <span className="rounded-full bg-navy-800/5 px-2 py-1 text-xs font-medium text-navy-700">
                 {roleLabels[m.role] ?? m.role}

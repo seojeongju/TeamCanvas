@@ -9,6 +9,8 @@ import { Modal } from "../../components/ui/Modal";
 import { ToastMessage } from "../../components/ui/ToastMessage";
 import {
   useTeamDetail,
+  useTeamSummary,
+  useDepartments,
   useUpdateTeam,
   useDeleteTeam,
   useAddTeamMember,
@@ -24,6 +26,8 @@ export function TeamDetailPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
   const { data, isLoading } = useTeamDetail(teamId);
+  const { data: summaryData } = useTeamSummary(teamId);
+  const { data: deptData } = useDepartments();
   const { data: membersData } = useOrgMembers();
   const updateTeam = useUpdateTeam();
   const deleteTeam = useDeleteTeam();
@@ -33,6 +37,7 @@ export function TeamDetailPage() {
 
   const [name, setName] = useState("");
   const [color, setColor] = useState("#4A9FE8");
+  const [departmentId, setDepartmentId] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
@@ -45,6 +50,7 @@ export function TeamDetailPage() {
     if (team) {
       setName(team.name);
       setColor(team.color);
+      setDepartmentId(team.departmentId ?? "");
     }
   }, [team]);
 
@@ -64,7 +70,12 @@ export function TeamDetailPage() {
   const handleSave = async () => {
     if (!teamId || !name.trim()) return;
     try {
-      await updateTeam.mutateAsync({ teamId, name: name.trim(), color });
+      await updateTeam.mutateAsync({
+        teamId,
+        name: name.trim(),
+        color,
+        departmentId: departmentId || null,
+      });
       setToast({ tone: "info", message: "팀 정보를 저장했습니다." });
     } catch (err) {
       setToast({ tone: "error", message: err instanceof Error ? err.message : "저장 실패" });
@@ -146,9 +157,56 @@ export function TeamDetailPage() {
 
       <PageHeader title={team.name} subtitle={`${members.length}명`} />
 
+      {summaryData && (
+        <div className="grid grid-cols-2 gap-3">
+          <GlassCard className="p-4">
+            <p className="text-xs text-navy-600">이번 주 일정</p>
+            <p className="mt-1 text-2xl font-bold text-navy-900">{summaryData.eventsThisWeek}</p>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <p className="text-xs text-navy-600">진행 업무</p>
+            <p className="mt-1 text-2xl font-bold text-navy-900">{summaryData.tasks.doing}</p>
+          </GlassCard>
+        </div>
+      )}
+
+      {summaryData && summaryData.upcomingEvents.length > 0 && (
+        <GlassCard className="p-4">
+          <p className="mb-2 text-sm font-medium text-navy-800">다가오는 일정</p>
+          <ul className="space-y-2 text-sm text-navy-700">
+            {summaryData.upcomingEvents.map((ev) => (
+              <li key={ev.id} className="flex justify-between gap-2">
+                <span className="truncate">{ev.title}</span>
+                <span className="shrink-0 text-xs text-navy-500">
+                  {new Date(ev.startAt).toLocaleDateString("ko-KR", {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
+
       {canManage && (
         <GlassCard className="space-y-4 p-5">
           <Input label="팀 이름" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="block text-sm text-navy-700">
+            부서
+            <select
+              className="mt-1 w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+            >
+              <option value="">부서 없음</option>
+              {(deptData?.departments ?? []).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div>
             <p className="mb-2 text-sm font-medium text-navy-700">색상</p>
             <div className="flex flex-wrap gap-2">

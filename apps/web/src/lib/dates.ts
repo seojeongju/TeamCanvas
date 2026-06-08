@@ -53,8 +53,20 @@ export function setDateKeepTime(ts: number, target: Date): number {
   return d.getTime();
 }
 
-/** 다음 정각 + 1시간 기본 종료 */
-export function getSmartDefaultRange(prefillDate?: Date): { start: number; end: number } {
+function applyWorkStart(date: Date, workStart?: string): void {
+  if (workStart && /^([01]\d|2[0-3]):([0-5]\d)$/.test(workStart)) {
+    const [h, m] = workStart.split(":").map(Number);
+    date.setHours(h, m, 0, 0);
+  } else {
+    date.setHours(9, 0, 0, 0);
+  }
+}
+
+/** 다음 정각 + 1시간 기본 종료 (조직 근무시간 반영) */
+export function getSmartDefaultRange(
+  prefillDate?: Date,
+  workHours?: { start: string; end: string },
+): { start: number; end: number } {
   const now = new Date();
   const base = prefillDate ?? now;
   const isToday =
@@ -71,7 +83,7 @@ export function getSmartDefaultRange(prefillDate?: Date): { start: number; end: 
       start.setHours(start.getHours() + 1);
     }
   } else {
-    start.setHours(9, 0, 0, 0);
+    applyWorkStart(start, workHours?.start);
   }
 
   const end = new Date(start.getTime() + 60 * 60 * 1000);

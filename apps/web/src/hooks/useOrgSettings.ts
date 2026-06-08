@@ -50,8 +50,12 @@ export function useCreateTeam() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();
   return useMutation({
-    mutationFn: (data: { name: string; color?: string; description?: string }) =>
-      api.createTeam(orgId!, data),
+    mutationFn: (data: {
+      name: string;
+      color?: string;
+      description?: string;
+      departmentId?: string | null;
+    }) => api.createTeam(orgId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["teams-manage", orgId] });
       qc.invalidateQueries({ queryKey: ["teams", orgId] });
@@ -72,6 +76,7 @@ export function useUpdateTeam() {
       name?: string;
       color?: string;
       description?: string | null;
+      departmentId?: string | null;
     }) => api.updateTeam(orgId!, teamId, data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["teams-manage", orgId] });
@@ -142,6 +147,100 @@ export function useRemoveTeamMember() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["team", orgId, vars.teamId] });
       qc.invalidateQueries({ queryKey: ["teams-manage", orgId] });
+      qc.invalidateQueries({ queryKey: ["members", orgId] });
     },
+  });
+}
+
+export function useOrgSettingsDetail() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["org-settings", orgId],
+    queryFn: () => api.getOrgSettings(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useUpdateOrgWorkSettings() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: Partial<import("../lib/types").OrgWorkSettings>) =>
+      api.updateOrgWorkSettings(orgId!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org-settings", orgId] });
+      qc.invalidateQueries({ queryKey: ["org", orgId] });
+    },
+  });
+}
+
+export function useUploadOrgLogo() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (file: File) => api.uploadOrgLogo(orgId!, file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org-settings", orgId] });
+      qc.invalidateQueries({ queryKey: ["org", orgId] });
+    },
+  });
+}
+
+export function useDeleteOrgLogo() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.deleteOrgLogo(orgId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["org-settings", orgId] });
+      qc.invalidateQueries({ queryKey: ["org", orgId] });
+    },
+  });
+}
+
+export function useDepartments() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["departments", orgId],
+    queryFn: () => api.getDepartments(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateDepartment() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: { name: string; parentId?: string | null }) =>
+      api.createDepartment(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["departments", orgId] }),
+  });
+}
+
+export function useUpdateDepartment() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ deptId, name }: { deptId: string; name: string }) =>
+      api.updateDepartment(orgId!, deptId, { name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["departments", orgId] }),
+  });
+}
+
+export function useDeleteDepartment() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (deptId: string) => api.deleteDepartment(orgId!, deptId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["departments", orgId] }),
+  });
+}
+
+export function useTeamSummary(teamId: string | undefined) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["team-summary", orgId, teamId],
+    queryFn: () => api.getTeamSummary(orgId!, teamId!),
+    enabled: !!orgId && !!teamId,
   });
 }

@@ -20,6 +20,7 @@ import { OrgSettingsPage } from "./pages/settings/OrgSettingsPage";
 import { TeamsPage } from "./pages/settings/TeamsPage";
 import { TeamDetailPage } from "./pages/settings/TeamDetailPage";
 import { PermissionsPage } from "./pages/settings/PermissionsPage";
+import { DepartmentsPage } from "./pages/settings/DepartmentsPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="more" element={<MorePage />} />
           <Route path="settings/org" element={<OrgSettingsPage />} />
+          <Route path="settings/departments" element={<DepartmentsPage />} />
           <Route path="settings/teams" element={<TeamsPage />} />
           <Route path="settings/teams/:teamId" element={<TeamDetailPage />} />
           <Route path="settings/members" element={<MembersPage />} />

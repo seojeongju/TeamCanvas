@@ -82,14 +82,54 @@ app.get("/organizations/:orgId", async (c) => {
   if (member instanceof Response) return member;
 
   const org = await c.env.DB.prepare(
-    "SELECT id, name, slug, timezone FROM organizations WHERE id = ?",
+    "SELECT id, name, slug, timezone, logo_r2_key, settings_json FROM organizations WHERE id = ?",
   )
     .bind(orgId)
-    .first<{ id: string; name: string; slug: string; timezone: string }>();
+    .first<{
+      id: string;
+      name: string;
+      slug: string;
+      timezone: string;
+      logo_r2_key: string | null;
+      settings_json: string | null;
+    }>();
 
   if (!org) return c.json({ error: "Not found" }, 404);
   const stats = await getOrgStats(c.env.DB, orgId);
-  return c.json({ organization: { ...org, role: member.role }, stats });
+  const { parseOrgSettings } = await import("../utils/orgSettings");
+  return c.json({
+    organization: {
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      timezone: org.timezone,
+      role: member.role,
+      hasLogo: Boolean(org.logo_r2_key),
+      settings: parseOrgSettings(org.settings_json),
+    },
+    stats,
+  });
+});
+
+app.get("/organizations/:orgId/logo", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (member instanceof Response) return member;
+
+  const org = await c.env.DB.prepare("SELECT logo_r2_key FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ logo_r2_key: string | null }>();
+  if (!org?.logo_r2_key) return c.json({ error: "Not found" }, 404);
+
+  const obj = await c.env.FILES.get(org.logo_r2_key);
+  if (!obj) return c.json({ error: "Not found" }, 404);
+
+  const headers = new Headers();
+  headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/png");
+  headers.set("Cache-Control", "private, max-age=3600");
+  return new Response(obj.body, { headers });
 });
 
 app.get("/organizations/:orgId/teams", async (c) => {

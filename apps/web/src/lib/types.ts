@@ -30,6 +30,9 @@ export type Organization = {
   name: string;
   slug: string;
   role: OrgRole | string;
+  timezone?: string;
+  hasLogo?: boolean;
+  settings?: OrgWorkSettings;
   subscription?: OrgSubscriptionSummary;
 };
 
@@ -38,11 +41,37 @@ export type OrgStats = {
   teams: number;
 };
 
+export type OrgWorkSettings = {
+  workHours: { start: string; end: string };
+  workDays: number[];
+};
+
+export type Department = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  sortOrder: number;
+  teamCount: number;
+};
+
+export type TeamSummary = {
+  eventsThisWeek: number;
+  upcomingEvents: {
+    id: string;
+    title: string;
+    startAt: number;
+    endAt: number;
+    allDay: boolean;
+  }[];
+  tasks: { todo: number; doing: number; done: number };
+};
+
 export type Team = {
   id: string;
   name: string;
   color: string;
   description?: string | null;
+  departmentId?: string | null;
   memberCount?: number;
   createdAt?: number;
 };
@@ -209,6 +238,12 @@ export type OrgPermissionsResponse = {
   } | null;
 };
 
+export type MemberTeamTag = {
+  id: string;
+  name: string;
+  color: string;
+};
+
 export type OrgMember = {
   id: string;
   user_id: string;
@@ -217,6 +252,7 @@ export type OrgMember = {
   joined_at: number | null;
   name: string;
   email: string | null;
+  teams?: MemberTeamTag[];
   avatar_url: string | null;
 };
 
