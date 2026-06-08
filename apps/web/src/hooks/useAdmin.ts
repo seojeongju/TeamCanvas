@@ -38,7 +38,15 @@ export function useCreateInviteLink() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();
   return useMutation({
-    mutationFn: (data?: { email?: string; role?: string }) => api.createOrgInviteLink(orgId!, data),
+    mutationFn: (data?: {
+      email?: string;
+      emailDomain?: string;
+      role?: string;
+      inviteType?: "single" | "multi";
+      maxUses?: number | null;
+      expiryDays?: number;
+      label?: string;
+    }) => api.createOrgInviteLink(orgId!, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invites", orgId] }),
   });
 }

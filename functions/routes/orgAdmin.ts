@@ -258,14 +258,33 @@ orgAdminRoutes.post("/organizations/:orgId/invites", async (c) => {
   const limits = await checkMemberLimit(c.env.DB, orgId);
   if (!limits.ok) return c.json({ error: "Member limit reached", code: "MEMBER_LIMIT", ...limits }, 402);
 
-  const body = await c.req.json<{ email?: string; role?: string }>();
+  const body = await c.req.json<{
+    email?: string;
+    emailDomain?: string;
+    role?: string;
+    inviteType?: "single" | "multi";
+    maxUses?: number | null;
+    expiryDays?: number;
+    label?: string;
+  }>();
   const { createOrgInvite } = await import("../utils/invites");
   const { sendOrgInviteEmail } = await import("../utils/email");
 
-  const { rawToken, expiresAt } = await createOrgInvite(c.env.DB, orgId, user.id, {
-    email: body.email,
-    role: body.role,
-  });
+  let created;
+  try {
+    created = await createOrgInvite(c.env.DB, orgId, user.id, {
+      email: body.email,
+      emailDomain: body.emailDomain,
+      role: body.role,
+      inviteType: body.inviteType ?? "multi",
+      maxUses: body.maxUses,
+      expiryDays: body.expiryDays,
+      label: body.label,
+    });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "Invalid invite options" }, 400);
+  }
+  const { rawToken, expiresAt, id: inviteId } = created;
 
   const org = await c.env.DB.prepare("SELECT name FROM organizations WHERE id = ?").bind(orgId).first<{ name: string }>();
   const inviteUrl = `${frontendUrl(c.req.raw, c.env)}/invite/${rawToken}`;
@@ -275,12 +294,16 @@ orgAdminRoutes.post("/organizations/:orgId/invites", async (c) => {
     emailResult = await sendOrgInviteEmail(c.env, c.req.raw, body.email.trim(), org?.name ?? "조직", inviteUrl);
   }
 
-  await writeAuditLog(c.env.DB, orgId, user.id, "invite.link_created", "org_invite", null, {
+  await writeAuditLog(c.env.DB, orgId, user.id, "invite.link_created", "org_invite", inviteId, {
     email: body.email ?? null,
+    emailDomain: body.emailDomain ?? null,
     role: body.role ?? "member",
+    inviteType: body.inviteType ?? "multi",
+    maxUses: body.maxUses ?? null,
+    label: body.label ?? null,
   });
 
-  return c.json({ inviteUrl, expiresAt, email: emailResult }, 201);
+  return c.json({ inviteUrl, expiresAt, inviteId, email: emailResult }, 201);
 });
 
 orgAdminRoutes.delete("/organizations/:orgId/invites/:inviteId", async (c) => {
@@ -308,6 +331,8 @@ orgAdminRoutes.get("/invites/:token", async (c) => {
     organizationName: invite.orgName,
     role: invite.role,
     email: invite.email,
+    emailDomain: invite.emailDomain,
+    inviteType: invite.inviteType,
     expiresAt: invite.expiresAt,
   });
 });
@@ -324,7 +349,10 @@ orgAdminRoutes.post("/invites/:token/accept", async (c) => {
   const result = await acceptOrgInvite(c.env.DB, invite.id, user.id, user.email);
   if ("error" in result) return c.json({ error: result.error }, 400);
 
-  await writeAuditLog(c.env.DB, result.organizationId, user.id, "invite.accepted", "org_invite", invite.id);
+  await writeAuditLog(c.env.DB, result.organizationId, user.id, "invite.redeemed", "org_invite", invite.id, {
+    userId: user.id,
+    email: user.email,
+  });
   return c.json({ ok: true, organizationId: result.organizationId });
 });
 

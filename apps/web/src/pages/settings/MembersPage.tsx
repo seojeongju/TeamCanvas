@@ -19,6 +19,8 @@ import {
 } from "../../hooks/useAdmin";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { useAuthStore } from "../../stores/authStore";
+import type { OrgInvite } from "../../lib/types";
+import { cn } from "../../lib/cn";
 import { useCurrentOrgId } from "../../stores/orgStore";
 
 const roleLabels: Record<string, string> = {
@@ -37,7 +39,13 @@ export function MembersPage() {
   const createLink = useCreateInviteLink();
   const revokeInvite = useRevokeOrgInvite();
   const [email, setEmail] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
   const [linkEmail, setLinkEmail] = useState("");
+  const [linkDomain, setLinkDomain] = useState("");
+  const [inviteType, setInviteType] = useState<"multi" | "single">("multi");
+  const [maxUses, setMaxUses] = useState<"unlimited" | "limited">("unlimited");
+  const [maxUsesLimit, setMaxUsesLimit] = useState("50");
+  const [expiryDays, setExpiryDays] = useState("7");
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
 
@@ -61,12 +69,21 @@ export function MembersPage() {
 
   const handleCreateLink = async () => {
     try {
-      const res = await createLink.mutateAsync(
-        linkEmail.trim() ? { email: linkEmail.trim() } : undefined,
-      );
+      const payload: Parameters<typeof createLink.mutateAsync>[0] = {
+        inviteType,
+        expiryDays: Number(expiryDays) || 7,
+        label: linkLabel.trim() || undefined,
+      };
+      if (linkEmail.trim()) payload.email = linkEmail.trim();
+      if (linkDomain.trim()) payload.emailDomain = linkDomain.trim();
+      if (inviteType === "multi") {
+        payload.maxUses =
+          maxUses === "unlimited" ? null : Math.max(1, Number(maxUsesLimit) || 50);
+      }
+      const res = await createLink.mutateAsync(payload);
       setLastLink(res.inviteUrl);
       if (res.email?.devLink) setLastLink(res.email.devLink);
-      setToast({ tone: "info", message: "초대 링크를 생성했습니다." });
+      setToast({ tone: "info", message: "팀 초대 링크를 생성했습니다." });
     } catch (err) {
       setToast({ tone: "error", message: err instanceof Error ? err.message : "링크 생성 실패" });
     }
@@ -87,16 +104,27 @@ export function MembersPage() {
     return `${minutes}분 남음`;
   };
 
-  const handleReissue = async (inv: Record<string, unknown>) => {
-    const email = typeof inv.email === "string" ? inv.email : undefined;
-    const role = typeof inv.role === "string" ? inv.role : undefined;
+  const formatUsage = (inv: OrgInvite) => {
+    const max = inv.max_uses;
+    if (inv.invite_type === "single" || max === 1) {
+      return inv.use_count > 0 ? "사용됨" : "1회용 · 미사용";
+    }
+    if (max === null) return `${inv.use_count}명 / 무제한`;
+    return `${inv.use_count}명 / ${max}명`;
+  };
+
+  const inviteRestrictionLabel = (inv: OrgInvite) => {
+    if (inv.email) return inv.email;
+    if (inv.email_domain) return `${inv.email_domain} 도메인`;
+    return "제한 없음";
+  };
+
+  const handleRevoke = async (inviteId: string) => {
     try {
-      await revokeInvite.mutateAsync(String(inv.id));
-      const res = await createLink.mutateAsync({ email, role });
-      setLastLink(res.email?.devLink ?? res.inviteUrl);
-      setToast({ tone: "info", message: "초대를 재발급했습니다." });
+      await revokeInvite.mutateAsync(inviteId);
+      setToast({ tone: "info", message: "초대 링크를 비활성화했습니다." });
     } catch (err) {
-      setToast({ tone: "error", message: err instanceof Error ? err.message : "재발급 실패" });
+      setToast({ tone: "error", message: err instanceof Error ? err.message : "비활성화 실패" });
     }
   };
 
@@ -126,17 +154,101 @@ export function MembersPage() {
             </form>
           </GlassCard>
 
-          <GlassCard className="space-y-3 p-4">
+          <GlassCard className="space-y-4 p-4">
             <div className="flex items-center gap-2">
               <Link2 className="h-4 w-4 text-primary-500" />
-              <label className="text-sm font-medium text-navy-800">초대 링크 (7일 유효)</label>
+              <label className="text-sm font-medium text-navy-800">팀 초대 링크</label>
             </div>
+
+            <Input
+              value={linkLabel}
+              onChange={(e) => setLinkLabel(e.target.value)}
+              placeholder="링크 이름 (예: 2025 신규입사)"
+            />
+
+            <div className="flex gap-2">
+              {(["multi", "single"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setInviteType(type)}
+                  className={cn(
+                    "flex-1 rounded-xl py-2 text-xs font-medium transition",
+                    inviteType === type
+                      ? "bg-primary-400 text-white"
+                      : "bg-sky-100/60 text-navy-700",
+                  )}
+                >
+                  {type === "multi" ? "다회용 (팀)" : "1회용 (개인)"}
+                </button>
+              ))}
+            </div>
+
+            {inviteType === "multi" && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-navy-700">사용 횟수</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMaxUses("unlimited")}
+                    className={cn(
+                      "flex-1 rounded-xl py-2 text-xs font-medium",
+                      maxUses === "unlimited" ? "bg-primary-400/15 text-primary-700" : "bg-navy-800/5",
+                    )}
+                  >
+                    무제한
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMaxUses("limited")}
+                    className={cn(
+                      "flex-1 rounded-xl py-2 text-xs font-medium",
+                      maxUses === "limited" ? "bg-primary-400/15 text-primary-700" : "bg-navy-800/5",
+                    )}
+                  >
+                    최대 인원
+                  </button>
+                </div>
+                {maxUses === "limited" && (
+                  <Input
+                    type="number"
+                    min={1}
+                    value={maxUsesLimit}
+                    onChange={(e) => setMaxUsesLimit(e.target.value)}
+                    placeholder="최대 인원"
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2">
+              {["7", "30", "14"].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setExpiryDays(days)}
+                  className={cn(
+                    "rounded-xl py-2 text-xs font-medium",
+                    expiryDays === days ? "bg-primary-400 text-white" : "bg-navy-800/5 text-navy-700",
+                  )}
+                >
+                  {days}일
+                </button>
+              ))}
+            </div>
+
             <Input
               type="email"
               value={linkEmail}
               onChange={(e) => setLinkEmail(e.target.value)}
               placeholder="이메일 제한 (선택)"
             />
+            <Input
+              value={linkDomain}
+              onChange={(e) => setLinkDomain(e.target.value)}
+              placeholder="도메인 제한 (선택, 예: wow-campus.com)"
+            />
+
             <Button type="button" onClick={handleCreateLink} disabled={createLink.isPending} className="w-full">
               링크 생성
             </Button>
@@ -159,40 +271,35 @@ export function MembersPage() {
 
       {(invitesData?.invites ?? []).length > 0 && (
         <GlassCard className="p-4">
-          <p className="mb-2 text-sm font-medium text-navy-800">대기 중인 초대</p>
+          <p className="mb-2 text-sm font-medium text-navy-800">활성 초대 링크</p>
           <ul className="space-y-2 text-xs text-navy-600">
             {invitesData!.invites.map((inv) => (
-              <li key={String(inv.id)} className="flex items-center justify-between gap-2 rounded-lg bg-navy-800/5 px-2 py-2">
-                <div className="min-w-0">
-                  <p className="truncate">
-                    {String(inv.email ?? "링크 초대")} · {roleLabels[String(inv.role)] ?? String(inv.role)}
+              <li
+                key={inv.id}
+                className="flex items-center justify-between gap-2 rounded-lg bg-navy-800/5 px-3 py-2.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-navy-800">
+                    {inv.label || inviteRestrictionLabel(inv)}
                   </p>
-                  {typeof inv.expires_at === "number" && (
-                    <p className="mt-0.5 text-[11px] text-navy-500">
-                      만료: {new Date(inv.expires_at).toLocaleString("ko-KR")} ({formatRemaining(inv.expires_at)})
-                    </p>
-                  )}
+                  <p className="mt-0.5 truncate text-[11px] text-navy-600">
+                    {inv.invite_type === "multi" ? "다회용" : "1회용"} · {roleLabels[inv.role] ?? inv.role} ·{" "}
+                    {formatUsage(inv)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-navy-500">
+                    {inviteRestrictionLabel(inv)} · {formatRemaining(inv.expires_at)}
+                  </p>
                 </div>
                 {canManage && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      className="rounded-md px-2 py-1 text-[11px] text-primary-600 hover:bg-primary-50"
-                      onClick={() => handleReissue(inv as Record<string, unknown>)}
-                      disabled={revokeInvite.isPending || createLink.isPending}
-                    >
-                      재발급
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1 text-red-500 hover:bg-red-50"
-                      aria-label="초대 취소"
-                      onClick={() => revokeInvite.mutate(String(inv.id))}
-                      disabled={revokeInvite.isPending}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-md p-1.5 text-red-500 hover:bg-red-50"
+                    aria-label="링크 비활성화"
+                    onClick={() => handleRevoke(inv.id)}
+                    disabled={revokeInvite.isPending}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 )}
               </li>
             ))}

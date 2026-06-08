@@ -72,7 +72,13 @@ export function AcceptInvitePage() {
             {data.role === "admin" ? "관리자" : "멤버"}로 초대되었습니다
           </p>
           {data.email && (
-            <p className="mt-2 text-xs text-navy-500">대상: {data.email}</p>
+            <p className="mt-2 text-xs text-navy-500">대상 이메일: {data.email}</p>
+          )}
+          {data.emailDomain && (
+            <p className="mt-2 text-xs text-navy-500">허용 도메인: {data.emailDomain}</p>
+          )}
+          {data.inviteType === "multi" && (
+            <p className="mt-1 text-xs text-primary-600">팀 초대 링크 — 로그인 후 참여할 수 있습니다</p>
           )}
         </div>
 

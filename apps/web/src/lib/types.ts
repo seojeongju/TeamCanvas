@@ -121,6 +121,20 @@ export type NotificationPreferences = {
   emailEnabled: boolean;
 };
 
+export type OrgInvite = {
+  id: string;
+  email: string | null;
+  email_domain: string | null;
+  role: string;
+  expires_at: number;
+  created_at: number;
+  invite_type: "single" | "multi" | string;
+  max_uses: number | null;
+  use_count: number;
+  label: string | null;
+  invited_by_name: string;
+};
+
 export type AuthMeResponse = {
   user: User;
   organizations: Organization[];

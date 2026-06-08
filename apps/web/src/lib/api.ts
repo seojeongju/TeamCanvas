@@ -261,14 +261,30 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  createOrgInviteLink: (orgId: string, data?: { email?: string; role?: string }) =>
-    request<{ inviteUrl: string; expiresAt: number; email?: { sent: boolean; devLink?: string } }>(
-      `/api/organizations/${orgId}/invites`,
-      { method: "POST", body: JSON.stringify(data ?? {}) },
-    ),
+  createOrgInviteLink: (
+    orgId: string,
+    data?: {
+      email?: string;
+      emailDomain?: string;
+      role?: string;
+      inviteType?: "single" | "multi";
+      maxUses?: number | null;
+      expiryDays?: number;
+      label?: string;
+    },
+  ) =>
+    request<{
+      inviteUrl: string;
+      expiresAt: number;
+      inviteId?: string;
+      email?: { sent: boolean; devLink?: string };
+    }>(`/api/organizations/${orgId}/invites`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
 
   getOrgInvites: (orgId: string) =>
-    request<{ invites: Record<string, unknown>[] }>(`/api/organizations/${orgId}/invites`),
+    request<{ invites: import("./types").OrgInvite[] }>(`/api/organizations/${orgId}/invites`),
 
   revokeOrgInvite: (orgId: string, inviteId: string) =>
     request<{ ok: boolean }>(`/api/organizations/${orgId}/invites/${inviteId}`, { method: "DELETE" }),
@@ -279,6 +295,8 @@ export const api = {
       organizationName?: string;
       role?: string;
       email?: string | null;
+      emailDomain?: string | null;
+      inviteType?: string;
       expiresAt?: number;
     }>(`/api/invites/${token}`),
 
