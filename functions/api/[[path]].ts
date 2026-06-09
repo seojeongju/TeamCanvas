@@ -233,8 +233,50 @@ app.get("/organizations/:orgId/events", async (c) => {
       color: r.color ?? "#4A9FE8",
       teamName: r.team_name ?? "조직",
       time: formatEventTime(r.start_at as number, r.end_at as number, Boolean(r.all_day)),
+      sourceType: "event" as const,
     };
   });
+
+  const tasksFeature = await requireOrgFeature(c, orgId, "tasks");
+  if (!(tasksFeature instanceof Response)) {
+    const { results: taskRows } = await c.env.DB.prepare(
+      `SELECT t.id, t.title, t.due_at, t.team_id, tm.name as team_name
+       FROM tasks t
+       LEFT JOIN teams tm ON tm.id = t.team_id
+       WHERE t.organization_id = ?
+         AND t.due_at IS NOT NULL
+         AND t.status != 'done'
+         AND t.due_at >= ? AND t.due_at <= ?`,
+    )
+      .bind(orgId, from, to)
+      .all();
+
+    for (const row of taskRows ?? []) {
+      const r = row as Record<string, unknown>;
+      const dueAt = r.due_at as number;
+      const dayStart = startOfDay(dueAt);
+      const dayEnd = endOfDay(dueAt);
+      events.push({
+        id: `task-due:${r.id}`,
+        title: `📋 ${r.title}`,
+        description: "업무 마감",
+        startAt: dayStart,
+        endAt: dayEnd,
+        allDay: true,
+        visibility: "org",
+        recurrenceRule: null,
+        location: null,
+        teamId: r.team_id ?? null,
+        color: "#F97316",
+        teamName: (r.team_name as string) ?? "업무",
+        time: formatEventTime(dayStart, dayEnd, true),
+        sourceType: "task" as const,
+        taskId: r.id,
+      });
+    }
+
+    events.sort((a, b) => (a.startAt as number) - (b.startAt as number));
+  }
 
   return c.json({ events });
 });
@@ -684,36 +726,75 @@ app.get("/organizations/:orgId/tasks", async (c) => {
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
 
-  const { results } = await c.env.DB.prepare(
-    `SELECT t.*, u.name as assignee_name
+  const assignee = c.req.query("assignee");
+  const teamId = c.req.query("teamId");
+  const status = c.req.query("status");
+  const overdue = c.req.query("overdue");
+
+  let sql = `SELECT t.*, u.name as assignee_name, tm.name as team_name
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
-     WHERE t.organization_id = ?
-     ORDER BY t.sort_order, t.created_at DESC`,
-  )
-    .bind(orgId)
-    .all();
+     LEFT JOIN teams tm ON tm.id = t.team_id
+     WHERE t.organization_id = ?`;
+  const binds: unknown[] = [orgId];
+
+  if (assignee === "me") {
+    sql += " AND t.assignee_id = ?";
+    binds.push(user.id);
+  }
+  if (teamId) {
+    sql += " AND t.team_id = ?";
+    binds.push(teamId);
+  }
+  if (status && ["todo", "doing", "done"].includes(status)) {
+    sql += " AND t.status = ?";
+    binds.push(status);
+  }
+  if (overdue === "true") {
+    sql += " AND t.due_at IS NOT NULL AND t.due_at < ? AND t.status != 'done'";
+    binds.push(now());
+  }
+
+  sql += " ORDER BY t.sort_order, t.created_at DESC";
+
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+
+  const ts = now();
+  const today = startOfDay(ts);
 
   const tasks = (results ?? []).map((row) => {
     const r = row as Record<string, unknown>;
+    const dueAt = r.due_at as number | null;
+    const taskStatus = r.status as string;
     let due = "";
-    if (r.due_at) {
-      const d = new Date(r.due_at as number);
-      const today = startOfDay(now());
-      if (r.due_at <= endOfDay(today)) due = "오늘";
-      else if (r.due_at <= endOfDay(today + 86400000)) due = "내일";
+    let isOverdue = false;
+
+    if (taskStatus === "done") {
+      due = "완료";
+    } else if (dueAt) {
+      isOverdue = dueAt < ts;
+      const d = new Date(dueAt);
+      if (isOverdue) due = "지연";
+      else if (dueAt <= endOfDay(today)) due = "오늘";
+      else if (dueAt <= endOfDay(today + 86400000)) due = "내일";
       else due = `${d.getMonth() + 1}/${d.getDate()}`;
     }
-    if (r.status === "done") due = "완료";
+
     return {
       id: r.id,
       title: r.title,
       description: r.description,
-      status: r.status,
-      priority: r.priority,
+      status: taskStatus,
+      priority: r.priority ?? "medium",
+      assigneeId: r.assignee_id,
       assignee: r.assignee_name ?? "미배정",
-      dueAt: r.due_at,
+      teamId: r.team_id,
+      teamName: r.team_name ?? null,
+      creatorId: r.creator_id,
+      dueAt,
       due,
+      isOverdue,
+      sortOrder: r.sort_order ?? 0,
     };
   });
 
@@ -736,29 +817,57 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     status?: string;
     dueAt?: number;
     assigneeId?: string;
+    priority?: string;
+    teamId?: string | null;
   }>();
 
   if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
 
+  const priority = ["low", "medium", "high"].includes(body.priority ?? "")
+    ? body.priority
+    : "medium";
+
   const id = newId();
   const ts = now();
+  const assigneeId = body.assigneeId ?? user.id;
+
   await c.env.DB.prepare(
-    `INSERT INTO tasks (id, organization_id, creator_id, assignee_id, title, description, status, due_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, organization_id, team_id, creator_id, assignee_id, title, description, status, priority, due_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
       orgId,
+      body.teamId ?? null,
       user.id,
-      body.assigneeId ?? user.id,
+      assigneeId,
       body.title.trim(),
       body.description ?? null,
       body.status ?? "todo",
+      priority,
       body.dueAt ?? null,
       ts,
       ts,
     )
     .run();
+
+  const { notifyTaskAssigned, notifyTaskDueSoon } = await import("../utils/notifications");
+  await notifyTaskAssigned(c.env.DB, {
+    assigneeId,
+    actorId: user.id,
+    organizationId: orgId,
+    taskId: id,
+    taskTitle: body.title.trim(),
+  });
+  if (body.dueAt && body.dueAt <= now() + 86400000) {
+    await notifyTaskDueSoon(c.env.DB, {
+      assigneeId,
+      organizationId: orgId,
+      taskId: id,
+      taskTitle: body.title.trim(),
+      dueAt: body.dueAt,
+    });
+  }
 
   return c.json({ id }, 201);
 });
@@ -768,25 +877,72 @@ app.patch("/tasks/:taskId", async (c) => {
   if (user instanceof Response) return user;
   const taskId = c.req.param("taskId");
 
-  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+  const existing = await c.env.DB.prepare(
+    "SELECT organization_id, assignee_id, title, due_at FROM tasks WHERE id = ?",
+  )
     .bind(taskId)
-    .first<{ organization_id: string }>();
-  if (!task) return c.json({ error: "Not found" }, 404);
+    .first<{
+      organization_id: string;
+      assignee_id: string | null;
+      title: string;
+      due_at: number | null;
+    }>();
+  if (!existing) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  const member = await requireOrgPermission(c, user.id, existing.organization_id, "tasks:write");
   if (member instanceof Response) return member;
 
-  const body = await c.req.json<{ status?: string; title?: string }>();
+  const body = await c.req.json<{
+    status?: string;
+    title?: string;
+    description?: string | null;
+    dueAt?: number | null;
+    assigneeId?: string | null;
+    priority?: string;
+    sortOrder?: number;
+    teamId?: string | null;
+  }>();
   const updates: string[] = [];
   const values: unknown[] = [];
 
-  if (body.status) {
+  if (body.status !== undefined) {
+    if (!["todo", "doing", "done"].includes(body.status)) {
+      return c.json({ error: "Invalid status" }, 400);
+    }
     updates.push("status = ?");
     values.push(body.status);
   }
-  if (body.title) {
+  if (body.title !== undefined) {
+    if (!body.title.trim()) return c.json({ error: "title required" }, 400);
     updates.push("title = ?");
-    values.push(body.title);
+    values.push(body.title.trim());
+  }
+  if (body.description !== undefined) {
+    updates.push("description = ?");
+    values.push(body.description);
+  }
+  if (body.dueAt !== undefined) {
+    updates.push("due_at = ?");
+    values.push(body.dueAt);
+  }
+  if (body.assigneeId !== undefined) {
+    updates.push("assignee_id = ?");
+    values.push(body.assigneeId);
+  }
+  if (body.priority !== undefined) {
+    if (!["low", "medium", "high"].includes(body.priority)) {
+      return c.json({ error: "Invalid priority" }, 400);
+    }
+    updates.push("priority = ?");
+    values.push(body.priority);
+  }
+  if (body.sortOrder !== undefined) {
+    updates.push("sort_order = ?");
+    values.push(body.sortOrder);
+  }
+  if (body.teamId !== undefined) {
+    updates.push("team_id = ?");
+    values.push(body.teamId);
   }
   if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
 
@@ -796,6 +952,154 @@ app.patch("/tasks/:taskId", async (c) => {
   await c.env.DB.prepare(`UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`)
     .bind(...values)
     .run();
+
+  const { notifyTaskAssigned, notifyTaskDueSoon } = await import("../utils/notifications");
+  const nextAssignee =
+    body.assigneeId !== undefined ? body.assigneeId : existing.assignee_id;
+  const nextTitle = body.title !== undefined ? body.title.trim() : existing.title;
+  const nextDue = body.dueAt !== undefined ? body.dueAt : existing.due_at;
+
+  if (
+    body.assigneeId !== undefined &&
+    body.assigneeId &&
+    body.assigneeId !== existing.assignee_id
+  ) {
+    await notifyTaskAssigned(c.env.DB, {
+      assigneeId: body.assigneeId,
+      actorId: user.id,
+      organizationId: existing.organization_id,
+      taskId,
+      taskTitle: nextTitle,
+    });
+  }
+
+  if (
+    body.dueAt !== undefined &&
+    body.dueAt &&
+    body.dueAt <= now() + 86400000 &&
+    body.dueAt !== existing.due_at
+  ) {
+    await notifyTaskDueSoon(c.env.DB, {
+      assigneeId: nextAssignee ?? user.id,
+      organizationId: existing.organization_id,
+      taskId,
+      taskTitle: nextTitle,
+      dueAt: body.dueAt,
+    });
+  }
+
+  return c.json({ ok: true });
+});
+
+app.get("/tasks/:taskId/comments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT c.id, c.task_id, c.user_id, c.body, c.created_at, u.name as user_name
+     FROM task_comments c
+     JOIN users u ON u.id = c.user_id
+     WHERE c.task_id = ?
+     ORDER BY c.created_at ASC`,
+  )
+    .bind(taskId)
+    .all();
+
+  const comments = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const createdAt = r.created_at as number;
+    return {
+      id: r.id,
+      taskId: r.task_id,
+      userId: r.user_id,
+      userName: r.user_name,
+      body: r.body,
+      createdAt,
+      time: new Date(createdAt).toLocaleString("ko-KR", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  });
+
+  return c.json({ comments });
+});
+
+app.post("/tasks/:taskId/comments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare(
+    "SELECT organization_id, assignee_id, creator_id, title FROM tasks WHERE id = ?",
+  )
+    .bind(taskId)
+    .first<{
+      organization_id: string;
+      assignee_id: string | null;
+      creator_id: string;
+      title: string;
+    }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ body?: string }>();
+  if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const id = newId();
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO task_comments (id, task_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(id, taskId, user.id, body.body.trim(), ts)
+    .run();
+
+  const { notifyTaskComment } = await import("../utils/notifications");
+  const preview = body.body.trim().slice(0, 80);
+  const recipients = new Set<string>();
+  if (task.assignee_id) recipients.add(task.assignee_id);
+  if (task.creator_id) recipients.add(task.creator_id);
+  for (const recipientId of recipients) {
+    await notifyTaskComment(c.env.DB, {
+      recipientId,
+      actorId: user.id,
+      organizationId: task.organization_id,
+      taskId,
+      taskTitle: task.title,
+      preview,
+    });
+  }
+
+  return c.json({ id }, 201);
+});
+
+app.delete("/tasks/:taskId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:delete");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(taskId).run();
 
   return c.json({ ok: true });
 });

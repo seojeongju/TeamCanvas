@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCurrentOrgId } from "../stores/orgStore";
 import { startOfDay, endOfDay } from "../lib/dates";
+import type { Task, TaskFilters, UpdateTaskPayload } from "../lib/types";
 
 export function useOrgDetail() {
   const orgId = useCurrentOrgId();
@@ -158,11 +159,20 @@ export function useDeleteEvent() {
   });
 }
 
-export function useTasks() {
+function applyTaskPatch(task: Task, patch: Omit<UpdateTaskPayload, "id">): Task {
+  const next = { ...task, ...patch };
+  if (patch.status === "done") {
+    next.due = "완료";
+    next.isOverdue = false;
+  }
+  return next;
+}
+
+export function useTasks(filters?: TaskFilters) {
   const orgId = useCurrentOrgId();
   return useQuery({
-    queryKey: ["tasks", orgId],
-    queryFn: () => api.getTasks(orgId!),
+    queryKey: ["tasks", orgId, filters],
+    queryFn: () => api.getTasks(orgId!, filters),
     enabled: !!orgId,
   });
 }
@@ -172,17 +182,91 @@ export function useCreateTask() {
   const orgId = useCurrentOrgId();
 
   return useMutation({
-    mutationFn: (data: { title: string; status?: string; dueAt?: number }) =>
-      api.createTask(orgId!, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    mutationFn: (data: {
+      title: string;
+      status?: string;
+      dueAt?: number;
+      description?: string;
+      assigneeId?: string;
+      priority?: string;
+      teamId?: string | null;
+    }) => api.createTask(orgId!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
   });
 }
 
 export function useUpdateTask() {
   const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; status?: string }) => api.updateTask(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    mutationFn: ({ id, ...data }: UpdateTaskPayload) => api.updateTask(id, data),
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ["tasks", orgId] });
+      const snapshots = qc.getQueriesData<{ tasks: Task[] }>({ queryKey: ["tasks", orgId] });
+      for (const [key, data] of snapshots) {
+        if (!data?.tasks) continue;
+        qc.setQueryData(key, {
+          tasks: data.tasks.map((t) => (t.id === vars.id ? applyTaskPatch(t, vars) : t)),
+        });
+      }
+      return { snapshots };
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+
+  return useMutation({
+    mutationFn: (taskId: string) => api.deleteTask(taskId),
+    onMutate: async (taskId) => {
+      await qc.cancelQueries({ queryKey: ["tasks", orgId] });
+      const snapshots = qc.getQueriesData<{ tasks: Task[] }>({ queryKey: ["tasks", orgId] });
+      for (const [key, data] of snapshots) {
+        if (!data?.tasks) continue;
+        qc.setQueryData(key, { tasks: data.tasks.filter((t) => t.id !== taskId) });
+      }
+      return { snapshots };
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
+export function useTaskComments(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ["task-comments", taskId],
+    queryFn: () => api.getTaskComments(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+export function useCreateTaskComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, body }: { taskId: string; body: string }) =>
+      api.createTaskComment(taskId, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["task-comments", vars.taskId] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }
 

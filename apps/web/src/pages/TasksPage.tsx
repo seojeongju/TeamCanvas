@@ -1,81 +1,113 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
-import { GlassCard } from "../components/ui/GlassCard";
 import { CreateTaskModal } from "../components/modals/CreateTaskModal";
-import { useTasks, useUpdateTask } from "../hooks/useData";
-import { cn } from "../lib/cn";
-import type { Task } from "../lib/types";
-
-const columns = [
-  { id: "todo" as const, label: "할 일", color: "border-sky-300" },
-  { id: "doing" as const, label: "진행 중", color: "border-primary-400" },
-  { id: "done" as const, label: "완료", color: "border-emerald-400" },
-];
+import { TaskBoardView } from "../components/tasks/TaskBoardView";
+import { TaskDetailSheet } from "../components/tasks/TaskDetailSheet";
+import { TaskFilterBar } from "../components/tasks/TaskFilterBar";
+import { TaskListView } from "../components/tasks/TaskListView";
+import { TaskSummaryBar } from "../components/tasks/TaskSummaryBar";
+import { TaskViewSwitcher } from "../components/tasks/TaskViewSwitcher";
+import { useTasks, useTeams, useUpdateTask } from "../hooks/useData";
+import { useAuthStore } from "../stores/authStore";
+import { computeTaskSummary, filterTasks } from "../lib/taskUtils";
+import type { Task, TaskFilters, TaskStatus, TaskViewMode } from "../lib/types";
 
 export function TasksPage() {
+  const userId = useAuthStore((s) => s.user?.id);
   const { data } = useTasks();
+  const { data: teamsData } = useTeams();
   const updateTask = useUpdateTask();
-  const [showCreate, setShowCreate] = useState(false);
-  const tasks = data?.tasks ?? [];
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const cycleStatus = (task: Task) => {
-    const next = task.status === "todo" ? "doing" : task.status === "doing" ? "done" : "todo";
-    updateTask.mutate({ id: task.id, status: next });
+  const [viewMode, setViewMode] = useState<TaskViewMode>("list");
+  const [filters, setFilters] = useState<TaskFilters>({ assignee: "all" });
+  const [showCreate, setShowCreate] = useState(false);
+  const [createStatus, setCreateStatus] = useState<TaskStatus>("todo");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const allTasks = data?.tasks ?? [];
+  const teams = teamsData?.teams ?? [];
+  const tasks = useMemo(() => filterTasks(allTasks, filters, userId), [allTasks, filters, userId]);
+  const summary = useMemo(() => computeTaskSummary(allTasks, userId), [allTasks, userId]);
+
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    if (!taskId || allTasks.length === 0) return;
+    const task = allTasks.find((t) => t.id === taskId);
+    if (task) setSelectedTask(task);
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, allTasks, setSearchParams]);
+
+  const handleStatusChange = (task: Task, status: TaskStatus) => {
+    if (task.status === status) return;
+    updateTask.mutate({ id: task.id, status });
+  };
+
+  const handleMove = (taskId: string, status: TaskStatus, sortOrder: number) => {
+    const task = allTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const patch: { id: string; status?: TaskStatus; sortOrder: number } = { id: taskId, sortOrder };
+    if (task.status !== status) patch.status = status;
+    updateTask.mutate(patch);
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="업무" subtitle="Kanban 보드" />
+    <div className="space-y-4 pb-4">
+      <PageHeader title="업무" subtitle="팀 업무를 관리하세요" />
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {columns.map((col) => {
-          const colTasks = tasks.filter((t) => t.status === col.id);
-          return (
-            <div key={col.id} className="min-w-[260px] flex-1">
-              <div className={cn("mb-3 flex items-center gap-2 border-l-4 pl-2", col.color)}>
-                <h3 className="text-sm font-semibold text-navy-800">{col.label}</h3>
-                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-navy-600">
-                  {colTasks.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {colTasks.map((task) => (
-                  <GlassCard key={task.id} className="p-4" onClick={() => cycleStatus(task)}>
-                    <p className="font-medium text-navy-900">{task.title}</p>
-                    <div className="mt-2 flex items-center justify-between text-xs text-navy-600">
-                      <span>{task.assignee}</span>
-                      <span
-                        className={cn(
-                          "rounded-lg px-2 py-0.5",
-                          task.due === "완료"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : task.due === "오늘"
-                              ? "bg-orange-100 text-orange-600"
-                              : "bg-sky-100 text-navy-600",
-                        )}
-                      >
-                        {task.due || "—"}
-                      </span>
-                    </div>
-                  </GlassCard>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      <TaskSummaryBar
+        dueToday={summary.dueToday}
+        overdue={summary.overdue}
+        mine={summary.mine}
+        doing={summary.doing}
+      />
+
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <TaskViewSwitcher value={viewMode} onChange={setViewMode} />
+        </div>
       </div>
 
-      <p className="text-center text-xs text-navy-600/70">카드를 탭하면 상태가 변경됩니다</p>
+      <TaskFilterBar filters={filters} teams={teams} onChange={setFilters} />
+
+      {viewMode === "board" ? (
+        <TaskBoardView
+          tasks={tasks}
+          onOpen={setSelectedTask}
+          onStatusChange={handleStatusChange}
+          onMove={handleMove}
+        />
+      ) : (
+        <TaskListView tasks={tasks} onOpen={setSelectedTask} onStatusChange={handleStatusChange} />
+      )}
+
+      <p className="text-center text-xs text-navy-600/70">
+        탭: 상세 · 스와이프: 상태 변경 · 데스크톱 칸반: 드래그 정렬
+      </p>
 
       <button
-        onClick={() => setShowCreate(true)}
+        type="button"
+        onClick={() => {
+          setCreateStatus("todo");
+          setShowCreate(true);
+        }}
         className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-400 text-white shadow-glow transition hover:bg-primary-500 active:scale-95"
+        aria-label="업무 추가"
       >
         <Plus className="h-6 w-6" />
       </button>
 
-      <CreateTaskModal open={showCreate} onClose={() => setShowCreate(false)} />
+      <CreateTaskModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        defaultStatus={createStatus}
+      />
+
+      <TaskDetailSheet task={selectedTask} onClose={() => setSelectedTask(null)} />
     </div>
   );
 }

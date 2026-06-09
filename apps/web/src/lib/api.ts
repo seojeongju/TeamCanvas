@@ -322,8 +322,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getTasks: (orgId: string) =>
-    request<{ tasks: import("./types").Task[] }>(`/api/organizations/${orgId}/tasks`),
+  getTasks: (orgId: string, filters?: import("./types").TaskFilters) => {
+    const params = new URLSearchParams();
+    if (filters?.assignee === "me") params.set("assignee", "me");
+    if (filters?.teamId) params.set("teamId", filters.teamId);
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.overdue) params.set("overdue", "true");
+    const qs = params.toString();
+    return request<{ tasks: import("./types").Task[] }>(
+      `/api/organizations/${orgId}/tasks${qs ? `?${qs}` : ""}`,
+    );
+  },
 
   getEventReminders: (orgId: string, from?: number, to?: number) => {
     const params = new URLSearchParams();
@@ -377,17 +386,37 @@ export const api = {
 
   createTask: (
     orgId: string,
-    data: { title: string; status?: string; dueAt?: number; description?: string },
+    data: {
+      title: string;
+      status?: string;
+      dueAt?: number;
+      description?: string;
+      assigneeId?: string;
+      priority?: string;
+      teamId?: string | null;
+    },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/tasks`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  updateTask: (taskId: string, data: { status?: string; title?: string }) =>
+  updateTask: (taskId: string, data: Omit<import("./types").UpdateTaskPayload, "id">) =>
     request<{ ok: boolean }>(`/api/tasks/${taskId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    }),
+
+  deleteTask: (taskId: string) =>
+    request<{ ok: boolean }>(`/api/tasks/${taskId}`, { method: "DELETE" }),
+
+  getTaskComments: (taskId: string) =>
+    request<{ comments: import("./types").TaskComment[] }>(`/api/tasks/${taskId}/comments`),
+
+  createTaskComment: (taskId: string, body: string) =>
+    request<{ id: string }>(`/api/tasks/${taskId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
     }),
 
   getNotifications: () =>

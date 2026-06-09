@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { AgendaView } from "../components/calendar/AgendaView";
@@ -18,6 +19,7 @@ import type { CalendarEvent } from "../lib/types";
 import { cn } from "../lib/cn";
 
 export function CalendarPage() {
+  const routerNavigate = useNavigate();
   const today = new Date();
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [focusDate, setFocusDate] = useState(today);
@@ -102,6 +104,14 @@ export function CalendarPage() {
     setShowCreate(true);
   };
 
+  const handleEventClick = (event: CalendarEvent) => {
+    if (event.sourceType === "task" && event.taskId) {
+      routerNavigate(`/tasks?task=${event.taskId}`);
+      return;
+    }
+    setSelectedEvent(event);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="일정" subtitle="팀 캘린더" />
@@ -146,14 +156,14 @@ export function CalendarPage() {
               events={events}
               holidays={holidays}
               onDayClick={(date) => openCreate({ date })}
-              onEventClick={setSelectedEvent}
+              onEventClick={handleEventClick}
             />
           )}
           {viewMode === "week" && (
             <TimeGridView
               days={getWeekDays(focusDate)}
               events={events}
-              onEventClick={setSelectedEvent}
+              onEventClick={handleEventClick}
               onRangeSelect={(start, end) => openCreate({ range: { start, end } })}
             />
           )}
@@ -161,7 +171,7 @@ export function CalendarPage() {
             <TimeGridView
               days={[focusDate]}
               events={events}
-              onEventClick={setSelectedEvent}
+              onEventClick={handleEventClick}
               onRangeSelect={(start, end) => openCreate({ range: { start, end } })}
             />
           )}
@@ -169,7 +179,7 @@ export function CalendarPage() {
             <AgendaView
               focusDate={focusDate}
               events={events}
-              onEventClick={setSelectedEvent}
+              onEventClick={handleEventClick}
               onDayClick={(date) => openCreate({ date })}
             />
           )}
@@ -195,7 +205,7 @@ export function CalendarPage() {
               <button
                 key={event.id}
                 type="button"
-                onClick={() => setSelectedEvent(event)}
+                onClick={() => handleEventClick(event)}
                 className="w-full text-left"
               >
                 <GlassCard className="flex items-center gap-3 p-4 transition hover:bg-sky-50/50">

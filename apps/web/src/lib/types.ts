@@ -139,6 +139,18 @@ export type CalendarEvent = {
   color: string;
   teamName: string;
   time: string;
+  sourceType?: "event" | "task";
+  taskId?: string;
+};
+
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  body: string;
+  createdAt: number;
+  time: string;
 };
 
 export type BusyBlock = {
@@ -177,15 +189,44 @@ export type EventAttendee = {
   rsvp: "pending" | "accepted" | "declined" | string;
 };
 
+export type TaskStatus = "todo" | "doing" | "done";
+export type TaskPriority = "low" | "medium" | "high";
+export type TaskViewMode = "board" | "list";
+
 export type Task = {
   id: string;
   title: string;
   description?: string | null;
-  status: "todo" | "doing" | "done";
-  priority: string;
+  status: TaskStatus;
+  priority: TaskPriority | string;
+  assigneeId?: string | null;
   assignee: string;
+  teamId?: string | null;
+  teamName?: string | null;
+  creatorId?: string;
   dueAt?: number | null;
   due: string;
+  isOverdue?: boolean;
+  sortOrder?: number;
+};
+
+export type TaskFilters = {
+  assignee?: "me" | "all";
+  teamId?: string;
+  status?: TaskStatus;
+  overdue?: boolean;
+};
+
+export type UpdateTaskPayload = {
+  id: string;
+  status?: TaskStatus;
+  title?: string;
+  description?: string | null;
+  dueAt?: number | null;
+  assigneeId?: string | null;
+  priority?: TaskPriority;
+  sortOrder?: number;
+  teamId?: string | null;
 };
 
 export type Notification = {
