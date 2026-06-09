@@ -14,6 +14,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { GlassCard } from "../ui/GlassCard";
 import { SortableTaskCard } from "./SortableTaskCard";
 import { TaskCard } from "./TaskCard";
+import { TaskEmptyState } from "./TaskEmptyState";
 import { TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { Task, TaskStatus } from "../../lib/types";
@@ -23,6 +24,7 @@ interface TaskBoardViewProps {
   onOpen: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onMove: (taskId: string, status: TaskStatus, sortOrder: number) => void;
+  onCreate?: () => void;
 }
 
 function columnId(status: TaskStatus) {
@@ -35,7 +37,7 @@ function resolveStatus(overId: string, tasks: Task[]): TaskStatus | null {
   return hit?.status ?? null;
 }
 
-export function TaskBoardView({ tasks, onOpen, onStatusChange, onMove }: TaskBoardViewProps) {
+export function TaskBoardView({ tasks, onOpen, onStatusChange, onMove, onCreate }: TaskBoardViewProps) {
   const [activeColumn, setActiveColumn] = useState<TaskStatus>("todo");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
@@ -89,25 +91,36 @@ export function TaskBoardView({ tasks, onOpen, onStatusChange, onMove }: TaskBoa
     }
   };
 
+  if (tasks.length === 0) {
+    return <TaskEmptyState onCreate={onCreate} />;
+  }
+
   return (
     <>
-      <div className="flex gap-2 md:hidden">
+      <div className="flex gap-1.5 rounded-2xl bg-sky-100/50 p-1 md:hidden">
         {TASK_COLUMNS.map((col) => {
           const count = tasksByColumn[col.id].length;
+          const active = activeColumn === col.id;
           return (
             <button
               key={col.id}
               type="button"
               onClick={() => setActiveColumn(col.id)}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-medium transition",
-                activeColumn === col.id
-                  ? "bg-white text-navy-900 shadow-soft"
-                  : "bg-white/50 text-navy-600",
+                "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-xs font-semibold transition",
+                active ? "bg-white text-navy-900 shadow-sm" : "text-navy-600",
               )}
             >
-              {col.label}
-              <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px]">{count}</span>
+              <span className={cn("h-0.5 w-6 rounded-full", active ? col.color.replace("border-", "bg-") : "bg-transparent")} />
+              <span>{col.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-px text-[10px] font-medium tabular-nums",
+                  active ? "bg-sky-100 text-navy-700" : "text-navy-500",
+                )}
+              >
+                {count}
+              </span>
             </button>
           );
         })}

@@ -28,22 +28,26 @@ export function BottomNav() {
                 end={to === "/"}
                 className={({ isActive }) =>
                   cn(
-                    "relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-2xl px-3 py-1.5 text-[11px] font-medium transition-all",
+                    "relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-2xl px-2.5 py-1.5 text-[10px] font-medium transition-all",
                     isActive
-                      ? "bg-primary-400/15 text-primary-500"
-                      : "text-navy-600 hover:text-navy-800",
+                      ? "bg-primary-400/12 text-primary-600"
+                      : "text-navy-500 hover:text-navy-800",
                   )
                 }
               >
-                <span className="relative">
-                  <Icon className="h-5 w-5" strokeWidth={1.75} />
-                  {showBadge && (
-                    <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                      {unreadCount > 9 ? "9+" : unreadCount}
+                {({ isActive }) => (
+                  <>
+                    <span className="relative">
+                      <Icon className="h-[22px] w-[22px]" strokeWidth={isActive ? 2.25 : 1.75} />
+                      {showBadge && (
+                        <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                          {unreadCount > 9 ? "9+" : unreadCount}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <span>{label}</span>
+                    <span>{label}</span>
+                  </>
+                )}
               </NavLink>
             );
           })}
