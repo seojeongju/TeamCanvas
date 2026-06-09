@@ -242,6 +242,7 @@ export type TaskFilters = {
   teamId?: string;
   status?: TaskStatus;
   overdue?: boolean;
+  dueToday?: boolean;
   labelId?: string;
 };
 

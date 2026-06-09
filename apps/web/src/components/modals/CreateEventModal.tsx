@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Lock, Users, Building2 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
@@ -121,31 +121,18 @@ export function CreateEventModal({
   const workHours = orgData?.organization.settings?.workHours;
   const teams = teamsData?.teams ?? [];
   const typeConfig = getEventType(eventType);
+  const createInitializedRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-
-    if (editEvent) {
-      const dateStr = toDatetimeLocal(editEvent.startAt).slice(0, 10);
-      setEventType(getEventTypeByColor(editEvent.color));
-      setTitle(editEvent.title);
-      setStart(toDatetimeLocal(editEvent.startAt));
-      setEnd(toDatetimeLocal(editEvent.endAt));
-      setAllDay(editEvent.allDay);
-      setAllDayStart(dateStr);
-      setAllDayEnd(toDatetimeLocal(editEvent.endAt).slice(0, 10));
-      setVisibility((editEvent.visibility as "private" | "team" | "org") ?? "org");
-      setTeamId(editEvent.teamId ?? "");
-      setDescription(editEvent.description ?? "");
-      setLocation(editEvent.location ?? "");
-      setReminderMinutes([...INITIAL_ADVANCED.reminderMinutes]);
-      setAttendeeUserIds((editAttendeesData?.attendees ?? []).map((a) => a.user_id));
-      setRecurrence(recurrenceFromRule(editEvent.recurrenceRule));
-      setShowAdvanced(true);
-      setTimeError(null);
-      setTeamError(null);
-      return;
+    if (!open) {
+      createInitializedRef.current = false;
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || editEvent) return;
+    if (createInitializedRef.current) return;
+    createInitializedRef.current = true;
 
     const template = templateId ? getEventTemplate(templateId) : null;
     const range = prefillRange
@@ -161,7 +148,7 @@ export function CreateEventModal({
     setTitle(template?.title ?? "");
     setStart(toDatetimeLocal(range.start));
     setEnd(toDatetimeLocal(range.end));
-    setAllDay(template?.eventType === "vacation" ? true : false);
+    setAllDay(template?.eventType === "vacation");
     setAllDayStart(dateStr);
     setAllDayEnd(dateStr);
     setShowAdvanced(!!template);
@@ -174,7 +161,34 @@ export function CreateEventModal({
     setRecurrence(template?.recurrence ?? INITIAL_ADVANCED.recurrence);
     setTimeError(null);
     setTeamError(null);
-  }, [open, prefillDate, prefillRange, templateId, editEvent, editAttendeesData, workHours]);
+  }, [open, editEvent, prefillDate, prefillRange, templateId, workHours]);
+
+  useEffect(() => {
+    if (!open || !editEvent) return;
+
+    const dateStr = toDatetimeLocal(editEvent.startAt).slice(0, 10);
+    setEventType(getEventTypeByColor(editEvent.color));
+    setTitle(editEvent.title);
+    setStart(toDatetimeLocal(editEvent.startAt));
+    setEnd(toDatetimeLocal(editEvent.endAt));
+    setAllDay(editEvent.allDay);
+    setAllDayStart(dateStr);
+    setAllDayEnd(toDatetimeLocal(editEvent.endAt).slice(0, 10));
+    setVisibility((editEvent.visibility as "private" | "team" | "org") ?? "org");
+    setTeamId(editEvent.teamId ?? "");
+    setDescription(editEvent.description ?? "");
+    setLocation(editEvent.location ?? "");
+    setReminderMinutes([...INITIAL_ADVANCED.reminderMinutes]);
+    setRecurrence(recurrenceFromRule(editEvent.recurrenceRule));
+    setShowAdvanced(true);
+    setTimeError(null);
+    setTeamError(null);
+  }, [open, editEvent]);
+
+  useEffect(() => {
+    if (!open || !editEvent || !editAttendeesData) return;
+    setAttendeeUserIds(editAttendeesData.attendees.map((a) => a.user_id));
+  }, [open, editEvent, editAttendeesData]);
 
   useEffect(() => {
     if (!toast) return;
@@ -398,6 +412,13 @@ export function CreateEventModal({
     !allDay && start && end && !timeError
       ? formatDurationMinutes(fromDatetimeLocal(start), fromDatetimeLocal(end))
       : null;
+
+  const saveBlockReason = !title.trim()
+    ? "제목을 입력하면 저장할 수 있습니다."
+    : timeError
+      ? timeError
+      : null;
+  const canSave = !isPending && !timeError && !!title.trim();
 
   return (
     <>
@@ -714,9 +735,16 @@ export function CreateEventModal({
             )}
           </div>
 
-          <Button type="submit" fullWidth disabled={isPending || !!timeError || !title.trim()}>
-            {isPending ? "저장 중..." : isEdit ? "변경 저장" : "일정 저장"}
-          </Button>
+          <div className="sticky bottom-0 -mx-6 border-t border-sky-100/80 bg-white/95 px-6 py-4 backdrop-blur-sm">
+            {saveBlockReason && !isPending && (
+              <p className="mb-2 text-center text-xs text-amber-700" role="status">
+                {saveBlockReason}
+              </p>
+            )}
+            <Button type="submit" fullWidth disabled={!canSave}>
+              {isPending ? "저장 중..." : isEdit ? "변경 저장" : "일정 저장"}
+            </Button>
+          </div>
         </form>
       </Modal>
 

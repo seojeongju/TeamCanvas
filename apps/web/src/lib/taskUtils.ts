@@ -51,11 +51,18 @@ export function regressStatus(status: TaskStatus): TaskStatus {
 }
 
 export function filterTasks(tasks: Task[], filters: TaskFilters, userId?: string) {
+  const todayStart = startOfDay(Date.now());
+  const todayEnd = endOfDay(Date.now());
+
   return tasks.filter((task) => {
     if (filters.assignee === "me" && userId && task.assigneeId !== userId) return false;
     if (filters.teamId && task.teamId !== filters.teamId) return false;
     if (filters.status && task.status !== filters.status) return false;
     if (filters.overdue && !task.isOverdue) return false;
+    if (filters.dueToday) {
+      if (task.status === "done" || !task.dueAt) return false;
+      if (task.dueAt < todayStart || task.dueAt > todayEnd) return false;
+    }
     if (filters.labelId && !task.labels?.some((l) => l.id === filters.labelId)) return false;
     return true;
   });

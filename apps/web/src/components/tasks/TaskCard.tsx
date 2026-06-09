@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Calendar, ChevronRight } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
 import {
@@ -19,6 +20,12 @@ interface TaskCardProps {
 }
 
 const SWIPE_THRESHOLD = 72;
+
+const STATUS_ACCENT: Record<TaskStatus, string> = {
+  todo: "bg-sky-400",
+  doing: "bg-primary-400",
+  done: "bg-emerald-400",
+};
 
 export function TaskCard({ task, onOpen, onStatusChange, compact }: TaskCardProps) {
   const startX = useRef(0);
@@ -46,71 +53,100 @@ export function TaskCard({ task, onOpen, onStatusChange, compact }: TaskCardProp
   };
 
   return (
-    <div className="relative overflow-hidden rounded-3xl">
+    <div className="relative overflow-hidden rounded-2xl">
       <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-4 text-xs font-medium">
         <span className={cn("text-emerald-600", offsetX > 20 ? "opacity-100" : "opacity-0")}>
           {task.status === "todo" ? "진행 →" : "완료 →"}
         </span>
-        <span className={cn("text-sky-600", offsetX < -20 ? "opacity-100" : "opacity-0")}>← 되돌리기</span>
+        <span className={cn("text-sky-600", offsetX < -20 ? "opacity-100" : "opacity-0")}>
+          ← 되돌리기
+        </span>
       </div>
 
       <GlassCard
-        className={cn("relative p-4 transition-transform", compact && "p-3")}
+        className={cn("relative overflow-hidden p-0 transition-transform", compact && "shadow-sm")}
         onClick={() => onOpen(task)}
       >
         <div
+          className="flex"
           style={{ transform: swiping ? `translateX(${offsetX}px)` : undefined }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
         >
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span
+          <div className={cn("w-1 shrink-0", STATUS_ACCENT[task.status])} aria-hidden />
+
+          <div className={cn("min-w-0 flex-1", compact ? "p-3" : "p-3.5")}>
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                      getPriorityClass(task.priority),
+                    )}
+                  >
+                    {getPriorityLabel(task.priority)}
+                  </span>
+                  {task.teamName && (
+                    <span className="truncate rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
+                      {task.teamName}
+                    </span>
+                  )}
+                </div>
+
+                <p
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                    getPriorityClass(task.priority),
+                    "mt-1.5 font-semibold leading-snug text-navy-900",
+                    compact ? "text-sm" : "text-[15px]",
+                    task.status === "done" && "text-navy-500 line-through",
                   )}
                 >
-                  {getPriorityLabel(task.priority)}
-                </span>
-                {task.teamName && (
-                  <span className="truncate text-[10px] text-navy-500">{task.teamName}</span>
+                  {task.title}
+                </p>
+
+                {task.labels && task.labels.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {task.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
+                        style={{ backgroundColor: label.color }}
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
-              <p className={cn("mt-1 font-medium text-navy-900", compact ? "text-sm" : "text-[15px]")}>
-                {task.title}
-              </p>
-              {task.labels && task.labels.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {task.labels.map((label) => (
-                    <span
-                      key={label.id}
-                      className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
-                      style={{ backgroundColor: label.color }}
-                    >
-                      {label.name}
-                    </span>
-                  ))}
-                </div>
+
+              <ChevronRight
+                className="mt-0.5 h-4 w-4 shrink-0 text-navy-300"
+                strokeWidth={2}
+                aria-hidden
+              />
+            </div>
+
+            <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-sky-50 pt-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[9px] font-bold text-primary-600">
+                  {getInitials(task.assignee)}
+                </span>
+                <span className="truncate text-xs text-navy-600">{task.assignee}</span>
+              </div>
+              {task.due && (
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium",
+                    getDueClass(task),
+                  )}
+                >
+                  <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
+                  {task.due}
+                </span>
               )}
             </div>
-          </div>
-
-          <div className="mt-2.5 flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[10px] font-bold text-primary-600">
-                {getInitials(task.assignee)}
-              </span>
-              <span className="truncate text-xs text-navy-600">{task.assignee}</span>
-            </div>
-            {task.due && (
-              <span className={cn("shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium", getDueClass(task))}>
-                {task.due}
-              </span>
-            )}
           </div>
         </div>
       </GlassCard>
