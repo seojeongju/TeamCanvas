@@ -854,7 +854,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     .run();
 
   const { notifyTaskAssigned, notifyTaskDueSoon } = await import("../utils/notifications");
-  await notifyTaskAssigned(c.env.DB, {
+  await notifyTaskAssigned(c.env.DB, c.env, {
     assigneeId,
     actorId: user.id,
     organizationId: orgId,
@@ -862,7 +862,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     taskTitle: body.title.trim(),
   });
   if (body.dueAt && body.dueAt <= now() + 86400000) {
-    await notifyTaskDueSoon(c.env.DB, {
+    await notifyTaskDueSoon(c.env.DB, c.env, {
       assigneeId,
       organizationId: orgId,
       taskId: id,
@@ -966,7 +966,7 @@ app.patch("/tasks/:taskId", async (c) => {
     body.assigneeId &&
     body.assigneeId !== existing.assignee_id
   ) {
-    await notifyTaskAssigned(c.env.DB, {
+    await notifyTaskAssigned(c.env.DB, c.env, {
       assigneeId: body.assigneeId,
       actorId: user.id,
       organizationId: existing.organization_id,
@@ -981,7 +981,7 @@ app.patch("/tasks/:taskId", async (c) => {
     body.dueAt <= now() + 86400000 &&
     body.dueAt !== existing.due_at
   ) {
-    await notifyTaskDueSoon(c.env.DB, {
+    await notifyTaskDueSoon(c.env.DB, c.env, {
       assigneeId: nextAssignee ?? user.id,
       organizationId: existing.organization_id,
       taskId,
@@ -1069,13 +1069,40 @@ app.post("/tasks/:taskId/comments", async (c) => {
     .bind(id, taskId, user.id, body.body.trim(), ts)
     .run();
 
-  const { notifyTaskComment } = await import("../utils/notifications");
+  const { notifyTaskComment, notifyTaskMention } = await import("../utils/notifications");
+  const { parseMentionedUserIds } = await import("../utils/mentions");
   const preview = body.body.trim().slice(0, 80);
+
+  const { results: memberRows } = await c.env.DB.prepare(
+    `SELECT u.id, u.name FROM memberships m JOIN users u ON u.id = m.user_id
+     WHERE m.organization_id = ? AND m.status = 'active'`,
+  )
+    .bind(task.organization_id)
+    .all();
+
+  const members = (memberRows ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    return { id: row.id as string, name: row.name as string };
+  });
+
+  const mentionedIds = parseMentionedUserIds(body.body.trim(), members);
+  for (const mentionedId of mentionedIds) {
+    await notifyTaskMention(c.env.DB, c.env, {
+      mentionedUserId: mentionedId,
+      actorId: user.id,
+      organizationId: task.organization_id,
+      taskId,
+      taskTitle: task.title,
+      preview,
+    });
+  }
+
   const recipients = new Set<string>();
   if (task.assignee_id) recipients.add(task.assignee_id);
   if (task.creator_id) recipients.add(task.creator_id);
   for (const recipientId of recipients) {
-    await notifyTaskComment(c.env.DB, {
+    if (mentionedIds.includes(recipientId)) continue;
+    await notifyTaskComment(c.env.DB, c.env, {
       recipientId,
       actorId: user.id,
       organizationId: task.organization_id,
@@ -1103,6 +1130,210 @@ app.delete("/tasks/:taskId", async (c) => {
 
   await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(taskId).run();
 
+  return c.json({ ok: true });
+});
+
+// ── Search ──
+
+app.get("/organizations/:orgId/search", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (member instanceof Response) return member;
+
+  const q = c.req.query("q")?.trim() ?? "";
+  if (!q) return c.json({ results: [] });
+
+  const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
+  const { searchOrganization } = await import("../utils/search");
+  const results = await searchOrganization(c.env.DB, orgId, q, limit);
+  return c.json({ results });
+});
+
+// ── Files ──
+
+app.get("/tasks/:taskId/files", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, filename, mime_type, size_bytes, created_at
+     FROM files WHERE organization_id = ? AND entity_type = 'task' AND entity_id = ?
+     ORDER BY created_at DESC`,
+  )
+    .bind(task.organization_id, taskId)
+    .all();
+
+  const files = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      filename: r.filename,
+      mimeType: r.mime_type,
+      sizeBytes: r.size_bytes,
+      createdAt: r.created_at,
+    };
+  });
+
+  return c.json({ files });
+});
+
+app.post("/organizations/:orgId/files", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "file_storage");
+  if (feature instanceof Response) return feature;
+
+  const form = await c.req.parseBody();
+  const file = form.file;
+  const entityType = String(form.entityType ?? "");
+  const entityId = String(form.entityId ?? "");
+
+  if (!(file instanceof File)) return c.json({ error: "file required" }, 400);
+  if (!entityType || !entityId) return c.json({ error: "entityType and entityId required" }, 400);
+
+  const { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME_TYPES, attachmentExtension, attachmentKey } =
+    await import("../utils/storage");
+
+  if (!ATTACHMENT_MIME_TYPES.has(file.type)) {
+    return c.json({ error: "Unsupported file type" }, 400);
+  }
+  if (file.size > ATTACHMENT_MAX_BYTES) {
+    return c.json({ error: "File must be 25MB or smaller" }, 400);
+  }
+
+  if (entityType === "task") {
+    const task = await c.env.DB.prepare(
+      "SELECT organization_id FROM tasks WHERE id = ? AND organization_id = ?",
+    )
+      .bind(entityId, orgId)
+      .first();
+    if (!task) return c.json({ error: "Task not found" }, 404);
+  } else {
+    return c.json({ error: "Unsupported entity type" }, 400);
+  }
+
+  const fileId = newId();
+  const ext = attachmentExtension(file.name, file.type);
+  const key = attachmentKey(orgId, entityType, entityId, fileId, ext);
+  const bytes = await file.arrayBuffer();
+
+  await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: file.type } });
+
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO files (id, organization_id, uploader_id, r2_key, filename, mime_type, size_bytes, entity_type, entity_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(fileId, orgId, user.id, key, file.name, file.type, file.size, entityType, entityId, ts)
+    .run();
+
+  return c.json({ id: fileId, filename: file.name, mimeType: file.type, sizeBytes: file.size }, 201);
+});
+
+app.get("/files/:fileId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const fileId = c.req.param("fileId");
+
+  const row = await c.env.DB.prepare(
+    "SELECT organization_id, r2_key, filename, mime_type FROM files WHERE id = ?",
+  )
+    .bind(fileId)
+    .first<{ organization_id: string; r2_key: string; filename: string; mime_type: string }>();
+  if (!row) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, row.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const obj = await c.env.FILES.get(row.r2_key);
+  if (!obj) return c.json({ error: "Not found" }, 404);
+
+  const headers = new Headers();
+  headers.set("Content-Type", row.mime_type);
+  headers.set("Content-Disposition", `inline; filename="${encodeURIComponent(row.filename)}"`);
+  return new Response(obj.body, { headers });
+});
+
+app.delete("/files/:fileId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const fileId = c.req.param("fileId");
+
+  const row = await c.env.DB.prepare(
+    "SELECT organization_id, r2_key, uploader_id FROM files WHERE id = ?",
+  )
+    .bind(fileId)
+    .first<{ organization_id: string; r2_key: string; uploader_id: string }>();
+  if (!row) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, row.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  await c.env.FILES.delete(row.r2_key);
+  await c.env.DB.prepare("DELETE FROM files WHERE id = ?").bind(fileId).run();
+  return c.json({ ok: true });
+});
+
+// ── Web Push ──
+
+app.get("/push/vapid-public-key", async (c) => {
+  const key = c.env.VAPID_PUBLIC_KEY;
+  if (!key) return c.json({ configured: false, publicKey: null });
+  return c.json({ configured: true, publicKey: key });
+});
+
+app.post("/push/subscribe", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+
+  const body = await c.req.json<{ endpoint?: string; p256dh?: string; auth?: string }>();
+  if (!body.endpoint || !body.p256dh || !body.auth) {
+    return c.json({ error: "endpoint, p256dh, auth required" }, 400);
+  }
+
+  const id = newId();
+  await c.env.DB.prepare(
+    `INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(endpoint) DO UPDATE SET
+       user_id = excluded.user_id,
+       p256dh = excluded.p256dh,
+       auth = excluded.auth`,
+  )
+    .bind(id, user.id, body.endpoint, body.p256dh, body.auth, now())
+    .run();
+
+  return c.json({ ok: true });
+});
+
+app.delete("/push/subscribe", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+
+  const body = await c.req.json<{ endpoint?: string }>().catch(() => ({ endpoint: undefined }));
+  if (body.endpoint) {
+    await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?")
+      .bind(user.id, body.endpoint)
+      .run();
+  } else {
+    await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE user_id = ?").bind(user.id).run();
+  }
   return c.json({ ok: true });
 });
 

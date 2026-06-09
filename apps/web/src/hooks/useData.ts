@@ -304,6 +304,45 @@ export function useMarkNotificationRead() {
   });
 }
 
+export function useSearch(q: string) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["search", orgId, q],
+    queryFn: () => api.searchOrg(orgId!, q),
+    enabled: !!orgId && q.length >= 1,
+  });
+}
+
+export function useTaskFiles(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ["task-files", taskId],
+    queryFn: () => api.getTaskFiles(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+export function useUploadTaskFile() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ taskId, file }: { taskId: string; file: File }) =>
+      api.uploadTaskFile(orgId!, taskId, file),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["task-files", vars.taskId] });
+    },
+  });
+}
+
+export function useDeleteTaskFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileId }: { fileId: string; taskId: string }) => api.deleteFile(fileId),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["task-files", vars.taskId] });
+    },
+  });
+}
+
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({

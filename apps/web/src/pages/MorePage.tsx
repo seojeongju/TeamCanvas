@@ -1,4 +1,4 @@
-import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell } from "lucide-react";
+import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -26,6 +26,13 @@ export function MorePage() {
   const stats = orgData?.stats;
 
   const menuItems = [
+    {
+      icon: Search,
+      label: "검색",
+      desc: "일정 · 업무 · 멤버",
+      onClick: () => navigate("/search"),
+      show: true,
+    },
     {
       icon: Building2,
       label: "조직 설정",

@@ -13,6 +13,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { TasksPage } from "./pages/TasksPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
+import { SearchPage } from "./pages/SearchPage";
 import { MembersPage, BillingPage } from "./pages/settings/MembersPage";
 import { AuditLogsPage } from "./pages/settings/AuditLogsPage";
 import { NotificationSettingsPage } from "./pages/settings/NotificationSettingsPage";
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="tasks" element={<TasksPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="more" element={<MorePage />} />
+          <Route path="search" element={<SearchPage />} />
           <Route path="settings/org" element={<OrgSettingsPage />} />
           <Route path="settings/departments" element={<DepartmentsPage />} />
           <Route path="settings/holidays" element={<HolidaysPage />} />

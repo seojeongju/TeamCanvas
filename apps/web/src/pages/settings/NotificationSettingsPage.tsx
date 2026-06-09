@@ -5,6 +5,7 @@ import { GlassCard } from "../../components/ui/GlassCard";
 import { Button } from "../../components/ui/Button";
 import { ToastMessage } from "../../components/ui/ToastMessage";
 import { useNotificationPreferences, useUpdateNotificationPreferences } from "../../hooks/useData";
+import { subscribeToPush, unsubscribeFromPush } from "../../lib/pushClient";
 
 export function NotificationSettingsPage() {
   const { data, isLoading } = useNotificationPreferences();
@@ -28,6 +29,12 @@ export function NotificationSettingsPage() {
 
   const save = async () => {
     try {
+      const prevPush = data?.preferences?.pushEnabled ?? false;
+      if (prefs.pushEnabled && !prevPush) {
+        await subscribeToPush();
+      } else if (!prefs.pushEnabled && prevPush) {
+        await unsubscribeFromPush();
+      }
       await update.mutateAsync(prefs);
       setToast({ tone: "info", message: "알림 설정을 저장했습니다." });
     } catch (err) {

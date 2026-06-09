@@ -16,6 +16,8 @@ export interface Env {
   PAYMENT_PROVIDER?: "stripe" | "mock";
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
 }
 
 export type UserRow = {

@@ -429,6 +429,43 @@ export const api = {
   markAllNotificationsRead: () =>
     request<{ ok: boolean }>("/api/notifications/read-all", { method: "PATCH" }),
 
+  searchOrg: (orgId: string, q: string, limit = 20) =>
+    request<{ results: import("./types").SearchResult[] }>(
+      `/api/organizations/${orgId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+
+  getTaskFiles: (taskId: string) =>
+    request<{ files: import("./types").TaskFile[] }>(`/api/tasks/${taskId}/files`),
+
+  uploadTaskFile: (orgId: string, taskId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("entityType", "task");
+    form.append("entityId", taskId);
+    return request<{ id: string; filename: string; mimeType: string; sizeBytes: number }>(
+      `/api/organizations/${orgId}/files`,
+      { method: "POST", body: form },
+    );
+  },
+
+  deleteFile: (fileId: string) =>
+    request<{ ok: boolean }>(`/api/files/${fileId}`, { method: "DELETE" }),
+
+  getVapidPublicKey: () =>
+    request<{ configured: boolean; publicKey: string | null }>("/api/push/vapid-public-key"),
+
+  subscribePush: (data: { endpoint: string; p256dh: string; auth: string }) =>
+    request<{ ok: boolean }>("/api/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  unsubscribePush: (endpoint?: string) =>
+    request<{ ok: boolean }>("/api/push/subscribe", {
+      method: "DELETE",
+      body: JSON.stringify(endpoint ? { endpoint } : {}),
+    }),
+
   getNotificationPreferences: () =>
     request<{ preferences: import("./types").NotificationPreferences }>("/api/notification-preferences"),
 

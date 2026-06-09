@@ -1,7 +1,10 @@
+import type { Env } from "../types";
 import { newId, now } from "./helpers";
+import { sendPushToUser } from "./push";
 
 export async function createNotification(
   db: D1Database,
+  env: Env | undefined,
   data: {
     userId: string;
     organizationId: string;
@@ -12,6 +15,22 @@ export async function createNotification(
   },
 ) {
   if (!data.userId) return;
+
+  const pref = await db
+    .prepare("SELECT in_app_enabled FROM notification_preferences WHERE user_id = ?")
+    .bind(data.userId)
+    .first<{ in_app_enabled: number }>();
+  if (pref && !pref.in_app_enabled) {
+    if (env) {
+      await sendPushToUser(db, env, data.userId, {
+        title: data.title,
+        body: data.body ?? undefined,
+        link: data.link ?? undefined,
+      });
+    }
+    return;
+  }
+
   await db
     .prepare(
       `INSERT INTO notifications (id, user_id, organization_id, type, title, body, link, created_at)
@@ -28,10 +47,19 @@ export async function createNotification(
       now(),
     )
     .run();
+
+  if (env) {
+    await sendPushToUser(db, env, data.userId, {
+      title: data.title,
+      body: data.body ?? undefined,
+      link: data.link ?? undefined,
+    });
+  }
 }
 
 export async function notifyTaskAssigned(
   db: D1Database,
+  env: Env | undefined,
   opts: {
     assigneeId: string;
     actorId: string;
@@ -41,7 +69,7 @@ export async function notifyTaskAssigned(
   },
 ) {
   if (!opts.assigneeId || opts.assigneeId === opts.actorId) return;
-  await createNotification(db, {
+  await createNotification(db, env, {
     userId: opts.assigneeId,
     organizationId: opts.organizationId,
     type: "task_assigned",
@@ -53,6 +81,7 @@ export async function notifyTaskAssigned(
 
 export async function notifyTaskDueSoon(
   db: D1Database,
+  env: Env | undefined,
   opts: {
     assigneeId: string;
     organizationId: string;
@@ -66,7 +95,7 @@ export async function notifyTaskDueSoon(
     month: "long",
     day: "numeric",
   });
-  await createNotification(db, {
+  await createNotification(db, env, {
     userId: opts.assigneeId,
     organizationId: opts.organizationId,
     type: "task_due_soon",
@@ -78,6 +107,7 @@ export async function notifyTaskDueSoon(
 
 export async function notifyTaskComment(
   db: D1Database,
+  env: Env | undefined,
   opts: {
     recipientId: string;
     actorId: string;
@@ -88,11 +118,34 @@ export async function notifyTaskComment(
   },
 ) {
   if (!opts.recipientId || opts.recipientId === opts.actorId) return;
-  await createNotification(db, {
+  await createNotification(db, env, {
     userId: opts.recipientId,
     organizationId: opts.organizationId,
     type: "task_comment",
     title: "업무에 댓글이 달렸습니다",
+    body: `${opts.taskTitle}: ${opts.preview}`,
+    link: `/tasks?task=${opts.taskId}`,
+  });
+}
+
+export async function notifyTaskMention(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    mentionedUserId: string;
+    actorId: string;
+    organizationId: string;
+    taskId: string;
+    taskTitle: string;
+    preview: string;
+  },
+) {
+  if (!opts.mentionedUserId || opts.mentionedUserId === opts.actorId) return;
+  await createNotification(db, env, {
+    userId: opts.mentionedUserId,
+    organizationId: opts.organizationId,
+    type: "task_mention",
+    title: "댓글에서 멘션되었습니다",
     body: `${opts.taskTitle}: ${opts.preview}`,
     link: `/tasks?task=${opts.taskId}`,
   });

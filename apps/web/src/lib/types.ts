@@ -239,6 +239,22 @@ export type Notification = {
   time: string;
 };
 
+export type SearchResult = {
+  id: string;
+  type: "event" | "task" | "member";
+  title: string;
+  subtitle: string;
+  link: string;
+};
+
+export type TaskFile = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt?: number;
+};
+
 export type NotificationPreferences = {
   inAppEnabled: boolean;
   pushEnabled: boolean;
