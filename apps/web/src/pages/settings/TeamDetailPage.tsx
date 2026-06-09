@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, Trash2, UserPlus } from "lucide-react";
+import { Trash2, UserPlus } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
@@ -146,15 +146,6 @@ export function TeamDetailPage() {
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => navigate("/settings/teams")}
-        className="flex items-center gap-1 text-sm text-navy-600 hover:text-navy-900"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        팀 관리
-      </button>
-
       <PageHeader title={team.name} subtitle={`${members.length}명`} />
 
       {summaryData && (

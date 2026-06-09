@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ScrollText, Shield } from "lucide-react";
+import { ChevronRight, ScrollText, Shield } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { useOrgPermissions, useHasPermission } from "../../hooks/usePermissions";
@@ -37,15 +37,6 @@ export function PermissionsPage() {
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => navigate("/more")}
-        className="flex items-center gap-1 text-sm text-navy-600 hover:text-navy-900"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        더보기
-      </button>
-
       <PageHeader title="권한 및 보안" subtitle="내 역할과 조직 권한" />
 
       {isLoading ? (

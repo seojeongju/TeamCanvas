@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Calendar, ChevronLeft, ChevronRight, ImagePlus, Trash2 } from "lucide-react";
+import { Building2, Calendar, ChevronRight, ImagePlus, Trash2 } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
@@ -140,15 +140,6 @@ export function OrgSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => navigate("/more")}
-        className="flex items-center gap-1 text-sm text-navy-600 hover:text-navy-900"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        더보기
-      </button>
-
       <PageHeader title="조직 설정" subtitle={org?.name ?? "조직"} />
 
       {isLoading ? (
