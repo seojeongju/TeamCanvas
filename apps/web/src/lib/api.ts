@@ -434,18 +434,32 @@ export const api = {
       `/api/organizations/${orgId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
 
-  getTaskFiles: (taskId: string) =>
-    request<{ files: import("./types").TaskFile[] }>(`/api/tasks/${taskId}/files`),
+  getEntityFiles: (entityType: "task" | "event", entityId: string) =>
+    request<{ files: import("./types").TaskFile[] }>(
+      entityType === "task" ? `/api/tasks/${entityId}/files` : `/api/events/${entityId}/files`,
+    ),
 
-  uploadTaskFile: (orgId: string, taskId: string, file: File) => {
+  uploadEntityFile: (orgId: string, entityType: "task" | "event", entityId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
-    form.append("entityType", "task");
-    form.append("entityId", taskId);
+    form.append("entityType", entityType);
+    form.append("entityId", entityId);
     return request<{ id: string; filename: string; mimeType: string; sizeBytes: number }>(
       `/api/organizations/${orgId}/files`,
       { method: "POST", body: form },
     );
+  },
+
+  downloadIcal: async (orgId: string, from: number, to: number) => {
+    const res = await fetch(
+      `/api/organizations/${orgId}/events/ical?from=${from}&to=${to}`,
+      { credentials: "include" },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error((err as { error?: string }).error ?? "Export failed");
+    }
+    return res.blob();
   },
 
   deleteFile: (fileId: string) =>

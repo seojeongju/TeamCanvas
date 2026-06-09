@@ -313,35 +313,51 @@ export function useSearch(q: string) {
   });
 }
 
-export function useTaskFiles(taskId: string | undefined) {
+function entityFilesKey(entityType: string, entityId: string) {
+  return ["entity-files", entityType, entityId] as const;
+}
+
+export function useEntityFiles(entityType: "task" | "event", entityId: string | undefined) {
   return useQuery({
-    queryKey: ["task-files", taskId],
-    queryFn: () => api.getTaskFiles(taskId!),
-    enabled: !!taskId,
+    queryKey: entityFilesKey(entityType, entityId ?? ""),
+    queryFn: () => api.getEntityFiles(entityType, entityId!),
+    enabled: !!entityId,
   });
 }
 
-export function useUploadTaskFile() {
+export function useUploadEntityFile() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();
   return useMutation({
-    mutationFn: ({ taskId, file }: { taskId: string; file: File }) =>
-      api.uploadTaskFile(orgId!, taskId, file),
+    mutationFn: ({
+      entityType,
+      entityId,
+      file,
+    }: {
+      entityType: "task" | "event";
+      entityId: string;
+      file: File;
+    }) => api.uploadEntityFile(orgId!, entityType, entityId, file),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["task-files", vars.taskId] });
+      qc.invalidateQueries({ queryKey: entityFilesKey(vars.entityType, vars.entityId) });
     },
   });
 }
 
-export function useDeleteTaskFile() {
+export function useDeleteEntityFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ fileId }: { fileId: string; taskId: string }) => api.deleteFile(fileId),
+    mutationFn: ({ fileId }: { fileId: string; entityType: "task" | "event"; entityId: string }) =>
+      api.deleteFile(fileId),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["task-files", vars.taskId] });
+      qc.invalidateQueries({ queryKey: entityFilesKey(vars.entityType, vars.entityId) });
     },
   });
 }
+
+export const useTaskFiles = (taskId: string | undefined) => useEntityFiles("task", taskId);
+export const useUploadTaskFile = useUploadEntityFile;
+export const useDeleteTaskFile = useDeleteEntityFile;
 
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();

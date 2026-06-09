@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CalendarDays, CheckSquare, Home, Bell, Menu } from "lucide-react";
+import { CalendarDays, CheckSquare, Home, Bell, Search } from "lucide-react";
 import { useNotifications } from "../../hooks/useData";
 import { cn } from "../../lib/cn";
 
@@ -7,8 +7,8 @@ const tabs = [
   { to: "/", icon: Home, label: "홈" },
   { to: "/calendar", icon: CalendarDays, label: "일정" },
   { to: "/tasks", icon: CheckSquare, label: "업무" },
+  { to: "/search", icon: Search, label: "검색" },
   { to: "/notifications", icon: Bell, label: "알림", showBadge: true },
-  { to: "/more", icon: Menu, label: "더보기" },
 ] as const;
 
 export function BottomNav() {

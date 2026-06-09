@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { FileText, Paperclip, Trash2, Upload } from "lucide-react";
-import { Button } from "../ui/Button";
-import { useDeleteTaskFile, useTaskFiles, useUploadTaskFile } from "../../hooks/useData";
+import { Button } from "./Button";
+import { useDeleteEntityFile, useEntityFiles, useUploadEntityFile } from "../../hooks/useData";
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -9,17 +9,23 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function TaskFilesSection({ taskId }: { taskId: string }) {
+export function EntityFilesSection({
+  entityType,
+  entityId,
+}: {
+  entityType: "task" | "event";
+  entityId: string;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { data } = useTaskFiles(taskId);
-  const upload = useUploadTaskFile();
-  const remove = useDeleteTaskFile();
+  const { data } = useEntityFiles(entityType, entityId);
+  const upload = useUploadEntityFile();
+  const remove = useDeleteEntityFile();
   const files = data?.files ?? [];
 
   const onPick = async (fileList: FileList | null) => {
     const file = fileList?.[0];
     if (!file) return;
-    await upload.mutateAsync({ taskId, file });
+    await upload.mutateAsync({ entityType, entityId, file });
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -70,7 +76,7 @@ export function TaskFilesSection({ taskId }: { taskId: string }) {
               <span className="shrink-0 text-[10px] text-navy-500">{formatSize(f.sizeBytes)}</span>
               <button
                 type="button"
-                onClick={() => remove.mutate({ fileId: f.id, taskId })}
+                onClick={() => remove.mutate({ fileId: f.id, entityType, entityId })}
                 disabled={remove.isPending}
                 className="rounded-lg p-1 text-red-500 hover:bg-red-50"
                 aria-label="첨부 삭제"

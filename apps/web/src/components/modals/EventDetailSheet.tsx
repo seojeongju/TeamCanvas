@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckSquare, MapPin, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
+import { EntityFilesSection } from "../ui/EntityFilesSection";
 import { useCreateTask, useDeleteEvent, useEventAttendees, useUpdateEventRsvp } from "../../hooks/useData";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -121,10 +122,12 @@ export function EventDetailSheet({
           </button>
         </div>
 
+        <EntityFilesSection entityType="event" entityId={event.id} />
+
         <Button
           variant="secondary"
           fullWidth
-          className="mb-3"
+          className="mb-3 mt-4"
           onClick={handleConvertToTask}
           disabled={createTask.isPending}
         >

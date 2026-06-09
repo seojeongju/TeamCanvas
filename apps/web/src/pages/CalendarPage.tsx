@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -18,10 +18,15 @@ import { colorClass, formatRecurrenceRule, startOfDay, endOfDay } from "../lib/d
 import type { EventTemplateId } from "../lib/eventTemplates";
 import type { CalendarEvent } from "../lib/types";
 import { cn } from "../lib/cn";
+import { api } from "../lib/api";
+import { useCurrentOrgId } from "../stores/orgStore";
+import { Button } from "../components/ui/Button";
 
 export function CalendarPage() {
   const routerNavigate = useNavigate();
+  const orgId = useCurrentOrgId();
   const today = new Date();
+  const [exporting, setExporting] = useState(false);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [focusDate, setFocusDate] = useState(today);
   const [showCreate, setShowCreate] = useState(false);
@@ -119,9 +124,41 @@ export function CalendarPage() {
     setSelectedEvent(event);
   };
 
+  const handleExportIcal = async () => {
+    if (!orgId) return;
+    setExporting(true);
+    try {
+      const exportFrom = from;
+      const exportTo = Math.max(to, from + 90 * 86400000);
+      const blob = await api.downloadIcal(orgId, exportFrom, exportTo);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `teamcanvas-calendar.ics`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader title="일정" subtitle="팀 캘린더" />
+      <PageHeader
+        title="일정"
+        subtitle="팀 캘린더"
+        action={
+          <Button
+            variant="ghost"
+            onClick={handleExportIcal}
+            disabled={exporting || !orgId}
+            className="!min-h-9 !px-3 !py-2 text-sm"
+          >
+            <Download className="h-4 w-4" />
+            {exporting ? "..." : "iCal"}
+          </Button>
+        }
+      />
 
       <CalendarViewSwitcher value={viewMode} onChange={setViewMode} />
 

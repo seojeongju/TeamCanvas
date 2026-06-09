@@ -11,7 +11,8 @@ import {
 } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { useOrgMembers } from "../../hooks/useAdmin";
-import { TaskFilesSection } from "./TaskFilesSection";
+import { EntityFilesSection } from "../ui/EntityFilesSection";
+import { MentionTextarea } from "../ui/MentionTextarea";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
 import type { Task, TaskPriority, TaskStatus } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -198,7 +199,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
           )}
         </div>
 
-        <TaskFilesSection taskId={task.id} />
+        <EntityFilesSection entityType="task" entityId={task.id} />
 
         <div className="mt-6 border-t border-sky-100/80 pt-4">
           <div className="mb-3 flex items-center gap-2">
@@ -221,7 +222,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
             )}
           </div>
           <form
-            className="mt-3 flex gap-2"
+            className="mt-3 flex items-end gap-2"
             onSubmit={async (e) => {
               e.preventDefault();
               if (!commentBody.trim() || !task) return;
@@ -229,13 +230,14 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
               setCommentBody("");
             }}
           >
-            <input
+            <MentionTextarea
               value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              placeholder="댓글 입력... (@이름 으로 멘션)"
-              className="min-h-10 flex-1 rounded-xl border border-sky-200/80 bg-white/80 px-3 text-sm text-navy-800 outline-none focus:border-primary-400"
+              onChange={setCommentBody}
+              members={members.map((m) => ({ id: m.user_id, name: m.name }))}
+              placeholder="댓글 입력... (@이름 멘션)"
+              rows={2}
             />
-            <Button type="submit" disabled={createComment.isPending || !commentBody.trim()}>
+            <Button type="submit" disabled={createComment.isPending || !commentBody.trim()} className="shrink-0">
               등록
             </Button>
           </form>

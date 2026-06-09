@@ -1151,7 +1151,102 @@ app.get("/organizations/:orgId/search", async (c) => {
   return c.json({ results });
 });
 
+// ── iCal export ──
+
+app.get("/organizations/:orgId/events/ical", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
+
+  const from = Number(c.req.query("from") ?? startOfDay(now()));
+  const to = Number(c.req.query("to") ?? endOfDay(now()) + 86400000 * 90);
+
+  const orgRow = await c.env.DB.prepare("SELECT name, settings_json FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ name: string; settings_json: string | null }>();
+  const { parseOrgSettings } = await import("../utils/orgSettings");
+  const { teamVisibilitySql } = await import("../utils/orgGovernance");
+  const calendarPolicy = parseOrgSettings(orgRow?.settings_json).calendarPolicy;
+  const teamSql = teamVisibilitySql(calendarPolicy, member.role);
+  const teamBindNeeded = calendarPolicy !== "all_teams" || member.role === "guest";
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT e.id, e.title, e.description, e.location, e.start_at, e.end_at, e.all_day
+     FROM events e
+     WHERE e.organization_id = ? AND e.start_at < ? AND e.end_at > ?
+       AND (
+         e.visibility = 'org'
+         OR e.creator_id = ?
+         OR EXISTS (SELECT 1 FROM event_attendees ea WHERE ea.event_id = e.id AND ea.user_id = ?)
+         OR ${teamSql}
+       )
+     ORDER BY e.start_at ASC`,
+  )
+    .bind(orgId, to, from, user.id, user.id, ...(teamBindNeeded ? [user.id] : []))
+    .all();
+
+  const { buildIcalCalendar } = await import("../utils/ical");
+  const ics = buildIcalCalendar(
+    (results ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r.id as string,
+        title: r.title as string,
+        description: r.description as string | null,
+        location: r.location as string | null,
+        startAt: r.start_at as number,
+        endAt: r.end_at as number,
+        allDay: Boolean(r.all_day),
+      };
+    }),
+    orgRow?.name ?? "TeamCanvas",
+  );
+
+  return new Response(ics, {
+    headers: {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": `attachment; filename="teamcanvas-${orgId.slice(0, 8)}.ics"`,
+    },
+  });
+});
+
 // ── Files ──
+
+async function assertEntityFileAccess(
+  c: { env: Env; json: (data: unknown, status?: number) => Response },
+  userId: string,
+  orgId: string,
+  entityType: string,
+  entityId: string,
+  mode: "read" | "write",
+): Promise<Response | null> {
+  if (entityType === "task") {
+    const task = await c.env.DB.prepare(
+      "SELECT organization_id FROM tasks WHERE id = ? AND organization_id = ?",
+    )
+      .bind(entityId, orgId)
+      .first();
+    if (!task) return c.json({ error: "Task not found" }, 404);
+    const member = await requireOrgPermission(c, userId, orgId, mode === "read" ? "tasks:read" : "tasks:write");
+    return member instanceof Response ? member : null;
+  }
+  if (entityType === "event") {
+    const event = await c.env.DB.prepare(
+      "SELECT organization_id FROM events WHERE id = ? AND organization_id = ?",
+    )
+      .bind(entityId, orgId)
+      .first();
+    if (!event) return c.json({ error: "Event not found" }, 404);
+    const member = await requireOrgPermission(c, userId, orgId, mode === "read" ? "events:read" : "events:write");
+    return member instanceof Response ? member : null;
+  }
+  return c.json({ error: "Unsupported entity type" }, 400);
+}
 
 app.get("/tasks/:taskId/files", async (c) => {
   const user = await requireAuth(c);
@@ -1188,13 +1283,45 @@ app.get("/tasks/:taskId/files", async (c) => {
   return c.json({ files });
 });
 
+app.get("/events/:eventId/files", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare("SELECT organization_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ organization_id: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, filename, mime_type, size_bytes, created_at
+     FROM files WHERE organization_id = ? AND entity_type = 'event' AND entity_id = ?
+     ORDER BY created_at DESC`,
+  )
+    .bind(event.organization_id, eventId)
+    .all();
+
+  const files = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      filename: r.filename,
+      mimeType: r.mime_type,
+      sizeBytes: r.size_bytes,
+      createdAt: r.created_at,
+    };
+  });
+
+  return c.json({ files });
+});
+
 app.post("/organizations/:orgId/files", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
-
-  const member = await requireOrgPermission(c, user.id, orgId, "tasks:write");
-  if (member instanceof Response) return member;
 
   const feature = await requireOrgFeature(c, orgId, "file_storage");
   if (feature instanceof Response) return feature;
@@ -1206,6 +1333,12 @@ app.post("/organizations/:orgId/files", async (c) => {
 
   if (!(file instanceof File)) return c.json({ error: "file required" }, 400);
   if (!entityType || !entityId) return c.json({ error: "entityType and entityId required" }, 400);
+  if (entityType !== "task" && entityType !== "event") {
+    return c.json({ error: "Unsupported entity type" }, 400);
+  }
+
+  const accessErr = await assertEntityFileAccess(c, user.id, orgId, entityType, entityId, "write");
+  if (accessErr) return accessErr;
 
   const { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME_TYPES, attachmentExtension, attachmentKey } =
     await import("../utils/storage");
@@ -1215,17 +1348,6 @@ app.post("/organizations/:orgId/files", async (c) => {
   }
   if (file.size > ATTACHMENT_MAX_BYTES) {
     return c.json({ error: "File must be 25MB or smaller" }, 400);
-  }
-
-  if (entityType === "task") {
-    const task = await c.env.DB.prepare(
-      "SELECT organization_id FROM tasks WHERE id = ? AND organization_id = ?",
-    )
-      .bind(entityId, orgId)
-      .first();
-    if (!task) return c.json({ error: "Task not found" }, 404);
-  } else {
-    return c.json({ error: "Unsupported entity type" }, 400);
   }
 
   const fileId = newId();
@@ -1252,14 +1374,34 @@ app.get("/files/:fileId", async (c) => {
   const fileId = c.req.param("fileId");
 
   const row = await c.env.DB.prepare(
-    "SELECT organization_id, r2_key, filename, mime_type FROM files WHERE id = ?",
+    "SELECT organization_id, r2_key, filename, mime_type, entity_type, entity_id FROM files WHERE id = ?",
   )
     .bind(fileId)
-    .first<{ organization_id: string; r2_key: string; filename: string; mime_type: string }>();
+    .first<{
+      organization_id: string;
+      r2_key: string;
+      filename: string;
+      mime_type: string;
+      entity_type: string | null;
+      entity_id: string | null;
+    }>();
   if (!row) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgPermission(c, user.id, row.organization_id, "tasks:read");
-  if (member instanceof Response) return member;
+  let accessErr: Response | null = null;
+  if (row.entity_type && row.entity_id) {
+    accessErr = await assertEntityFileAccess(
+      c,
+      user.id,
+      row.organization_id,
+      row.entity_type,
+      row.entity_id,
+      "read",
+    );
+  } else {
+    const member = await requireOrgPermission(c, user.id, row.organization_id, "tasks:read");
+    if (member instanceof Response) accessErr = member;
+  }
+  if (accessErr) return accessErr;
 
   const obj = await c.env.FILES.get(row.r2_key);
   if (!obj) return c.json({ error: "Not found" }, 404);
@@ -1276,14 +1418,33 @@ app.delete("/files/:fileId", async (c) => {
   const fileId = c.req.param("fileId");
 
   const row = await c.env.DB.prepare(
-    "SELECT organization_id, r2_key, uploader_id FROM files WHERE id = ?",
+    "SELECT organization_id, r2_key, uploader_id, entity_type, entity_id FROM files WHERE id = ?",
   )
     .bind(fileId)
-    .first<{ organization_id: string; r2_key: string; uploader_id: string }>();
+    .first<{
+      organization_id: string;
+      r2_key: string;
+      uploader_id: string;
+      entity_type: string | null;
+      entity_id: string | null;
+    }>();
   if (!row) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgPermission(c, user.id, row.organization_id, "tasks:write");
-  if (member instanceof Response) return member;
+  let accessErr: Response | null = null;
+  if (row.entity_type && row.entity_id) {
+    accessErr = await assertEntityFileAccess(
+      c,
+      user.id,
+      row.organization_id,
+      row.entity_type,
+      row.entity_id,
+      "write",
+    );
+  } else {
+    const member = await requireOrgPermission(c, user.id, row.organization_id, "tasks:write");
+    if (member instanceof Response) accessErr = member;
+  }
+  if (accessErr) return accessErr;
 
   await c.env.FILES.delete(row.r2_key);
   await c.env.DB.prepare("DELETE FROM files WHERE id = ?").bind(fileId).run();
