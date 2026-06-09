@@ -462,6 +462,32 @@ export const api = {
     return res.blob();
   },
 
+  getIcalFeedStatus: (orgId: string) =>
+    request<{ active: boolean; createdAt: number | null; lastUsedAt: number | null }>(
+      `/api/organizations/${orgId}/ical-feed`,
+    ),
+
+  createIcalFeed: (orgId: string) =>
+    request<{ url: string; webcalUrl: string; createdAt: number }>(
+      `/api/organizations/${orgId}/ical-feed`,
+      { method: "POST" },
+    ),
+
+  revokeIcalFeed: (orgId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/ical-feed`, { method: "DELETE" }),
+
+  getEvent: (eventId: string) =>
+    request<{ event: import("./types").CalendarEvent }>(`/api/events/${eventId}`),
+
+  getEventComments: (eventId: string) =>
+    request<{ comments: import("./types").EventComment[] }>(`/api/events/${eventId}/comments`),
+
+  createEventComment: (eventId: string, body: string) =>
+    request<{ id: string }>(`/api/events/${eventId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+
   deleteFile: (fileId: string) =>
     request<{ ok: boolean }>(`/api/files/${fileId}`, { method: "DELETE" }),
 

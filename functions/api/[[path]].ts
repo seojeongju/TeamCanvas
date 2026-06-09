@@ -19,6 +19,8 @@ import {
   startOfDay,
   endOfDay,
   formatEventTime,
+  hashToken,
+  appUrl,
 } from "../utils/helpers";
 import { getUserBusyBlocks } from "../utils/freeBusy";
 import { enhanceWithAi, findFreeSlots } from "../utils/eventSuggestions";
@@ -473,6 +475,196 @@ app.post("/organizations/:orgId/events/suggest", async (c) => {
     })),
     aiUsed,
   });
+});
+
+app.get("/events/:eventId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const row = await c.env.DB.prepare(
+    `SELECT e.*, t.name as team_name
+     FROM events e
+     LEFT JOIN teams t ON t.id = e.team_id
+     WHERE e.id = ?`,
+  )
+    .bind(eventId)
+    .first<Record<string, unknown>>();
+  if (!row) return c.json({ error: "Not found" }, 404);
+
+  const orgId = row.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
+
+  const { parseOrgSettings } = await import("../utils/orgSettings");
+  const { teamVisibilitySql } = await import("../utils/orgGovernance");
+  const orgRow = await c.env.DB.prepare("SELECT settings_json FROM organizations WHERE id = ?")
+    .bind(orgId)
+    .first<{ settings_json: string | null }>();
+  const calendarPolicy = parseOrgSettings(orgRow?.settings_json).calendarPolicy;
+  const teamSql = teamVisibilitySql(calendarPolicy, member.role);
+  const teamBindNeeded = calendarPolicy !== "all_teams" || member.role === "guest";
+
+  const visible = await c.env.DB.prepare(
+    `SELECT 1 FROM events e
+     WHERE e.id = ?
+       AND (
+         e.visibility = 'org'
+         OR e.creator_id = ?
+         OR EXISTS (SELECT 1 FROM event_attendees ea WHERE ea.event_id = e.id AND ea.user_id = ?)
+         OR ${teamSql}
+       )`,
+  )
+    .bind(eventId, user.id, user.id, ...(teamBindNeeded ? [user.id] : []))
+    .first();
+  if (!visible) return c.json({ error: "Not found" }, 404);
+
+  const event = {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    allDay: Boolean(row.all_day),
+    visibility: row.visibility,
+    recurrenceRule: row.recurrence_rule,
+    location: row.location ?? null,
+    teamId: row.team_id ?? null,
+    color: row.color ?? "#4A9FE8",
+    teamName: row.team_name ?? "조직",
+    time: formatEventTime(row.start_at as number, row.end_at as number, Boolean(row.all_day)),
+    sourceType: "event" as const,
+  };
+
+  return c.json({ event });
+});
+
+app.get("/events/:eventId/comments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare("SELECT organization_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ organization_id: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT c.id, c.event_id, c.user_id, c.body, c.created_at, u.name as user_name
+     FROM event_comments c
+     JOIN users u ON u.id = c.user_id
+     WHERE c.event_id = ?
+     ORDER BY c.created_at ASC`,
+  )
+    .bind(eventId)
+    .all();
+
+  const comments = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const createdAt = r.created_at as number;
+    return {
+      id: r.id,
+      eventId: r.event_id,
+      userId: r.user_id,
+      userName: r.user_name,
+      body: r.body,
+      createdAt,
+      time: new Date(createdAt).toLocaleString("ko-KR", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  });
+
+  return c.json({ comments });
+});
+
+app.post("/events/:eventId/comments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare(
+    "SELECT organization_id, creator_id, title FROM events WHERE id = ?",
+  )
+    .bind(eventId)
+    .first<{ organization_id: string; creator_id: string; title: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ body?: string }>();
+  if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const id = newId();
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO event_comments (id, event_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(id, eventId, user.id, body.body.trim(), ts)
+    .run();
+
+  const { notifyEventComment, notifyEventMention } = await import("../utils/notifications");
+  const { parseMentionedUserIds } = await import("../utils/mentions");
+  const preview = body.body.trim().slice(0, 80);
+
+  const { results: memberRows } = await c.env.DB.prepare(
+    `SELECT u.id, u.name FROM memberships m JOIN users u ON u.id = m.user_id
+     WHERE m.organization_id = ? AND m.status = 'active'`,
+  )
+    .bind(event.organization_id)
+    .all();
+
+  const members = (memberRows ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    return { id: row.id as string, name: row.name as string };
+  });
+
+  const mentionedIds = parseMentionedUserIds(body.body.trim(), members);
+  for (const mentionedId of mentionedIds) {
+    await notifyEventMention(c.env.DB, c.env, {
+      mentionedUserId: mentionedId,
+      actorId: user.id,
+      organizationId: event.organization_id,
+      eventId,
+      eventTitle: event.title,
+      preview,
+    });
+  }
+
+  const recipients = new Set<string>();
+  recipients.add(event.creator_id);
+  const { results: attendeeRows } = await c.env.DB.prepare(
+    "SELECT user_id FROM event_attendees WHERE event_id = ?",
+  )
+    .bind(eventId)
+    .all();
+  for (const row of attendeeRows ?? []) {
+    recipients.add((row as { user_id: string }).user_id);
+  }
+
+  for (const recipientId of recipients) {
+    if (mentionedIds.includes(recipientId)) continue;
+    await notifyEventComment(c.env.DB, c.env, {
+      recipientId,
+      actorId: user.id,
+      organizationId: event.organization_id,
+      eventId,
+      eventTitle: event.title,
+      preview,
+    });
+  }
+
+  return c.json({ id }, 201);
 });
 
 app.get("/events/:eventId/attendees", async (c) => {
@@ -1151,7 +1343,7 @@ app.get("/organizations/:orgId/search", async (c) => {
   return c.json({ results });
 });
 
-// ── iCal export ──
+// ── iCal export & subscription feed ──
 
 app.get("/organizations/:orgId/events/ical", async (c) => {
   const user = await requireAuth(c);
@@ -1166,53 +1358,130 @@ app.get("/organizations/:orgId/events/ical", async (c) => {
   const from = Number(c.req.query("from") ?? startOfDay(now()));
   const to = Number(c.req.query("to") ?? endOfDay(now()) + 86400000 * 90);
 
-  const orgRow = await c.env.DB.prepare("SELECT name, settings_json FROM organizations WHERE id = ?")
-    .bind(orgId)
-    .first<{ name: string; settings_json: string | null }>();
-  const { parseOrgSettings } = await import("../utils/orgSettings");
-  const { teamVisibilitySql } = await import("../utils/orgGovernance");
-  const calendarPolicy = parseOrgSettings(orgRow?.settings_json).calendarPolicy;
-  const teamSql = teamVisibilitySql(calendarPolicy, member.role);
-  const teamBindNeeded = calendarPolicy !== "all_teams" || member.role === "guest";
-
-  const { results } = await c.env.DB.prepare(
-    `SELECT e.id, e.title, e.description, e.location, e.start_at, e.end_at, e.all_day
-     FROM events e
-     WHERE e.organization_id = ? AND e.start_at < ? AND e.end_at > ?
-       AND (
-         e.visibility = 'org'
-         OR e.creator_id = ?
-         OR EXISTS (SELECT 1 FROM event_attendees ea WHERE ea.event_id = e.id AND ea.user_id = ?)
-         OR ${teamSql}
-       )
-     ORDER BY e.start_at ASC`,
-  )
-    .bind(orgId, to, from, user.id, user.id, ...(teamBindNeeded ? [user.id] : []))
-    .all();
-
-  const { buildIcalCalendar } = await import("../utils/ical");
-  const ics = buildIcalCalendar(
-    (results ?? []).map((row) => {
-      const r = row as Record<string, unknown>;
-      return {
-        id: r.id as string,
-        title: r.title as string,
-        description: r.description as string | null,
-        location: r.location as string | null,
-        startAt: r.start_at as number,
-        endAt: r.end_at as number,
-        allDay: Boolean(r.all_day),
-      };
-    }),
-    orgRow?.name ?? "TeamCanvas",
+  const { fetchVisibleOrgEvents, buildIcalFromEvents, buildIcalResponse } = await import(
+    "../utils/icalFeed"
   );
+  const { orgName, events } = await fetchVisibleOrgEvents(
+    c.env.DB,
+    orgId,
+    user.id,
+    member.role,
+    from,
+    to,
+  );
+  const ics = buildIcalFromEvents(events, orgName);
+  return buildIcalResponse(ics, `teamcanvas-${orgId.slice(0, 8)}.ics`, "attachment");
+});
 
-  return new Response(ics, {
-    headers: {
-      "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `attachment; filename="teamcanvas-${orgId.slice(0, 8)}.ics"`,
-    },
+app.get("/organizations/:orgId/ical-feed", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
+
+  const row = await c.env.DB.prepare(
+    "SELECT created_at, last_used_at FROM ical_feed_tokens WHERE user_id = ? AND organization_id = ?",
+  )
+    .bind(user.id, orgId)
+    .first<{ created_at: number; last_used_at: number | null }>();
+
+  return c.json({
+    active: !!row,
+    createdAt: row?.created_at ?? null,
+    lastUsedAt: row?.last_used_at ?? null,
   });
+});
+
+app.post("/organizations/:orgId/ical-feed", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
+
+  const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
+  const tokenHash = await hashToken(token);
+  const ts = now();
+  const id = newId();
+
+  await c.env.DB.prepare("DELETE FROM ical_feed_tokens WHERE user_id = ? AND organization_id = ?")
+    .bind(user.id, orgId)
+    .run();
+
+  await c.env.DB.prepare(
+    `INSERT INTO ical_feed_tokens (id, user_id, organization_id, token_hash, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(id, user.id, orgId, tokenHash, ts)
+    .run();
+
+  const base = appUrl(c.req.raw, c.env);
+  const feedPath = `/api/feed/ical/${token}`;
+  const httpsUrl = `${base}${feedPath}`;
+  const webcalUrl = `webcal://${base.replace(/^https?:\/\//, "")}${feedPath}`;
+
+  return c.json({ url: httpsUrl, webcalUrl, createdAt: ts }, 201);
+});
+
+app.delete("/organizations/:orgId/ical-feed", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM ical_feed_tokens WHERE user_id = ? AND organization_id = ?")
+    .bind(user.id, orgId)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+app.get("/feed/ical/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!token || token.length < 32) {
+    return c.json({ error: "Invalid token" }, 400);
+  }
+
+  const tokenHash = await hashToken(token);
+  const feed = await c.env.DB.prepare(
+    `SELECT t.user_id, t.organization_id, m.role
+     FROM ical_feed_tokens t
+     JOIN memberships m ON m.user_id = t.user_id AND m.organization_id = t.organization_id
+     WHERE t.token_hash = ? AND m.status = 'active'`,
+  )
+    .bind(tokenHash)
+    .first<{ user_id: string; organization_id: string; role: string }>();
+
+  if (!feed) return c.json({ error: "Not found" }, 404);
+
+  await c.env.DB.prepare("UPDATE ical_feed_tokens SET last_used_at = ? WHERE token_hash = ?")
+    .bind(now(), tokenHash)
+    .run();
+
+  const from = startOfDay(now()) - 86400000 * 30;
+  const to = endOfDay(now()) + 86400000 * 365;
+
+  const { fetchVisibleOrgEvents, buildIcalFromEvents, buildIcalResponse } = await import(
+    "../utils/icalFeed"
+  );
+  const { orgName, events } = await fetchVisibleOrgEvents(
+    c.env.DB,
+    feed.organization_id,
+    feed.user_id,
+    feed.role,
+    from,
+    to,
+  );
+  const ics = buildIcalFromEvents(events, orgName);
+  return buildIcalResponse(ics, "teamcanvas.ics", "inline");
 });
 
 // ── Files ──

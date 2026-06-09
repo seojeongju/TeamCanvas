@@ -44,7 +44,7 @@ export async function searchOrganization(
       type: "event",
       title: r.title as string,
       subtitle: `${dateLabel} · ${(r.team_name as string) ?? "일정"}`,
-      link: `/calendar`,
+      link: `/calendar?event=${r.id}`,
     });
   }
 

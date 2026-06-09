@@ -1,9 +1,19 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckSquare, MapPin, Pencil, Trash2, X } from "lucide-react";
+import { CheckSquare, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "../ui/Button";
+import { MentionTextarea } from "../ui/MentionTextarea";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
-import { useCreateTask, useDeleteEvent, useEventAttendees, useUpdateEventRsvp } from "../../hooks/useData";
+import {
+  useCreateEventComment,
+  useCreateTask,
+  useDeleteEvent,
+  useEventAttendees,
+  useEventComments,
+  useUpdateEventRsvp,
+} from "../../hooks/useData";
+import { useOrgMembers } from "../../hooks/useAdmin";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -26,8 +36,14 @@ export function EventDetailSheet({
   const deleteEvent = useDeleteEvent();
   const createTask = useCreateTask();
   const updateRsvp = useUpdateEventRsvp();
+  const createComment = useCreateEventComment();
+  const { data: membersData } = useOrgMembers();
   const { data: attendeesData } = useEventAttendees(event?.id);
+  const { data: commentsData } = useEventComments(event?.id);
   const attendees = attendeesData?.attendees ?? [];
+  const comments = commentsData?.comments ?? [];
+  const members = membersData?.members ?? [];
+  const [commentBody, setCommentBody] = useState("");
 
   if (!event) return null;
 
@@ -123,6 +139,48 @@ export function EventDetailSheet({
         </div>
 
         <EntityFilesSection entityType="event" entityId={event.id} />
+
+        <div className="mt-4 border-t border-sky-100/80 pt-4">
+          <div className="mb-3 flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-navy-600" />
+            <h3 className="text-sm font-semibold text-navy-800">댓글 {comments.length}</h3>
+          </div>
+          <div className="max-h-48 space-y-2 overflow-y-auto">
+            {comments.length === 0 ? (
+              <p className="text-xs text-navy-500">첫 댓글을 남겨보세요.</p>
+            ) : (
+              comments.map((c) => (
+                <div key={c.id} className="rounded-2xl bg-sky-50/80 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-navy-800">{c.userName}</span>
+                    <span className="text-[10px] text-navy-500">{c.time}</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-navy-700">{c.body}</p>
+                </div>
+              ))
+            )}
+          </div>
+          <form
+            className="mt-3 flex items-end gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!commentBody.trim()) return;
+              await createComment.mutateAsync({ eventId: event.id, body: commentBody.trim() });
+              setCommentBody("");
+            }}
+          >
+            <MentionTextarea
+              value={commentBody}
+              onChange={setCommentBody}
+              members={members.map((m) => ({ id: m.user_id, name: m.name }))}
+              placeholder="댓글 입력... (@이름 멘션)"
+              rows={2}
+            />
+            <Button type="submit" disabled={createComment.isPending || !commentBody.trim()} className="shrink-0">
+              등록
+            </Button>
+          </form>
+        </div>
 
         <Button
           variant="secondary"

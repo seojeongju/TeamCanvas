@@ -153,6 +153,16 @@ export type TaskComment = {
   time: string;
 };
 
+export type EventComment = {
+  id: string;
+  eventId: string;
+  userId: string;
+  userName: string;
+  body: string;
+  createdAt: number;
+  time: string;
+};
+
 export type BusyBlock = {
   startAt: number;
   endAt: number;

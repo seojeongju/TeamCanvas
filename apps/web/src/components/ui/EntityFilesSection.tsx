@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { FileText, Paperclip, Trash2, Upload } from "lucide-react";
+import { FileText, ImageIcon, Paperclip, Trash2, Upload } from "lucide-react";
 import { Button } from "./Button";
 import { useDeleteEntityFile, useEntityFiles, useUploadEntityFile } from "../../hooks/useData";
 
@@ -7,6 +7,10 @@ function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isImageMime(mimeType: string) {
+  return mimeType.startsWith("image/");
 }
 
 export function EntityFilesSection({
@@ -59,32 +63,54 @@ export function EntityFilesSection({
         <p className="text-xs text-navy-500">PDF, 이미지, 문서 등을 첨부할 수 있습니다.</p>
       ) : (
         <div className="space-y-2">
-          {files.map((f) => (
-            <div
-              key={f.id}
-              className="flex items-center gap-2 rounded-2xl bg-sky-50/80 px-3 py-2"
-            >
-              <FileText className="h-4 w-4 shrink-0 text-navy-500" />
-              <a
-                href={`/api/files/${f.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 flex-1 truncate text-sm text-primary-600 hover:underline"
-              >
-                {f.filename}
-              </a>
-              <span className="shrink-0 text-[10px] text-navy-500">{formatSize(f.sizeBytes)}</span>
-              <button
-                type="button"
-                onClick={() => remove.mutate({ fileId: f.id, entityType, entityId })}
-                disabled={remove.isPending}
-                className="rounded-lg p-1 text-red-500 hover:bg-red-50"
-                aria-label="첨부 삭제"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+          {files.map((f) => {
+            const image = isImageMime(f.mimeType);
+            const fileUrl = `/api/files/${f.id}`;
+            return (
+              <div key={f.id} className="rounded-2xl bg-sky-50/80 px-3 py-2">
+                {image && (
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mb-2 block overflow-hidden rounded-xl"
+                  >
+                    <img
+                      src={fileUrl}
+                      alt={f.filename}
+                      className="max-h-40 w-full object-cover"
+                      loading="lazy"
+                    />
+                  </a>
+                )}
+                <div className="flex items-center gap-2">
+                  {image ? (
+                    <ImageIcon className="h-4 w-4 shrink-0 text-navy-500" />
+                  ) : (
+                    <FileText className="h-4 w-4 shrink-0 text-navy-500" />
+                  )}
+                  <a
+                    href={fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-w-0 flex-1 truncate text-sm text-primary-600 hover:underline"
+                  >
+                    {f.filename}
+                  </a>
+                  <span className="shrink-0 text-[10px] text-navy-500">{formatSize(f.sizeBytes)}</span>
+                  <button
+                    type="button"
+                    onClick={() => remove.mutate({ fileId: f.id, entityType, entityId })}
+                    disabled={remove.isPending}
+                    className="rounded-lg p-1 text-red-500 hover:bg-red-50"
+                    aria-label="첨부 삭제"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

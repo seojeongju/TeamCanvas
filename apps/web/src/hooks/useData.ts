@@ -271,6 +271,61 @@ export function useCreateTaskComment() {
   });
 }
 
+export function useEvent(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["event", eventId],
+    queryFn: () => api.getEvent(eventId!),
+    enabled: !!eventId,
+  });
+}
+
+export function useIcalFeedStatus() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["ical-feed", orgId],
+    queryFn: () => api.getIcalFeedStatus(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateIcalFeed() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.createIcalFeed(orgId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ical-feed", orgId] }),
+  });
+}
+
+export function useRevokeIcalFeed() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.revokeIcalFeed(orgId!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ical-feed", orgId] }),
+  });
+}
+
+export function useEventComments(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["event-comments", eventId],
+    queryFn: () => api.getEventComments(eventId!),
+    enabled: !!eventId,
+  });
+}
+
+export function useCreateEventComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, body }: { eventId: string; body: string }) =>
+      api.createEventComment(eventId, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["event-comments", vars.eventId] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
 export function useNotifications() {
   return useQuery({
     queryKey: ["notifications"],

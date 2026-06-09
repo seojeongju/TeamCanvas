@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, Link2, Plus } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { AgendaView } from "../components/calendar/AgendaView";
@@ -10,7 +10,8 @@ import { TimeGridView } from "../components/calendar/TimeGridView";
 import { AGENDA_DAYS } from "../lib/calendarUtils";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { EventDetailSheet } from "../components/modals/EventDetailSheet";
-import { useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
+import { IcalFeedModal } from "../components/modals/IcalFeedModal";
+import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
 import { getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
@@ -24,9 +25,13 @@ import { Button } from "../components/ui/Button";
 
 export function CalendarPage() {
   const routerNavigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const orgId = useCurrentOrgId();
   const today = new Date();
   const [exporting, setExporting] = useState(false);
+  const [showIcalFeed, setShowIcalFeed] = useState(false);
+  const deepLinkEventId = searchParams.get("event");
+  const { data: deepLinkData } = useEvent(deepLinkEventId && !deepLinkEventId.startsWith("task-due:") ? deepLinkEventId : undefined);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [focusDate, setFocusDate] = useState(today);
   const [showCreate, setShowCreate] = useState(false);
@@ -124,6 +129,38 @@ export function CalendarPage() {
     setSelectedEvent(event);
   };
 
+  useEffect(() => {
+    const eventId = searchParams.get("event");
+    if (!eventId) return;
+
+    const clearParam = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("event");
+      setSearchParams(next, { replace: true });
+    };
+
+    const openEvent = (event: CalendarEvent) => {
+      if (event.sourceType === "task" && event.taskId) {
+        clearParam();
+        routerNavigate(`/tasks?task=${event.taskId}`);
+        return;
+      }
+      setFocusDate(new Date(event.startAt));
+      setSelectedEvent(event);
+      clearParam();
+    };
+
+    const inView = calendarEvents.find((e) => e.id === eventId);
+    if (inView) {
+      openEvent(inView);
+      return;
+    }
+
+    if (deepLinkData?.event) {
+      openEvent(deepLinkData.event);
+    }
+  }, [searchParams, calendarEvents, deepLinkData?.event, routerNavigate, setSearchParams]);
+
   const handleExportIcal = async () => {
     if (!orgId) return;
     setExporting(true);
@@ -148,15 +185,27 @@ export function CalendarPage() {
         title="일정"
         subtitle="팀 캘린더"
         action={
-          <Button
-            variant="ghost"
-            onClick={handleExportIcal}
-            disabled={exporting || !orgId}
-            className="!min-h-9 !px-3 !py-2 text-sm"
-          >
-            <Download className="h-4 w-4" />
-            {exporting ? "..." : "iCal"}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              onClick={() => setShowIcalFeed(true)}
+              disabled={!orgId}
+              className="!min-h-9 !px-3 !py-2 text-sm"
+              title="캘린더 구독"
+            >
+              <Link2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleExportIcal}
+              disabled={exporting || !orgId}
+              className="!min-h-9 !px-3 !py-2 text-sm"
+              title="iCal 다운로드"
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "..." : "iCal"}
+            </Button>
+          </div>
         }
       />
 
@@ -323,6 +372,8 @@ export function CalendarPage() {
         onClose={() => setSelectedEvent(null)}
         onEdit={handleEdit}
       />
+
+      {showIcalFeed && <IcalFeedModal onClose={() => setShowIcalFeed(false)} />}
     </div>
   );
 }

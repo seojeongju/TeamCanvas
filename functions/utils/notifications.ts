@@ -150,3 +150,49 @@ export async function notifyTaskMention(
     link: `/tasks?task=${opts.taskId}`,
   });
 }
+
+export async function notifyEventComment(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    recipientId: string;
+    actorId: string;
+    organizationId: string;
+    eventId: string;
+    eventTitle: string;
+    preview: string;
+  },
+) {
+  if (!opts.recipientId || opts.recipientId === opts.actorId) return;
+  await createNotification(db, env, {
+    userId: opts.recipientId,
+    organizationId: opts.organizationId,
+    type: "event_comment",
+    title: "일정에 댓글이 달렸습니다",
+    body: `${opts.eventTitle}: ${opts.preview}`,
+    link: `/calendar?event=${opts.eventId}`,
+  });
+}
+
+export async function notifyEventMention(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    mentionedUserId: string;
+    actorId: string;
+    organizationId: string;
+    eventId: string;
+    eventTitle: string;
+    preview: string;
+  },
+) {
+  if (!opts.mentionedUserId || opts.mentionedUserId === opts.actorId) return;
+  await createNotification(db, env, {
+    userId: opts.mentionedUserId,
+    organizationId: opts.organizationId,
+    type: "event_mention",
+    title: "일정 댓글에서 멘션되었습니다",
+    body: `${opts.eventTitle}: ${opts.preview}`,
+    link: `/calendar?event=${opts.eventId}`,
+  });
+}
