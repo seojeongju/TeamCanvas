@@ -40,11 +40,20 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/auth\//, /^\/api\//],
         runtimeCaching: [
           {
+            urlPattern: /^\/api\/organizations\/[^/]+\/(tasks|events)/,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "api-data-cache",
+              expiration: { maxAgeSeconds: 86400, maxEntries: 32 },
+            },
+          },
+          {
             urlPattern: /^\/api\//,
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
-              expiration: { maxAgeSeconds: 300 },
+              expiration: { maxAgeSeconds: 3600 },
+              networkTimeoutSeconds: 5,
             },
           },
         ],

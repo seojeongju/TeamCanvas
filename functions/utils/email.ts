@@ -100,6 +100,25 @@ export async function sendPasswordResetEmail(
   return sendEmail(env, to, "[TeamCanvas] 비밀번호 재설정", html);
 }
 
+export async function sendNotificationEmail(
+  env: Env,
+  to: string,
+  title: string,
+  body: string,
+  link?: string | null,
+): Promise<{ sent: boolean }> {
+  const base = env.FRONTEND_URL?.replace(/\/$/, "") ?? "https://teamcanvas.pages.dev";
+  const actionUrl = link ? `${base}${link.startsWith("/") ? link : `/${link}`}` : base;
+  const html = emailShell(
+    title,
+    body.replace(/\n/g, "<br>"),
+    "TeamCanvas에서 보기",
+    actionUrl,
+  );
+  const result = await sendEmail(env, to, `[TeamCanvas] ${title}`, html);
+  return { sent: result.sent };
+}
+
 export async function sendOrgInviteEmail(
   env: Env,
   request: Request,

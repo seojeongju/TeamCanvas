@@ -2,6 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCurrentOrgId } from "../stores/orgStore";
 import { startOfDay, endOfDay } from "../lib/dates";
+import {
+  cacheEvents,
+  cacheTasks,
+  getCachedEvents,
+  getCachedTasks,
+  isOffline,
+} from "../lib/offlineCache";
 import type { Task, TaskFilters, UpdateTaskPayload } from "../lib/types";
 
 export function useOrgDetail() {
@@ -17,8 +24,20 @@ export function useEvents(from?: number, to?: number) {
   const orgId = useCurrentOrgId();
   return useQuery({
     queryKey: ["events", orgId, from, to],
-    queryFn: () => api.getEvents(orgId!, from, to),
+    queryFn: async () => {
+      const data = await api.getEvents(orgId!, from, to);
+      if (orgId && from != null && to != null) {
+        cacheEvents(orgId, from, to, data.events);
+      }
+      return data;
+    },
     enabled: !!orgId,
+    placeholderData: () => {
+      if (!orgId || from == null || to == null) return undefined;
+      const cached = getCachedEvents(orgId, from, to);
+      return cached ? { events: cached } : undefined;
+    },
+    networkMode: isOffline() ? "always" : "online",
   });
 }
 
@@ -172,8 +191,124 @@ export function useTasks(filters?: TaskFilters) {
   const orgId = useCurrentOrgId();
   return useQuery({
     queryKey: ["tasks", orgId, filters],
-    queryFn: () => api.getTasks(orgId!, filters),
+    queryFn: async () => {
+      const data = await api.getTasks(orgId!, filters);
+      if (orgId) cacheTasks(orgId, data.tasks);
+      return data;
+    },
     enabled: !!orgId,
+    placeholderData: () => {
+      if (!orgId) return undefined;
+      const cached = getCachedTasks(orgId);
+      return cached ? { tasks: cached } : undefined;
+    },
+    networkMode: isOffline() ? "always" : "online",
+  });
+}
+
+export function useTaskLabels() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["task-labels", orgId],
+    queryFn: () => api.getTaskLabels(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateTaskLabel() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: { name: string; color?: string }) => api.createTaskLabel(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["task-labels", orgId] }),
+  });
+}
+
+export function useDeleteTaskLabel() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (labelId: string) => api.deleteTaskLabel(labelId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task-labels", orgId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+    },
+  });
+}
+
+export function useTaskChecklist(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ["task-checklist", taskId],
+    queryFn: () => api.getTaskChecklist(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+export function useCreateChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
+      api.createChecklistItem(taskId, title),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] }),
+  });
+}
+
+export function useUpdateChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      itemId,
+      ...data
+    }: {
+      taskId: string;
+      itemId: string;
+      title?: string;
+      done?: boolean;
+    }) => api.updateChecklistItem(taskId, itemId, data),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] }),
+  });
+}
+
+export function useDeleteChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, itemId }: { taskId: string; itemId: string }) =>
+      api.deleteChecklistItem(taskId, itemId),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] }),
+  });
+}
+
+export function useGoogleCalendarStatus() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["google-calendar", orgId],
+    queryFn: () => api.getGoogleCalendarStatus(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useSyncGoogleCalendar() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.syncGoogleCalendar(orgId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["google-calendar", orgId] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
+  });
+}
+
+export function useDisconnectGoogleCalendar() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: () => api.disconnectGoogleCalendar(orgId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["google-calendar", orgId] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+    },
   });
 }
 

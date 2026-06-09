@@ -488,6 +488,60 @@ export const api = {
       body: JSON.stringify({ body }),
     }),
 
+  getTaskLabels: (orgId: string) =>
+    request<{ labels: import("./types").TaskLabel[] }>(`/api/organizations/${orgId}/labels`),
+
+  createTaskLabel: (orgId: string, data: { name: string; color?: string }) =>
+    request<{ id: string; name: string; color: string }>(`/api/organizations/${orgId}/labels`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  deleteTaskLabel: (labelId: string) =>
+    request<{ ok: boolean }>(`/api/labels/${labelId}`, { method: "DELETE" }),
+
+  getTaskChecklist: (taskId: string) =>
+    request<{ items: import("./types").TaskChecklistItem[] }>(`/api/tasks/${taskId}/checklist`),
+
+  createChecklistItem: (taskId: string, title: string) =>
+    request<{ id: string; sortOrder: number }>(`/api/tasks/${taskId}/checklist`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+
+  updateChecklistItem: (
+    taskId: string,
+    itemId: string,
+    data: { title?: string; done?: boolean; sortOrder?: number },
+  ) =>
+    request<{ ok: boolean }>(`/api/tasks/${taskId}/checklist/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteChecklistItem: (taskId: string, itemId: string) =>
+    request<{ ok: boolean }>(`/api/tasks/${taskId}/checklist/${itemId}`, { method: "DELETE" }),
+
+  getGoogleCalendarStatus: (orgId: string) =>
+    request<{ connected: boolean; updatedAt: number | null }>(
+      `/api/integrations/google-calendar/status?orgId=${orgId}`,
+    ),
+
+  connectGoogleCalendar: (orgId: string) => {
+    window.location.href = `/api/integrations/google-calendar/connect?orgId=${orgId}`;
+  },
+
+  syncGoogleCalendar: (orgId: string) =>
+    request<{ ok: boolean; imported: number }>("/api/integrations/google-calendar/sync", {
+      method: "POST",
+      body: JSON.stringify({ orgId }),
+    }),
+
+  disconnectGoogleCalendar: (orgId: string) =>
+    request<{ ok: boolean }>(`/api/integrations/google-calendar?orgId=${orgId}`, {
+      method: "DELETE",
+    }),
+
   deleteFile: (fileId: string) =>
     request<{ ok: boolean }>(`/api/files/${fileId}`, { method: "DELETE" }),
 

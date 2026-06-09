@@ -1,17 +1,17 @@
 import { cn } from "../../lib/cn";
-import type { TaskFilters } from "../../lib/types";
-import type { Team } from "../../lib/types";
+import type { TaskFilters, TaskLabel, Team } from "../../lib/types";
 
 interface TaskFilterBarProps {
   filters: TaskFilters;
   teams: Team[];
+  labels?: TaskLabel[];
   onChange: (filters: TaskFilters) => void;
 }
 
-export function TaskFilterBar({ filters, teams, onChange }: TaskFilterBarProps) {
+export function TaskFilterBar({ filters, teams, labels = [], onChange }: TaskFilterBarProps) {
   const mine = filters.assignee === "me";
   const hasActiveFilter =
-    filters.assignee === "me" || filters.overdue || !!filters.teamId;
+    filters.assignee === "me" || filters.overdue || !!filters.teamId || !!filters.labelId;
 
   return (
     <div className="space-y-2">
@@ -46,6 +46,40 @@ export function TaskFilterBar({ filters, teams, onChange }: TaskFilterBarProps) 
           </button>
         )}
       </div>
+
+      {labels.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => onChange({ ...filters, labelId: undefined })}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
+              !filters.labelId ? "bg-violet-600 text-white" : "bg-white/80 text-navy-700 hover:bg-white",
+            )}
+          >
+            전체 라벨
+          </button>
+          {labels.map((label) => (
+            <button
+              key={label.id}
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...filters,
+                  labelId: filters.labelId === label.id ? undefined : label.id,
+                })
+              }
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
+                filters.labelId === label.id ? "text-white shadow-sm" : "bg-white/80 text-navy-700",
+              )}
+              style={filters.labelId === label.id ? { backgroundColor: label.color } : undefined}
+            >
+              {label.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {teams.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">

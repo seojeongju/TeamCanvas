@@ -87,6 +87,13 @@ npx wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=teamcanvas
 npx wrangler pages secret put KAKAO_CLIENT_ID --project-name=teamcanvas
 npx wrangler pages secret put KAKAO_CLIENT_SECRET --project-name=teamcanvas
 
+# Web Push (VAPID)
+npm run vapid:generate
+npm run vapid:setup
+# 또는 수동:
+# npx wrangler pages secret put VAPID_PUBLIC_KEY --project-name=teamcanvas
+# npx wrangler pages secret put VAPID_PRIVATE_KEY --project-name=teamcanvas
+
 # 프로덕션에서는 dev auth 비활성화
 npx wrangler pages secret put ALLOW_DEV_AUTH --project-name=teamcanvas
 # 값: false
@@ -97,7 +104,25 @@ npx wrangler pages secret put ALLOW_DEV_AUTH --project-name=teamcanvas
 | `JWT_SECRET` | 32자 이상 랜덤 문자열 |
 | `FRONTEND_URL` | `https://teamcanvas.pages.dev` (커스텀 도메인 연결 후 변경) |
 | `EMAIL_FROM` | `TeamCanvas <noreply@yourdomain.com>` |
+| `VAPID_PUBLIC_KEY` | `npm run vapid:generate` 출력값 |
+| `VAPID_PRIVATE_KEY` | `npm run vapid:generate` 출력값 |
 | `ALLOW_DEV_AUTH` | `false` |
+
+### Google Calendar 연동 (선택)
+
+Google Cloud Console → OAuth 클라이언트에 **승인된 리디렉션 URI** 추가:
+
+```
+https://teamcanvas.pages.dev/api/integrations/google-calendar/callback
+```
+
+로컬 개발 시:
+
+```
+http://127.0.0.1:8788/api/integrations/google-calendar/callback
+```
+
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`이 설정되어 있어야 합니다. Calendar API를 사용하려면 Google Cloud에서 **Google Calendar API**를 활성화하세요.
 
 ---
 

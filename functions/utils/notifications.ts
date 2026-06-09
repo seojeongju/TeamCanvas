@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 import { newId, now } from "./helpers";
+import { sendNotificationEmail } from "./email";
 import { sendPushToUser } from "./push";
 
 export async function createNotification(
@@ -17,43 +18,54 @@ export async function createNotification(
   if (!data.userId) return;
 
   const pref = await db
-    .prepare("SELECT in_app_enabled FROM notification_preferences WHERE user_id = ?")
+    .prepare(
+      "SELECT in_app_enabled, push_enabled, email_enabled FROM notification_preferences WHERE user_id = ?",
+    )
     .bind(data.userId)
-    .first<{ in_app_enabled: number }>();
-  if (pref && !pref.in_app_enabled) {
-    if (env) {
-      await sendPushToUser(db, env, data.userId, {
-        title: data.title,
-        body: data.body ?? undefined,
-        link: data.link ?? undefined,
-      });
-    }
-    return;
+    .first<{ in_app_enabled: number; push_enabled: number; email_enabled: number }>();
+
+  const inAppEnabled = pref ? Boolean(pref.in_app_enabled) : true;
+
+  if (inAppEnabled) {
+    await db
+      .prepare(
+        `INSERT INTO notifications (id, user_id, organization_id, type, title, body, link, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        newId(),
+        data.userId,
+        data.organizationId,
+        data.type,
+        data.title,
+        data.body ?? null,
+        data.link ?? null,
+        now(),
+      )
+      .run();
   }
 
-  await db
-    .prepare(
-      `INSERT INTO notifications (id, user_id, organization_id, type, title, body, link, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      newId(),
-      data.userId,
-      data.organizationId,
-      data.type,
-      data.title,
-      data.body ?? null,
-      data.link ?? null,
-      now(),
-    )
-    .run();
-
-  if (env) {
+  if (env && pref && Boolean(pref.push_enabled)) {
     await sendPushToUser(db, env, data.userId, {
       title: data.title,
       body: data.body ?? undefined,
       link: data.link ?? undefined,
     });
+  }
+
+  if (env) {
+
+    const emailEnabled = pref ? Boolean(pref.email_enabled) : false;
+    if (emailEnabled) {
+      const user = await db
+        .prepare("SELECT email, name FROM users WHERE id = ?")
+        .bind(data.userId)
+        .first<{ email: string | null; name: string }>();
+      if (user?.email) {
+        const emailBody = data.body ? `${user.name}님, ${data.body}` : `${user.name}님, 새 알림이 있습니다.`;
+        await sendNotificationEmail(env, user.email, data.title, emailBody, data.link);
+      }
+    }
   }
 }
 

@@ -6,6 +6,7 @@ import { SessionExpiryBanner } from "../auth/SessionExpiryBanner";
 import { SubscriptionStatusBanner } from "../auth/SubscriptionStatusBanner";
 import { OrgDeletionBanner } from "../auth/OrgDeletionBanner";
 import { AppHeader } from "./AppHeader";
+import { OfflineBanner } from "./OfflineBanner";
 
 export function AppShell() {
   return (
@@ -13,6 +14,7 @@ export function AppShell() {
       <SessionActivityRefresher />
       <main className="safe-top px-5 pb-28 pt-6">
         <AppHeader />
+        <OfflineBanner />
         <EmailVerificationBanner />
         <SessionExpiryBanner />
         <SubscriptionStatusBanner />

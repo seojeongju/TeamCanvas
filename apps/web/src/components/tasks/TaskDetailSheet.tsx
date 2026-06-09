@@ -13,6 +13,8 @@ import { useHasPermission } from "../../hooks/usePermissions";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
 import { MentionTextarea } from "../ui/MentionTextarea";
+import { TaskChecklistSection } from "./TaskChecklistSection";
+import { TaskLabelsSection } from "./TaskLabelsSection";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
 import type { Task, TaskPriority, TaskStatus } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -199,6 +201,8 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
           )}
         </div>
 
+        <TaskLabelsSection task={task} />
+        <TaskChecklistSection taskId={task.id} />
         <EntityFilesSection entityType="task" entityId={task.id} />
 
         <div className="mt-6 border-t border-sky-100/80 pt-4">

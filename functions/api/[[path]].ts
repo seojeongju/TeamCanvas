@@ -22,6 +22,8 @@ import {
   hashToken,
   appUrl,
 } from "../utils/helpers";
+import { signOAuthState, verifyOAuthState } from "../utils/jwt";
+import { frontendUrl } from "../utils/email";
 import { getUserBusyBlocks } from "../utils/freeBusy";
 import { enhanceWithAi, findFreeSlots } from "../utils/eventSuggestions";
 
@@ -277,6 +279,24 @@ app.get("/organizations/:orgId/events", async (c) => {
       });
     }
 
+    events.sort((a, b) => (a.startAt as number) - (b.startAt as number));
+  }
+
+  const googleConn = await c.env.DB.prepare(
+    "SELECT 1 FROM google_calendar_tokens WHERE user_id = ? AND organization_id = ?",
+  )
+    .bind(user.id, orgId)
+    .first();
+  if (googleConn) {
+    const { fetchGoogleCalendarEventsForRange } = await import("../utils/googleCalendar");
+    const googleEvents = await fetchGoogleCalendarEventsForRange(
+      c.env.DB,
+      user.id,
+      orgId,
+      from,
+      to,
+    );
+    events.push(...googleEvents);
     events.sort((a, b) => (a.startAt as number) - (b.startAt as number));
   }
 
@@ -990,7 +1010,17 @@ app.get("/organizations/:orgId/tasks", async (c) => {
     };
   });
 
-  return c.json({ tasks });
+  const { fetchLabelsForTasks } = await import("../utils/taskExtras");
+  const labelMap = await fetchLabelsForTasks(
+    c.env.DB,
+    tasks.map((t) => t.id as string),
+  );
+  const tasksWithLabels = tasks.map((t) => ({
+    ...t,
+    labels: labelMap[t.id as string] ?? [],
+  }));
+
+  return c.json({ tasks: tasksWithLabels });
 });
 
 app.post("/organizations/:orgId/tasks", async (c) => {
@@ -1095,9 +1125,15 @@ app.patch("/tasks/:taskId", async (c) => {
     priority?: string;
     sortOrder?: number;
     teamId?: string | null;
+    labelIds?: string[];
   }>();
   const updates: string[] = [];
   const values: unknown[] = [];
+
+  if (body.labelIds !== undefined) {
+    const { syncTaskLabels } = await import("../utils/taskExtras");
+    await syncTaskLabels(c.env.DB, taskId, body.labelIds, existing.organization_id);
+  }
 
   if (body.status !== undefined) {
     if (!["todo", "doing", "done"].includes(body.status)) {
@@ -1138,7 +1174,10 @@ app.patch("/tasks/:taskId", async (c) => {
     updates.push("team_id = ?");
     values.push(body.teamId);
   }
-  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
+  if (!updates.length && body.labelIds === undefined) {
+    return c.json({ error: "Nothing to update" }, 400);
+  }
+  if (!updates.length) return c.json({ ok: true });
 
   updates.push("updated_at = ?");
   values.push(now(), taskId);
@@ -1717,6 +1756,381 @@ app.delete("/files/:fileId", async (c) => {
 
   await c.env.FILES.delete(row.r2_key);
   await c.env.DB.prepare("DELETE FROM files WHERE id = ?").bind(fileId).run();
+  return c.json({ ok: true });
+});
+
+// ── Task labels ──
+
+app.get("/organizations/:orgId/labels", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, name, color, created_at FROM task_labels WHERE organization_id = ? ORDER BY name",
+  )
+    .bind(orgId)
+    .all();
+
+  const labels = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return { id: r.id, name: r.name, color: r.color, createdAt: r.created_at };
+  });
+  return c.json({ labels });
+});
+
+app.post("/organizations/:orgId/labels", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ name?: string; color?: string }>();
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+
+  const id = newId();
+  const ts = now();
+  try {
+    await c.env.DB.prepare(
+      "INSERT INTO task_labels (id, organization_id, name, color, created_at) VALUES (?, ?, ?, ?, ?)",
+    )
+      .bind(id, orgId, body.name.trim(), body.color ?? "#4A9FE8", ts)
+      .run();
+  } catch {
+    return c.json({ error: "Label name already exists" }, 409);
+  }
+  return c.json({ id, name: body.name.trim(), color: body.color ?? "#4A9FE8" }, 201);
+});
+
+app.patch("/labels/:labelId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const labelId = c.req.param("labelId");
+
+  const label = await c.env.DB.prepare("SELECT organization_id FROM task_labels WHERE id = ?")
+    .bind(labelId)
+    .first<{ organization_id: string }>();
+  if (!label) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, label.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ name?: string; color?: string }>();
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  if (body.name?.trim()) {
+    updates.push("name = ?");
+    values.push(body.name.trim());
+  }
+  if (body.color) {
+    updates.push("color = ?");
+    values.push(body.color);
+  }
+  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
+  values.push(labelId);
+  await c.env.DB.prepare(`UPDATE task_labels SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...values)
+    .run();
+  return c.json({ ok: true });
+});
+
+app.delete("/labels/:labelId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const labelId = c.req.param("labelId");
+
+  const label = await c.env.DB.prepare("SELECT organization_id FROM task_labels WHERE id = ?")
+    .bind(labelId)
+    .first<{ organization_id: string }>();
+  if (!label) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, label.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM task_labels WHERE id = ?").bind(labelId).run();
+  return c.json({ ok: true });
+});
+
+// ── Task checklist ──
+
+app.get("/tasks/:taskId/checklist", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, task_id, title, done, sort_order, created_at FROM task_checklist_items WHERE task_id = ? ORDER BY sort_order, created_at",
+  )
+    .bind(taskId)
+    .all();
+
+  const items = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      taskId: r.task_id,
+      title: r.title,
+      done: Boolean(r.done),
+      sortOrder: r.sort_order,
+      createdAt: r.created_at,
+    };
+  });
+  return c.json({ items });
+});
+
+app.post("/tasks/:taskId/checklist", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ title?: string }>();
+  if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
+
+  const maxRow = await c.env.DB.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) as m FROM task_checklist_items WHERE task_id = ?",
+  )
+    .bind(taskId)
+    .first<{ m: number }>();
+
+  const id = newId();
+  const ts = now();
+  const sortOrder = (maxRow?.m ?? -1) + 1;
+  await c.env.DB.prepare(
+    "INSERT INTO task_checklist_items (id, task_id, title, done, sort_order, created_at) VALUES (?, ?, ?, 0, ?, ?)",
+  )
+    .bind(id, taskId, body.title.trim(), sortOrder, ts)
+    .run();
+
+  return c.json({ id, sortOrder }, 201);
+});
+
+app.patch("/tasks/:taskId/checklist/:itemId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+  const itemId = c.req.param("itemId");
+
+  const item = await c.env.DB.prepare(
+    `SELECT c.id, t.organization_id FROM task_checklist_items c
+     JOIN tasks t ON t.id = c.task_id
+     WHERE c.id = ? AND c.task_id = ?`,
+  )
+    .bind(itemId, taskId)
+    .first<{ id: string; organization_id: string }>();
+  if (!item) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, item.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ title?: string; done?: boolean; sortOrder?: number }>();
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  if (body.title !== undefined) {
+    updates.push("title = ?");
+    values.push(body.title.trim());
+  }
+  if (body.done !== undefined) {
+    updates.push("done = ?");
+    values.push(body.done ? 1 : 0);
+  }
+  if (body.sortOrder !== undefined) {
+    updates.push("sort_order = ?");
+    values.push(body.sortOrder);
+  }
+  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
+  values.push(itemId);
+  await c.env.DB.prepare(`UPDATE task_checklist_items SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...values)
+    .run();
+  return c.json({ ok: true });
+});
+
+app.delete("/tasks/:taskId/checklist/:itemId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+  const itemId = c.req.param("itemId");
+
+  const item = await c.env.DB.prepare(
+    `SELECT c.id, t.organization_id FROM task_checklist_items c
+     JOIN tasks t ON t.id = c.task_id
+     WHERE c.id = ? AND c.task_id = ?`,
+  )
+    .bind(itemId, taskId)
+    .first<{ id: string; organization_id: string }>();
+  if (!item) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, item.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM task_checklist_items WHERE id = ?").bind(itemId).run();
+  return c.json({ ok: true });
+});
+
+// ── Google Calendar integration ──
+
+app.get("/integrations/google-calendar/status", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.query("orgId");
+  if (!orgId) return c.json({ error: "orgId required" }, 400);
+
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const row = await c.env.DB.prepare(
+    "SELECT updated_at FROM google_calendar_tokens WHERE user_id = ? AND organization_id = ?",
+  )
+    .bind(user.id, orgId)
+    .first<{ updated_at: number }>();
+
+  return c.json({ connected: !!row, updatedAt: row?.updated_at ?? null });
+});
+
+app.get("/integrations/google-calendar/connect", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.query("orgId");
+  if (!orgId) return c.json({ error: "orgId required" }, 400);
+
+  const member = await requireOrgPermission(c, user.id, orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET) {
+    return c.json({ error: "Google OAuth not configured" }, 503);
+  }
+
+  const state = await signOAuthState(
+    { purpose: "google_calendar", userId: user.id, orgId },
+    c.env.JWT_SECRET,
+  );
+  const { googleCalendarAuthUrl, googleCalendarRedirectUri } = await import("../utils/googleCalendar");
+  const redirectUri = googleCalendarRedirectUri(appUrl(c.req.raw, c.env));
+  const url = googleCalendarAuthUrl(c.env.GOOGLE_CLIENT_ID, redirectUri, state);
+  return c.redirect(url);
+});
+
+app.get("/integrations/google-calendar/callback", async (c) => {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const error = c.req.query("error");
+  const base = frontendUrl(c.req.raw, c.env);
+
+  if (error) {
+    return c.redirect(`${base}/calendar?google=denied`);
+  }
+  if (!code || !state) {
+    return c.redirect(`${base}/calendar?google=error`);
+  }
+
+  const stateData = await verifyOAuthState(state, c.env.JWT_SECRET);
+  if (!stateData || stateData.purpose !== "google_calendar" || !stateData.userId || !stateData.orgId) {
+    return c.redirect(`${base}/calendar?google=error`);
+  }
+
+  const { exchangeGoogleCalendarCode, googleCalendarRedirectUri, syncGoogleCalendarEvents } =
+    await import("../utils/googleCalendar");
+  const redirectUri = googleCalendarRedirectUri(appUrl(c.req.raw, c.env));
+  const tokens = await exchangeGoogleCalendarCode(c.env, code, redirectUri);
+  if (!tokens) {
+    return c.redirect(`${base}/calendar?google=error`);
+  }
+
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO google_calendar_tokens (user_id, organization_id, refresh_token, access_token, expires_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id, organization_id) DO UPDATE SET
+       refresh_token = excluded.refresh_token,
+       access_token = excluded.access_token,
+       expires_at = excluded.expires_at,
+       updated_at = excluded.updated_at`,
+  )
+    .bind(
+      stateData.userId,
+      stateData.orgId,
+      tokens.refresh_token,
+      tokens.access_token,
+      ts + tokens.expires_in * 1000,
+      ts,
+    )
+    .run();
+
+  try {
+    const from = startOfDay(now()) - 86400000 * 30;
+    const to = endOfDay(now()) + 86400000 * 90;
+    await syncGoogleCalendarEvents(
+      c.env.DB,
+      c.env,
+      stateData.userId,
+      stateData.orgId,
+      from,
+      to,
+    );
+  } catch {
+    /* sync optional on connect */
+  }
+
+  return c.redirect(`${base}/calendar?google=connected`);
+});
+
+app.post("/integrations/google-calendar/sync", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const body = await c.req.json<{ orgId?: string }>();
+  if (!body.orgId) return c.json({ error: "orgId required" }, 400);
+
+  const member = await requireOrgPermission(c, user.id, body.orgId, "events:read");
+  if (member instanceof Response) return member;
+
+  const from = startOfDay(now()) - 86400000 * 30;
+  const to = endOfDay(now()) + 86400000 * 365;
+
+  try {
+    const { syncGoogleCalendarEvents } = await import("../utils/googleCalendar");
+    const result = await syncGoogleCalendarEvents(c.env.DB, c.env, user.id, body.orgId, from, to);
+    return c.json({ ok: true, ...result });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Sync failed" }, 400);
+  }
+});
+
+app.delete("/integrations/google-calendar", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.query("orgId");
+  if (!orgId) return c.json({ error: "orgId required" }, 400);
+
+  await c.env.DB.prepare(
+    "DELETE FROM google_calendar_events WHERE user_id = ? AND organization_id = ?",
+  )
+    .bind(user.id, orgId)
+    .run();
+  await c.env.DB.prepare(
+    "DELETE FROM google_calendar_tokens WHERE user_id = ? AND organization_id = ?",
+  )
+    .bind(user.id, orgId)
+    .run();
+
   return c.json({ ok: true });
 });
 

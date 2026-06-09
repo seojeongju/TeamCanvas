@@ -9,7 +9,7 @@ import { TaskFilterBar } from "../components/tasks/TaskFilterBar";
 import { TaskListView } from "../components/tasks/TaskListView";
 import { TaskSummaryBar } from "../components/tasks/TaskSummaryBar";
 import { TaskViewSwitcher } from "../components/tasks/TaskViewSwitcher";
-import { useTasks, useTeams, useUpdateTask } from "../hooks/useData";
+import { useTaskLabels, useTasks, useTeams, useUpdateTask } from "../hooks/useData";
 import { useAuthStore } from "../stores/authStore";
 import { computeTaskSummary, filterTasks } from "../lib/taskUtils";
 import type { Task, TaskFilters, TaskStatus, TaskViewMode } from "../lib/types";
@@ -18,6 +18,7 @@ export function TasksPage() {
   const userId = useAuthStore((s) => s.user?.id);
   const { data } = useTasks();
   const { data: teamsData } = useTeams();
+  const { data: labelsData } = useTaskLabels();
   const updateTask = useUpdateTask();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -29,6 +30,7 @@ export function TasksPage() {
 
   const allTasks = data?.tasks ?? [];
   const teams = teamsData?.teams ?? [];
+  const labels = labelsData?.labels ?? [];
   const tasks = useMemo(() => filterTasks(allTasks, filters, userId), [allTasks, filters, userId]);
   const summary = useMemo(() => computeTaskSummary(allTasks, userId), [allTasks, userId]);
 
@@ -72,7 +74,7 @@ export function TasksPage() {
         </div>
       </div>
 
-      <TaskFilterBar filters={filters} teams={teams} onChange={setFilters} />
+      <TaskFilterBar filters={filters} teams={teams} labels={labels} onChange={setFilters} />
 
       {viewMode === "board" ? (
         <TaskBoardView

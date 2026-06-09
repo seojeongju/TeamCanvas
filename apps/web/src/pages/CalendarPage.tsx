@@ -11,6 +11,7 @@ import { AGENDA_DAYS } from "../lib/calendarUtils";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { EventDetailSheet } from "../components/modals/EventDetailSheet";
 import { IcalFeedModal } from "../components/modals/IcalFeedModal";
+import { GoogleCalendarPanel } from "../components/calendar/GoogleCalendarPanel";
 import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
@@ -40,6 +41,7 @@ export function CalendarPage() {
   const [templateId, setTemplateId] = useState<EventTemplateId | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
+  const [googleToast, setGoogleToast] = useState<string | null>(null);
 
   const { from, to } = getViewRange(viewMode, focusDate);
   const { data } = useEvents(from, to);
@@ -122,12 +124,36 @@ export function CalendarPage() {
   };
 
   const handleEventClick = (event: CalendarEvent) => {
+    if (event.sourceType === "google") {
+      setGoogleToast("Google 캘린더 일정은 읽기 전용입니다.");
+      return;
+    }
     if (event.sourceType === "task" && event.taskId) {
       routerNavigate(`/tasks?task=${event.taskId}`);
       return;
     }
     setSelectedEvent(event);
   };
+
+  useEffect(() => {
+    const google = searchParams.get("google");
+    if (!google) return;
+    const messages: Record<string, string> = {
+      connected: "Google 캘린더가 연결되었습니다.",
+      denied: "Google 캘린더 연결이 취소되었습니다.",
+      error: "Google 캘린더 연결에 실패했습니다.",
+    };
+    setGoogleToast(messages[google] ?? null);
+    const next = new URLSearchParams(searchParams);
+    next.delete("google");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!googleToast) return;
+    const t = window.setTimeout(() => setGoogleToast(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [googleToast]);
 
   useEffect(() => {
     const eventId = searchParams.get("event");
@@ -210,6 +236,14 @@ export function CalendarPage() {
       />
 
       <CalendarViewSwitcher value={viewMode} onChange={setViewMode} />
+
+      <GoogleCalendarPanel />
+
+      {googleToast && (
+        <GlassCard className="border border-primary-200 bg-primary-50/80 p-3 text-sm text-primary-800">
+          {googleToast}
+        </GlassCard>
+      )}
 
       <GlassCard className="p-4">
         <div className="flex items-center justify-between">

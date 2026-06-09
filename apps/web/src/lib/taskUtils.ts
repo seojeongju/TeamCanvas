@@ -56,6 +56,7 @@ export function filterTasks(tasks: Task[], filters: TaskFilters, userId?: string
     if (filters.teamId && task.teamId !== filters.teamId) return false;
     if (filters.status && task.status !== filters.status) return false;
     if (filters.overdue && !task.isOverdue) return false;
+    if (filters.labelId && !task.labels?.some((l) => l.id === filters.labelId)) return false;
     return true;
   });
 }

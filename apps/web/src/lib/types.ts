@@ -139,8 +139,24 @@ export type CalendarEvent = {
   color: string;
   teamName: string;
   time: string;
-  sourceType?: "event" | "task";
+  sourceType?: "event" | "task" | "google";
   taskId?: string;
+};
+
+export type TaskLabel = {
+  id: string;
+  name: string;
+  color: string;
+  createdAt?: number;
+};
+
+export type TaskChecklistItem = {
+  id: string;
+  taskId: string;
+  title: string;
+  done: boolean;
+  sortOrder: number;
+  createdAt?: number;
 };
 
 export type TaskComment = {
@@ -218,6 +234,7 @@ export type Task = {
   due: string;
   isOverdue?: boolean;
   sortOrder?: number;
+  labels?: TaskLabel[];
 };
 
 export type TaskFilters = {
@@ -225,6 +242,7 @@ export type TaskFilters = {
   teamId?: string;
   status?: TaskStatus;
   overdue?: boolean;
+  labelId?: string;
 };
 
 export type UpdateTaskPayload = {
@@ -237,6 +255,7 @@ export type UpdateTaskPayload = {
   priority?: TaskPriority;
   sortOrder?: number;
   teamId?: string | null;
+  labelIds?: string[];
 };
 
 export type Notification = {

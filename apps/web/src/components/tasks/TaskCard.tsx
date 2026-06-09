@@ -83,6 +83,19 @@ export function TaskCard({ task, onOpen, onStatusChange, compact }: TaskCardProp
               <p className={cn("mt-1 font-medium text-navy-900", compact ? "text-sm" : "text-[15px]")}>
                 {task.title}
               </p>
+              {task.labels && task.labels.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {task.labels.map((label) => (
+                    <span
+                      key={label.id}
+                      className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
+                      style={{ backgroundColor: label.color }}
+                    >
+                      {label.name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
