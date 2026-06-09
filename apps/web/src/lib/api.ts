@@ -394,6 +394,7 @@ export const api = {
       assigneeId?: string;
       priority?: string;
       teamId?: string | null;
+      eventId?: string | null;
     },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/tasks`, {
@@ -424,6 +425,9 @@ export const api = {
 
   markNotificationRead: (id: string) =>
     request<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: "PATCH" }),
+
+  markAllNotificationsRead: () =>
+    request<{ ok: boolean }>("/api/notifications/read-all", { method: "PATCH" }),
 
   getNotificationPreferences: () =>
     request<{ preferences: import("./types").NotificationPreferences }>("/api/notification-preferences"),

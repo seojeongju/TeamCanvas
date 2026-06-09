@@ -1,5 +1,5 @@
 import { endOfDay, startOfDay } from "./dates";
-import type { Task, TaskFilters, TaskPriority, TaskStatus } from "./types";
+import type { CalendarEvent, Task, TaskFilters, TaskPriority, TaskStatus } from "./types";
 
 export const TASK_COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
   { id: "todo", label: "할 일", color: "border-sky-300" },
@@ -87,4 +87,26 @@ export function toDateInputValue(dueAt?: number | null) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** 마감일이 있는 미완료 업무를 캘린더 all-day 이벤트로 변환 */
+export function tasksToCalendarEvents(tasks: Task[], from: number, to: number): CalendarEvent[] {
+  return tasks
+    .filter((t) => t.dueAt && t.dueAt >= from && t.dueAt <= to && t.status !== "done")
+    .map((t) => {
+      const due = t.dueAt!;
+      return {
+        id: `task-${t.id}`,
+        taskId: t.id,
+        sourceType: "task" as const,
+        title: t.title,
+        startAt: startOfDay(due),
+        endAt: endOfDay(due),
+        allDay: true,
+        color: t.isOverdue ? "#EF4444" : "#F97316",
+        teamName: t.teamName ?? "업무 마감",
+        time: t.isOverdue ? "마감 지연" : "마감",
+        visibility: "private",
+      };
+    });
 }

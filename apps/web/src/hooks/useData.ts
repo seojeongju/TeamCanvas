@@ -190,6 +190,7 @@ export function useCreateTask() {
       assigneeId?: string;
       priority?: string;
       teamId?: string | null;
+      eventId?: string | null;
     }) => api.createTask(orgId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -274,6 +275,55 @@ export function useNotifications() {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => api.getNotifications(),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.markNotificationRead(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["notifications"] });
+      const prev = qc.getQueryData<{ notifications: import("../lib/types").Notification[] }>([
+        "notifications",
+      ]);
+      if (prev) {
+        qc.setQueryData(["notifications"], {
+          notifications: prev.notifications.map((n) =>
+            n.id === id ? { ...n, unread: false } : n,
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["notifications"], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.markAllNotificationsRead(),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ["notifications"] });
+      const prev = qc.getQueryData<{ notifications: import("../lib/types").Notification[] }>([
+        "notifications",
+      ]);
+      if (prev) {
+        qc.setQueryData(["notifications"], {
+          notifications: prev.notifications.map((n) => ({ ...n, unread: false })),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["notifications"], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
 }
 

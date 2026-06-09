@@ -231,8 +231,10 @@ export type UpdateTaskPayload = {
 
 export type Notification = {
   id: string;
+  type?: string;
   title: string;
   body: string | null;
+  link: string | null;
   unread: boolean;
   time: string;
 };

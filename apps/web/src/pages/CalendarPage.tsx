@@ -10,7 +10,8 @@ import { TimeGridView } from "../components/calendar/TimeGridView";
 import { AGENDA_DAYS } from "../lib/calendarUtils";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { EventDetailSheet } from "../components/modals/EventDetailSheet";
-import { useEventReminders, useEvents, useMarkReminderDelivered } from "../hooks/useData";
+import { useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
+import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
 import { getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
 import { colorClass, formatRecurrenceRule, startOfDay, endOfDay } from "../lib/dates";
@@ -32,9 +33,15 @@ export function CalendarPage() {
 
   const { from, to } = getViewRange(viewMode, focusDate);
   const { data } = useEvents(from, to);
+  const { data: tasksData } = useTasks();
   const { data: holidaysData } = useHolidays(from, to);
-  const events = data?.events ?? [];
+  const calendarEvents = data?.events ?? [];
   const holidays = holidaysData?.holidays ?? [];
+
+  const events = useMemo(() => {
+    const taskEvents = tasksToCalendarEvents(tasksData?.tasks ?? [], from, to);
+    return [...calendarEvents, ...taskEvents].sort((a, b) => a.startAt - b.startAt);
+  }, [calendarEvents, tasksData?.tasks, from, to]);
 
   const { data: reminderData } = useEventReminders(Date.now(), Date.now() + 24 * 60 * 60 * 1000);
   const reminders = reminderData?.reminders ?? [];
@@ -213,7 +220,7 @@ export function CalendarPage() {
                   <div className="flex-1">
                     <p className="font-medium text-navy-900">{event.title}</p>
                     <p className="text-xs text-navy-600">
-                      {event.time} · {event.teamName}
+                      {event.sourceType === "task" ? "업무 마감" : event.time} · {event.teamName}
                     </p>
                     {event.recurrenceRule && (
                       <p className="mt-0.5 text-[11px] text-primary-600">

@@ -112,9 +112,10 @@ export function MonthView({
                       className={cn(
                         "truncate rounded px-0.5 text-[9px] font-medium",
                         isToday ? "bg-white/25 text-white" : `${colorClass(e.color)} text-white`,
+                        e.sourceType === "task" && !isToday && "ring-1 ring-white/40",
                       )}
                     >
-                      {e.title}
+                      {e.sourceType === "task" ? `마감 ${e.title}` : e.title}
                     </span>
                   ))}
                   {dayEvents.length > 2 && (

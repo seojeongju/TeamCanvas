@@ -819,6 +819,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     assigneeId?: string;
     priority?: string;
     teamId?: string | null;
+    eventId?: string | null;
   }>();
 
   if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
@@ -832,8 +833,8 @@ app.post("/organizations/:orgId/tasks", async (c) => {
   const assigneeId = body.assigneeId ?? user.id;
 
   await c.env.DB.prepare(
-    `INSERT INTO tasks (id, organization_id, team_id, creator_id, assignee_id, title, description, status, priority, due_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, organization_id, team_id, creator_id, assignee_id, title, description, status, priority, due_at, event_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -846,6 +847,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
       body.status ?? "todo",
       priority,
       body.dueAt ?? null,
+      body.eventId ?? null,
       ts,
       ts,
     )
@@ -1126,6 +1128,7 @@ app.get("/notifications", async (c) => {
 
     return {
       id: r.id,
+      type: r.type,
       title: r.title,
       body: r.body,
       link: r.link,
@@ -1135,6 +1138,17 @@ app.get("/notifications", async (c) => {
   });
 
   return c.json({ notifications });
+});
+
+app.patch("/notifications/read-all", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  await c.env.DB.prepare(
+    "UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL",
+  )
+    .bind(now(), user.id)
+    .run();
+  return c.json({ ok: true });
 });
 
 app.patch("/notifications/:id/read", async (c) => {

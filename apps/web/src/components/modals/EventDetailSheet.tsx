@@ -1,7 +1,8 @@
-import { MapPin, Pencil, Trash2, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { CheckSquare, MapPin, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
-import { useDeleteEvent, useEventAttendees, useUpdateEventRsvp } from "../../hooks/useData";
+import { useCreateTask, useDeleteEvent, useEventAttendees, useUpdateEventRsvp } from "../../hooks/useData";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -20,12 +21,26 @@ export function EventDetailSheet({
   onClose: () => void;
   onEdit: (event: CalendarEvent) => void;
 }) {
+  const navigate = useNavigate();
   const deleteEvent = useDeleteEvent();
+  const createTask = useCreateTask();
   const updateRsvp = useUpdateEventRsvp();
   const { data: attendeesData } = useEventAttendees(event?.id);
   const attendees = attendeesData?.attendees ?? [];
 
   if (!event) return null;
+
+  const handleConvertToTask = async () => {
+    const result = await createTask.mutateAsync({
+      title: event.title,
+      description: event.description ?? undefined,
+      dueAt: event.endAt,
+      teamId: event.teamId ?? undefined,
+      eventId: event.id,
+    });
+    onClose();
+    navigate(`/tasks?task=${result.id}`);
+  };
 
   const handleDelete = async () => {
     if (!window.confirm(`"${event.title}" 일정을 삭제할까요?`)) return;
@@ -105,6 +120,17 @@ export function EventDetailSheet({
             불참
           </button>
         </div>
+
+        <Button
+          variant="secondary"
+          fullWidth
+          className="mb-3"
+          onClick={handleConvertToTask}
+          disabled={createTask.isPending}
+        >
+          <CheckSquare className="h-4 w-4" />
+          {createTask.isPending ? "변환 중..." : "업무로 변환"}
+        </Button>
 
         <div className="flex gap-2">
           <Button variant="secondary" fullWidth onClick={() => onEdit(event)}>
