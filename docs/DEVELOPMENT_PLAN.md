@@ -1,8 +1,10 @@
 # TeamCanvas — Cloudflare 기반 개발 계획서
 
-> **버전:** 1.0  
+> **버전:** 1.1  
 > **작성일:** 2026-06-02  
-> **스택:** Cloudflare Pages · Pages Functions · D1 · R2 · KV (선택)
+> **최종 갱신:** 2026-06-10  
+> **스택:** Cloudflare Pages · Pages Functions · D1 · R2 · KV (선택)  
+> **고도화 로드맵:** [ROADMAP.md](./ROADMAP.md) ← **다음 작업은 여기서 이어가기**
 
 ---
 
@@ -658,11 +660,23 @@ JWT_SECRET=dev-secret-change-in-prod
 
 ## 15. 다음 액션 (Immediate)
 
-1. `npm create cloudflare@latest teamcanvas -- --framework=react` 로 스캐폴딩
-2. Cloudflare Dashboard에서 D1, R2, Pages 프로젝트 생성
-3. Google Cloud Console / Kakao Developers 앱 등록 (Redirect URI)
-4. Figma 와이어프레임: 모바일 캘린더·하단 탭 (Phase 0 W2)
-5. `migrations/0001_initial.sql` 적용 및 Auth Sprint 착수
+> **2026-06-10 기준:** MVP+α 완료. 고도화 작업은 **[ROADMAP.md](./ROADMAP.md)** 를 따른다.
+
+### Sprint A (다음 2주) — P0
+
+1. **반복 일정 캘린더 확장** — `apps/web/src/lib/recurrence.ts` 신규, 뷰 통합
+2. **서버 Cron 리마인더 + Web Push** — `event_reminders` 배치 발송
+3. (여유 시) **조직 활동 피드** — 대시보드 최근 활동
+
+### 이어하기
+
+새 세션에서 `docs/ROADMAP.md` §8 프롬프트를 복사해 사용.
+
+### 레거시 (Phase 0 — 완료됨)
+
+- ~~스캐폴딩, D1/R2/Pages 프로비저닝~~
+- ~~OAuth, Auth, 조직·캘린더·업무 MVP~~
+- ~~GitHub Actions → teamcanvas.pages.dev 배포~~
 
 ---
 
