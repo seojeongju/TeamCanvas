@@ -7,3 +7,6 @@ dist/
 cookies.txt
 .env
 .env.*
+test-results/
+playwright-report/
+blob-report/

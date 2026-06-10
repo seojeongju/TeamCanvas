@@ -360,6 +360,7 @@ export function useCreateTask() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["event-linked-tasks"] });
     },
   });
 }
@@ -387,6 +388,7 @@ export function useUpdateTask() {
     onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: ["tasks", orgId] });
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["event-linked-tasks"] });
       invalidateTaskActivities(qc, vars.id);
     },
   });
@@ -454,6 +456,14 @@ export function useEvent(eventId: string | undefined) {
   return useQuery({
     queryKey: ["event", eventId],
     queryFn: () => api.getEvent(eventId!),
+    enabled: !!eventId,
+  });
+}
+
+export function useEventLinkedTasks(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["event-linked-tasks", eventId],
+    queryFn: () => api.getEventLinkedTasks(eventId!),
     enabled: !!eventId,
   });
 }

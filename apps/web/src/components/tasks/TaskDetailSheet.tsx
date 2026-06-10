@@ -17,6 +17,7 @@ import { EntityFilesSection } from "../ui/EntityFilesSection";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { TaskChecklistSection } from "./TaskChecklistSection";
 import { TaskLabelsSection } from "./TaskLabelsSection";
+import { TaskLinkedEventSection } from "./TaskLinkedEventSection";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
 import type { Task, TaskPriority, TaskStatus } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -222,6 +223,9 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
         </div>
 
         <TaskLabelsSection task={task} />
+        <div className="mt-4">
+          <TaskLinkedEventSection task={task} />
+        </div>
         <TaskChecklistSection taskId={task.id} />
         <EntityFilesSection entityType="task" entityId={task.id} />
 

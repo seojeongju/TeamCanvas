@@ -141,11 +141,28 @@ export type OrgWebhook = {
   id: string;
   name: string;
   url: string;
-  provider: "slack" | "generic";
+  provider: "slack" | "generic" | "kakaowork";
   events: string[];
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+};
+
+export type LinkedEventSummary = {
+  id: string;
+  title: string;
+  startAt: number;
+  endAt: number;
+  allDay: boolean;
+};
+
+export type LinkedTaskSummary = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: string;
+  dueAt: number | null;
+  assignee: string;
 };
 
 export type SharedEventView = {
@@ -291,6 +308,8 @@ export type Task = {
   teamId?: string | null;
   teamName?: string | null;
   creatorId?: string;
+  eventId?: string | null;
+  linkedEvent?: LinkedEventSummary | null;
   dueAt?: number | null;
   due: string;
   isOverdue?: boolean;
@@ -330,6 +349,7 @@ export type UpdateTaskPayload = {
   priority?: TaskPriority;
   sortOrder?: number;
   teamId?: string | null;
+  eventId?: string | null;
   labelIds?: string[];
 };
 

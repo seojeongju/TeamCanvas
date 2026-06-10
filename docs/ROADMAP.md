@@ -66,7 +66,7 @@
 |---|------|----------|------|------|
 | 1.1 | 반복 일정 캘린더 확장 | P0 | 1.5주 | ✅ 완료 |
 | 1.2 | 서버 Cron 리마인더 + Web Push | P0 | 1주 | ✅ 완료 |
-| 1.3 | 일정 ↔ 업무 양방향 연결 | P1 | 0.5주 | ⬜ 미착수 |
+| 1.3 | 일정 ↔ 업무 양방향 연결 | P1 | 0.5주 | ✅ 완료 |
 | 1.4 | 조직 활동 피드 | P1 | 1주 | ✅ 완료 |
 
 ### Phase 2 — 협업 확장 (6~8주)
@@ -75,7 +75,7 @@
 |---|------|----------|------|------|
 | 2.1 | 일정 공유 링크 (읽기 전용) | P1 | 1주 | ✅ |
 | 2.2 | Google Calendar 양방향 (쓰기) | P2 | 2주 | ✅ |
-| 2.3 | 슬랙 / 카카오워크 웹훅 | P2 | 1.5주 | ⬜ |
+| 2.3 | 슬랙 / 카카오워크 웹훅 | P2 | 1.5주 | ✅ |
 | 2.4 | 멀티 조직 지원 (정책 결정 후) | P2 | 2주 | ⬜ |
 
 ### Phase 3 — 인사이트 & 관리 (8~10주)
@@ -93,7 +93,7 @@
 |---|------|----------|------|------|
 | 4.1 | 공개 마케팅 랜딩 | P1 | 1주 | ✅ |
 | 4.2 | Vitest 단위 테스트 (날짜·RRULE) | P1 | 1주 | ✅ (recurrence) |
-| 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ⬜ |
+| 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ✅ (랜딩) |
 | 4.4 | IndexedDB 오프라인 + Background Sync | P2 | 2주 | ⬜ |
 | 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | ⬜ |
 | 4.6 | 다국어 (ko/en) | P3 | 2주 | ⬜ |
@@ -251,16 +251,24 @@ apps/web/src/components/dashboard/  ← 신규
 
 **마이그레이션:** `0017_org_webhooks.sql` — 배포 전 `npm run db:migrate:remote` 필요
 
-## 7. Sprint D 이후 (참고 순서)
+## 7. Sprint D — 연결·품질 ✅ (2026-06-09)
+
+| # | 기능 | 상태 |
+|---|------|------|
+| D-1 | 일정 ↔ 업무 양방향 연결 (연결·해제·상호 탐색) | ✅ |
+| D-2 | 카카오워크 웹훅 provider | ✅ |
+| D-3 | Playwright E2E — 랜딩 스모크 | ✅ |
+
+## 8. Sprint E 이후 (참고 순서)
 
 1. 멀티 조직 지원 (보류 — PRD vs API 정합 필요)
-2. 일정 ↔ 업무 양방향 연결
-3. Playwright E2E
-4. 카카오워크 웹훅 (Slack 외)
+2. Playwright E2E 확장 (로그인·일정·업무 CRUD)
+3. IndexedDB 오프라인 + Background Sync
+4. AI 일정 제안 고도화
 
 ---
 
-## 8. 기술 결정 메모
+## 9. 기술 결정 메모
 
 | 주제 | 결정 | 근거 |
 |------|------|------|
@@ -272,7 +280,7 @@ apps/web/src/components/dashboard/  ← 신규
 
 ---
 
-## 9. 로컬 개발 & 배포 (빠른 참조)
+## 10. 로컬 개발 & 배포 (빠른 참조)
 
 ```bash
 # 개발
@@ -294,20 +302,20 @@ git -c safe.directory=D:/Program_DEV/TeamCanvas push origin main
 
 ---
 
-## 10. 다음 세션 이어하기 프롬프트
+## 11. 다음 세션 이어하기 프롬프트
 
 ```
-TeamCanvas 고도화 Sprint D를 진행해줘.
+TeamCanvas 고도화 Sprint E를 진행해줘.
 
-참고 문서: docs/ROADMAP.md (섹션 7 — Sprint D 이후)
+참고 문서: docs/ROADMAP.md (섹션 8 — Sprint E 이후)
 최신 커밋: (git log -1)
 
 다음 후보:
-1. 일정 ↔ 업무 양방향 연결
-2. Playwright E2E
-3. 카카오워크 웹훅
+1. Playwright E2E 확장 (로그인·일정·업무)
+2. IndexedDB 오프라인
+3. 멀티 조직 (정책 결정 후)
 
-완료 후 npm run test && npm run build 검증, 커밋·푸시·배포까지 해줘.
+완료 후 npm run test && npm run build && npm run test:e2e 검증, 커밋·푸시·배포까지 해줘.
 ```
 
 **한 기능만 먼저:**

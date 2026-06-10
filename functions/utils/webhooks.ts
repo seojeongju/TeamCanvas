@@ -31,6 +31,17 @@ function parseEvents(json: string): string[] {
   }
 }
 
+function formatPlainLines(payload: WebhookPayload): string {
+  return [
+    payload.title,
+    payload.body,
+    payload.actorName ? `by ${payload.actorName}` : null,
+    payload.link,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function slackBody(payload: WebhookPayload): Record<string, unknown> {
   const lines = [
     payload.title,
@@ -39,6 +50,11 @@ function slackBody(payload: WebhookPayload): Record<string, unknown> {
     payload.link ? `<${payload.link}|열기>` : null,
   ].filter(Boolean);
   return { text: lines.join("\n") };
+}
+
+/** 카카오워크 Incoming Webhook — text 필드 */
+function kakaoworkBody(payload: WebhookPayload): Record<string, unknown> {
+  return { text: formatPlainLines(payload) };
 }
 
 function genericBody(payload: WebhookPayload): Record<string, unknown> {
@@ -54,7 +70,12 @@ function genericBody(payload: WebhookPayload): Record<string, unknown> {
 }
 
 async function postWebhook(url: string, provider: string, payload: WebhookPayload): Promise<void> {
-  const body = provider === "slack" ? slackBody(payload) : genericBody(payload);
+  const body =
+    provider === "slack"
+      ? slackBody(payload)
+      : provider === "kakaowork"
+        ? kakaoworkBody(payload)
+        : genericBody(payload);
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

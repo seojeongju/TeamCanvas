@@ -24,7 +24,7 @@ export function WebhooksSection() {
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [provider, setProvider] = useState<"slack" | "generic">("slack");
+  const [provider, setProvider] = useState<"slack" | "generic" | "kakaowork">("slack");
   const [events, setEvents] = useState<string[]>(["event.created", "task.assigned"]);
 
   const webhooks = data?.webhooks ?? [];
@@ -66,8 +66,12 @@ export function WebhooksSection() {
                 <p className="font-medium text-navy-800">{wh.name}</p>
                 <p className="truncate text-xs text-navy-500">{wh.url}</p>
                 <p className="mt-1 text-[10px] text-navy-400">
-                  {wh.provider === "slack" ? "Slack" : "일반"} ·{" "}
-                  {wh.events.map((e) => EVENT_LABELS[e] ?? e).join(", ")}
+                  {wh.provider === "slack"
+                    ? "Slack"
+                    : wh.provider === "kakaowork"
+                      ? "카카오워크"
+                      : "일반"}{" "}
+                  · {wh.events.map((e) => EVENT_LABELS[e] ?? e).join(", ")}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1">
@@ -113,11 +117,14 @@ export function WebhooksSection() {
           <p className="mb-1 text-xs font-medium text-navy-700">형식</p>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value as "slack" | "generic")}
+            onChange={(e) =>
+              setProvider(e.target.value as "slack" | "generic" | "kakaowork")
+            }
             className="w-full rounded-xl border border-sky-200/80 bg-white px-3 py-2 text-sm"
           >
             <option value="slack">Slack Incoming Webhook</option>
-            <option value="generic">일반 JSON (카카오워크 등)</option>
+            <option value="kakaowork">카카오워크 Incoming Webhook</option>
+            <option value="generic">일반 JSON</option>
           </select>
         </div>
         <div>

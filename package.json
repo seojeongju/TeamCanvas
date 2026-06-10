@@ -8,6 +8,9 @@
     "dev:web": "npm run dev --prefix apps/web",
     "dev:api": "npm run build --prefix apps/web && npx wrangler pages dev apps/web/dist --port 8788 --local",
     "build": "npm run build --prefix apps/web",
+    "test": "npm run test --prefix apps/web",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "preview": "npm run preview --prefix apps/web",
     "check": "npx wrangler check",
     "pages:dev": "npm run build && npx wrangler pages dev apps/web/dist --port 8788",
@@ -20,6 +23,7 @@
     "cf:secrets:github": "powershell -ExecutionPolicy Bypass -File scripts/setup-github-secrets.ps1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "concurrently": "^9.2.1",
     "hono": "^4.11.4",
     "wrangler": "^4.64.0"

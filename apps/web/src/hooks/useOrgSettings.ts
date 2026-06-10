@@ -361,7 +361,7 @@ export function useCreateOrgWebhook() {
     mutationFn: (data: {
       name: string;
       url: string;
-      provider?: "slack" | "generic";
+      provider?: "slack" | "generic" | "kakaowork";
       events?: string[];
     }) => api.createOrgWebhook(orgId!, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["org-webhooks", orgId] }),
@@ -379,7 +379,7 @@ export function useUpdateOrgWebhook() {
       webhookId: string;
       name?: string;
       url?: string;
-      provider?: "slack" | "generic";
+      provider?: "slack" | "generic" | "kakaowork";
       events?: string[];
       enabled?: boolean;
     }) => api.updateOrgWebhook(orgId!, webhookId, data),

@@ -142,7 +142,12 @@ export const api = {
 
   createOrgWebhook: (
     orgId: string,
-    data: { name: string; url: string; provider?: "slack" | "generic"; events?: string[] },
+    data: {
+      name: string;
+      url: string;
+      provider?: "slack" | "generic" | "kakaowork";
+      events?: string[];
+    },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/webhooks`, {
       method: "POST",
@@ -155,7 +160,7 @@ export const api = {
     data: Partial<{
       name: string;
       url: string;
-      provider: "slack" | "generic";
+      provider: "slack" | "generic" | "kakaowork";
       events: string[];
       enabled: boolean;
     }>,
@@ -559,6 +564,9 @@ export const api = {
 
   getEvent: (eventId: string) =>
     request<{ event: import("./types").CalendarEvent }>(`/api/events/${eventId}`),
+
+  getEventLinkedTasks: (eventId: string) =>
+    request<{ tasks: import("./types").LinkedTaskSummary[] }>(`/api/events/${eventId}/linked-tasks`),
 
   getEventComments: (eventId: string) =>
     request<{ comments: import("./types").EventComment[] }>(`/api/events/${eventId}/comments`),

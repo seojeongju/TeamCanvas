@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { EventShareModal } from "./EventShareModal";
+import { EventLinkedTasksSection } from "./EventLinkedTasksSection";
 import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { ToastMessage } from "../ui/ToastMessage";
@@ -333,6 +334,10 @@ export function EventDetailSheet({
               불참
             </button>
           </div>
+        )}
+
+        {!isGoogleEvent && displayEvent.sourceType !== "task" && teamEventId && (
+          <EventLinkedTasksSection eventId={teamEventId} />
         )}
 
         {!isGoogleEvent && <EntityFilesSection entityType="event" entityId={displayEvent.id} />}

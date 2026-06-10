@@ -623,6 +623,24 @@ app.get("/events/:eventId", async (c) => {
   return c.json({ event });
 });
 
+app.get("/events/:eventId/linked-tasks", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare("SELECT organization_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ organization_id: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (member instanceof Response) return member;
+
+  const { fetchLinkedTasks } = await import("../utils/eventTaskLink");
+  const tasks = await fetchLinkedTasks(c.env.DB, eventId, event.organization_id);
+  return c.json({ tasks });
+});
+
 app.get("/events/:eventId/comments", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
@@ -1106,10 +1124,12 @@ app.get("/organizations/:orgId/tasks", async (c) => {
   const status = c.req.query("status");
   const overdue = c.req.query("overdue");
 
-  let sql = `SELECT t.*, u.name as assignee_name, tm.name as team_name
+  let sql = `SELECT t.*, u.name as assignee_name, tm.name as team_name,
+       e.id as le_id, e.title as le_title, e.start_at as le_start_at, e.end_at as le_end_at, e.all_day as le_all_day
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
      LEFT JOIN teams tm ON tm.id = t.team_id
+     LEFT JOIN events e ON e.id = t.event_id
      WHERE t.organization_id = ?`;
   const binds: unknown[] = [orgId];
 
@@ -1155,6 +1175,16 @@ app.get("/organizations/:orgId/tasks", async (c) => {
       else due = `${d.getMonth() + 1}/${d.getDate()}`;
     }
 
+    const linkedEvent = r.le_id
+      ? {
+          id: r.le_id as string,
+          title: r.le_title as string,
+          startAt: r.le_start_at as number,
+          endAt: r.le_end_at as number,
+          allDay: Boolean(r.le_all_day),
+        }
+      : null;
+
     return {
       id: r.id,
       title: r.title,
@@ -1166,6 +1196,8 @@ app.get("/organizations/:orgId/tasks", async (c) => {
       teamId: r.team_id,
       teamName: r.team_name ?? null,
       creatorId: r.creator_id,
+      eventId: r.event_id ?? null,
+      linkedEvent,
       dueAt,
       due,
       isOverdue,
@@ -1323,6 +1355,7 @@ app.patch("/tasks/:taskId", async (c) => {
     priority?: string;
     sortOrder?: number;
     teamId?: string | null;
+    eventId?: string | null;
     labelIds?: string[];
   }>();
   const updates: string[] = [];
@@ -1373,6 +1406,17 @@ app.patch("/tasks/:taskId", async (c) => {
   if (body.teamId !== undefined) {
     updates.push("team_id = ?");
     values.push(body.teamId);
+  }
+  if (body.eventId !== undefined) {
+    const { validateTaskEventLink } = await import("../utils/eventTaskLink");
+    const linkCheck = await validateTaskEventLink(
+      c.env.DB,
+      existing.organization_id,
+      body.eventId,
+    );
+    if (!linkCheck.ok) return c.json({ error: linkCheck.error }, 400);
+    updates.push("event_id = ?");
+    values.push(body.eventId);
   }
   if (!updates.length && body.labelIds === undefined) {
     return c.json({ error: "Nothing to update" }, 400);

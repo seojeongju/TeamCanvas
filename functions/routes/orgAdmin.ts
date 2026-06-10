@@ -1570,6 +1570,12 @@ orgAdminRoutes.get("/organizations/:orgId/audit-logs", async (c) => {
 
 const WEBHOOK_EVENTS = ["event.created", "task.assigned", "task.completed"] as const;
 
+function resolveWebhookProvider(provider?: string): "slack" | "generic" | "kakaowork" {
+  if (provider === "slack") return "slack";
+  if (provider === "kakaowork") return "kakaowork";
+  return "generic";
+}
+
 orgAdminRoutes.get("/organizations/:orgId/webhooks", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
@@ -1618,7 +1624,7 @@ orgAdminRoutes.post("/organizations/:orgId/webhooks", async (c) => {
   const body = await c.req.json<{
     name: string;
     url: string;
-    provider?: "slack" | "generic";
+    provider?: "slack" | "generic" | "kakaowork";
     events?: string[];
   }>();
 
@@ -1644,7 +1650,7 @@ orgAdminRoutes.post("/organizations/:orgId/webhooks", async (c) => {
       orgId,
       body.name.trim(),
       body.url.trim(),
-      body.provider === "slack" ? "slack" : "generic",
+      resolveWebhookProvider(body.provider),
       JSON.stringify(events.length ? events : ["event.created"]),
       ts,
       ts,
@@ -1665,7 +1671,7 @@ orgAdminRoutes.patch("/organizations/:orgId/webhooks/:webhookId", async (c) => {
   const body = await c.req.json<{
     name?: string;
     url?: string;
-    provider?: "slack" | "generic";
+    provider?: "slack" | "generic" | "kakaowork";
     events?: string[];
     enabled?: boolean;
   }>();
@@ -1689,7 +1695,9 @@ orgAdminRoutes.patch("/organizations/:orgId/webhooks/:webhookId", async (c) => {
   if (!/^https:\/\//i.test(url)) {
     return c.json({ error: "https URL만 허용됩니다." }, 400);
   }
-  const provider = body.provider ?? (row?.provider as string);
+  const provider = body.provider
+    ? resolveWebhookProvider(body.provider)
+    : resolveWebhookProvider(row?.provider as string);
   let eventsJson = row?.events_json as string;
   if (body.events) {
     const events = body.events.filter((e) => (WEBHOOK_EVENTS as readonly string[]).includes(e));
