@@ -2,7 +2,7 @@
 
 > **버전:** 2.0  
 > **최종 갱신:** 2026-06-10  
-> **최신 커밋:** Sprint A 구현 후 갱신 예정  
+> **최신 커밋:** `65a09f9` — Sprint A (반복 일정·Cron·활동 피드)  
 > **프로덕션:** https://teamcanvas.pages.dev  
 > **관련 문서:** [PRD](./PRD.md) · [개발 계획서](./DEVELOPMENT_PLAN.md) · [배포](./DEPLOY.md)
 
@@ -280,12 +280,12 @@ git -c safe.directory=D:/Program_DEV/TeamCanvas push origin main
 TeamCanvas 고도화 Sprint A를 이어서 진행해줘.
 
 참고 문서: docs/ROADMAP.md (섹션 4 — Sprint A)
-최신 커밋: 058fc8f
+최신 커밋: 65a09f9
 
-우선순위:
-1. Task A — 반복 일정 캘린더 확장 (apps/web/src/lib/recurrence.ts 신규)
-2. Task B — 서버 Cron 리마인더 + Web Push
-3. (여유 시) Task C — 조직 활동 피드
+다음: Sprint B — docs/ROADMAP.md §5 참고
+1. 일정 공유 링크
+2. Google Calendar 양방향
+3. 공개 랜딩 + Vitest
 
 각 Task 완료 기준은 ROADMAP.md Acceptance Criteria를 따르고,
 완료 후 npm run build 검증하고 커밋·푸시·배포까지 해줘.
