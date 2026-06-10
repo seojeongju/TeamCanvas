@@ -42,6 +42,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { cn } from "../../lib/cn";
 import { EventDateTimePicker } from "../calendar/EventDateTimePicker";
 import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
+import { copyEventTitle } from "../../lib/eventCopy";
 import { parseExcludedDates, pruneExcludedDates } from "../../lib/eventExcludedDates";
 
 interface CreateEventModalProps {
@@ -50,6 +51,8 @@ interface CreateEventModalProps {
   prefillDate?: Date | null;
   prefillRange?: { start: number; end: number } | null;
   editEvent?: CalendarEvent | null;
+  /** 복사 원본 — 생성 모달에 내용을 채움 */
+  copyEvent?: CalendarEvent | null;
   /** 수정 시 캘린더에서 클릭한 날짜 (제외일 편집 초기 선택) */
   focusExcludeDate?: string;
   existingEvents?: CalendarEvent[];
@@ -92,6 +95,7 @@ export function CreateEventModal({
   prefillDate,
   prefillRange,
   editEvent,
+  copyEvent,
   focusExcludeDate,
   existingEvents = [],
 }: CreateEventModalProps) {
@@ -102,8 +106,10 @@ export function CreateEventModal({
   const deleteLabel = useDeleteTaskLabel();
   const { data: participantsData } = useEventParticipants();
   const { data: teamsData } = useTeams();
-  const { data: editAttendeesData } = useEventAttendees(editEvent?.id);
+  const sourceEventId = editEvent?.id ?? copyEvent?.id;
+  const { data: editAttendeesData } = useEventAttendees(sourceEventId);
   const isEdit = !!editEvent;
+  const isCopy = !!copyEvent && !editEvent;
 
   const [eventType, setEventType] = useState<EventTypeId>("meeting");
   const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
@@ -137,6 +143,27 @@ export function CreateEventModal({
   const eventColor = selectedLabel?.color ?? typeConfig.color;
   const createInitializedRef = useRef(false);
 
+  const applyEventToForm = (event: CalendarEvent, opts: { copy: boolean }) => {
+    const dateStr = toDatetimeLocal(event.startAt).slice(0, 10);
+    setEventType(getEventTypeByColor(event.color));
+    setTitle(opts.copy ? copyEventTitle(event.title) : event.title);
+    setStart(toDatetimeLocal(event.startAt));
+    setEnd(toDatetimeLocal(event.endAt));
+    setAllDay(event.allDay);
+    setAllDayStart(dateStr);
+    setAllDayEnd(toDatetimeLocal(event.endAt).slice(0, 10));
+    setExcludedDates(opts.copy ? [] : parseExcludedDates(event.excludedDates));
+    setVisibility((event.visibility as "private" | "team" | "org") ?? "org");
+    setTeamId(event.teamId ?? "");
+    setDescription(event.description ?? "");
+    setLocation(event.location ?? "");
+    setReminderMinutes([...INITIAL_ADVANCED.reminderMinutes]);
+    setRecurrence(recurrenceFromRule(event.recurrenceRule));
+    setShowAdvanced(true);
+    setTimeError(null);
+    setTeamError(null);
+  };
+
   useEffect(() => {
     if (!open) {
       createInitializedRef.current = false;
@@ -144,7 +171,7 @@ export function CreateEventModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open || editEvent) return;
+    if (!open || editEvent || copyEvent) return;
     if (createInitializedRef.current) return;
     createInitializedRef.current = true;
 
@@ -171,41 +198,29 @@ export function CreateEventModal({
     setRecurrence(INITIAL_ADVANCED.recurrence);
     setTimeError(null);
     setTeamError(null);
-  }, [open, editEvent, prefillDate, prefillRange, workHours]);
+  }, [open, editEvent, copyEvent, prefillDate, prefillRange, workHours]);
 
   useEffect(() => {
     if (!open || !editEvent) return;
-
-    const dateStr = toDatetimeLocal(editEvent.startAt).slice(0, 10);
-    setEventType(getEventTypeByColor(editEvent.color));
-    setTitle(editEvent.title);
-    setStart(toDatetimeLocal(editEvent.startAt));
-    setEnd(toDatetimeLocal(editEvent.endAt));
-    setAllDay(editEvent.allDay);
-    setAllDayStart(dateStr);
-    setAllDayEnd(toDatetimeLocal(editEvent.endAt).slice(0, 10));
-    setExcludedDates(parseExcludedDates(editEvent.excludedDates));
-    setVisibility((editEvent.visibility as "private" | "team" | "org") ?? "org");
-    setTeamId(editEvent.teamId ?? "");
-    setDescription(editEvent.description ?? "");
-    setLocation(editEvent.location ?? "");
-    setReminderMinutes([...INITIAL_ADVANCED.reminderMinutes]);
-    setRecurrence(recurrenceFromRule(editEvent.recurrenceRule));
-    setShowAdvanced(true);
-    setTimeError(null);
-    setTeamError(null);
+    applyEventToForm(editEvent, { copy: false });
   }, [open, editEvent]);
 
   useEffect(() => {
-    if (!open || !editEvent || !editAttendeesData) return;
+    if (!open || !copyEvent || editEvent) return;
+    applyEventToForm(copyEvent, { copy: true });
+  }, [open, copyEvent, editEvent]);
+
+  useEffect(() => {
+    if (!open || (!editEvent && !copyEvent) || !editAttendeesData) return;
     setAttendeeUserIds(editAttendeesData.attendees.map((a) => a.user_id));
-  }, [open, editEvent, editAttendeesData]);
+  }, [open, editEvent, copyEvent, editAttendeesData]);
 
   useEffect(() => {
     if (!open || labels.length === 0) return;
 
-    if (editEvent) {
-      setSelectedLabelId(findLabelIdByColor(labels, editEvent.color) ?? labels[0].id);
+    const colorSource = editEvent ?? copyEvent;
+    if (colorSource) {
+      setSelectedLabelId(findLabelIdByColor(labels, colorSource.color) ?? labels[0].id);
       return;
     }
 
@@ -213,7 +228,7 @@ export function CreateEventModal({
       if (prev && labels.some((l) => l.id === prev)) return prev;
       return labels[0].id;
     });
-  }, [open, editEvent, labels]);
+  }, [open, editEvent, copyEvent, labels]);
 
   useEffect(() => {
     if (!toast) return;
@@ -376,7 +391,10 @@ export function CreateEventModal({
         setToast({ tone: "info", message: "일정을 수정했습니다." });
       } else {
         await createEvent.mutateAsync(payload);
-        setToast({ tone: "info", message: "일정을 저장했습니다." });
+        setToast({
+          tone: "info",
+          message: isCopy ? "일정을 복사했습니다." : "일정을 저장했습니다.",
+        });
       }
       onClose();
     } catch (err) {
@@ -423,7 +441,11 @@ export function CreateEventModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title={isEdit ? "일정 수정" : "일정 추가"}>
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={isEdit ? "일정 수정" : isCopy ? "일정 복사" : "일정 추가"}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <LabelPillPicker
             title="라벨"
@@ -508,7 +530,6 @@ export function CreateEventModal({
                 excludedDates={excludedDates}
                 onChange={setExcludedDates}
                 highlightDate={isEdit ? focusExcludeDate : undefined}
-                mode={isEdit ? "select" : "toggle"}
               />
             </div>
           ) : (
@@ -714,7 +735,7 @@ export function CreateEventModal({
               </p>
             )}
             <Button type="submit" fullWidth disabled={!canSave}>
-              {isPending ? "저장 중..." : isEdit ? "변경 저장" : "일정 저장"}
+              {isPending ? "저장 중..." : isEdit ? "변경 저장" : isCopy ? "복사 저장" : "일정 저장"}
             </Button>
           </div>
         </form>

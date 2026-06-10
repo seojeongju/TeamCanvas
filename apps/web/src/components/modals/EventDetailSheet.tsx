@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckSquare, ExternalLink, Lock, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { CheckSquare, Copy, ExternalLink, Lock, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { ToastMessage } from "../ui/ToastMessage";
@@ -30,6 +30,7 @@ import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 import { eventPreviewTitle } from "../../lib/calendarEventUi";
 import { googleCalendarOpenUrl, personalGoogleEventClassName } from "../../lib/calendarEventSources";
+import { canCopyCalendarEvent } from "../../lib/eventCopy";
 
 const VISIBILITY_LABELS: Record<string, string> = {
   private: "나만 보기",
@@ -42,6 +43,7 @@ export function EventDetailSheet({
   focusedDay,
   onClose,
   onEdit,
+  onCopy,
   onEventUpdated,
 }: {
   event: CalendarEvent | null;
@@ -49,6 +51,7 @@ export function EventDetailSheet({
   focusedDay?: Date | null;
   onClose: () => void;
   onEdit: (event: CalendarEvent, focusedDay?: Date | null) => void;
+  onCopy?: (event: CalendarEvent) => void;
   onEventUpdated?: (event: CalendarEvent) => void;
 }) {
   const navigate = useNavigate();
@@ -113,6 +116,8 @@ export function EventDetailSheet({
 
   const isGoogleEvent = displayEvent.sourceType === "google";
   const displayTitle = isGoogleEvent ? eventPreviewTitle(displayEvent) : displayEvent.title;
+
+  const canCopy = canCopyCalendarEvent(displayEvent) && canWrite && !!onCopy;
 
   const canDelete =
     !isGoogleEvent &&
@@ -266,7 +271,6 @@ export function EventDetailSheet({
               excludedDates={excludedDates}
               onChange={handleExcludedChange}
               highlightDate={focusDateKey}
-              mode="select"
             />
             {excludedDirty && (
               <Button
@@ -389,6 +393,12 @@ export function EventDetailSheet({
             </Button>
 
             <div className="flex gap-2">
+              {canCopy && (
+                <Button variant="secondary" fullWidth onClick={() => onCopy(displayEvent)}>
+                  <Copy className="h-4 w-4" />
+                  복사
+                </Button>
+              )}
               <Button variant="secondary" fullWidth onClick={() => onEdit(displayEvent, focusedDay)}>
                 <Pencil className="h-4 w-4" />
                 수정

@@ -1,14 +1,43 @@
-import { useEffect, useState } from "react";
-import { Button } from "../ui/Button";
+import { useMemo } from "react";
 import { cn } from "../../lib/cn";
+import { getMonthWeeks } from "../../lib/calendarUtils";
+import { toDateLocal } from "../../lib/dates";
 import {
   enumerateDateKeysInAllDayRange,
   isMultiDayAllDayRange,
 } from "../../lib/eventExcludedDates";
 
-function formatDayChip(key: string): string {
-  const [, m, d] = key.split("-");
-  return `${Number(m)}/${Number(d)}`;
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+type DayState = "outside" | "boundary" | "excluded" | "included";
+
+function monthsInRange(startDate: string, endDate: string): { year: number; month: number }[] {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const months: { year: number; month: number }[] = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cursor <= endMonth) {
+    months.push({ year: cursor.getFullYear(), month: cursor.getMonth() });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return months;
+}
+
+function dayState(
+  key: string,
+  startDate: string,
+  endDate: string,
+  excludedSet: Set<string>,
+): DayState {
+  if (key < startDate || key > endDate) return "outside";
+  if (key === startDate || key === endDate) return "boundary";
+  if (excludedSet.has(key)) return "excluded";
+  return "included";
+}
+
+function formatMonthLabel(year: number, month: number): string {
+  return `${year}년 ${month + 1}월`;
 }
 
 export function EventExcludedDatesPicker({
@@ -17,27 +46,25 @@ export function EventExcludedDatesPicker({
   excludedDates,
   onChange,
   highlightDate,
-  mode = "toggle",
 }: {
   startDate: string;
   endDate: string;
   excludedDates: string[];
   onChange: (dates: string[]) => void;
-  /** 캘린더에서 클릭한 날짜 — 선택·강조 */
+  /** 캘린더에서 클릭한 날짜 — 강조 */
   highlightDate?: string;
-  /** toggle: 탭으로 즉시 전환, select: 날짜 선택 후 제외/해제 버튼 */
-  mode?: "toggle" | "select";
 }) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(highlightDate ?? null);
+  const excludedSet = useMemo(() => new Set(excludedDates), [excludedDates]);
 
-  useEffect(() => {
-    if (highlightDate) setSelectedDate(highlightDate);
-  }, [highlightDate]);
+  const months = useMemo(
+    () => monthsInRange(startDate, endDate),
+    [startDate, endDate],
+  );
 
   if (!isMultiDayAllDayRange(startDate, endDate)) return null;
 
   const days = enumerateDateKeysInAllDayRange(startDate, endDate);
-  const excludedSet = new Set(excludedDates);
+  const includedCount = days.length - excludedDates.length;
 
   const toggle = (key: string) => {
     if (key === startDate || key === endDate) return;
@@ -48,100 +75,110 @@ export function EventExcludedDatesPicker({
     }
   };
 
-  const addExclusion = () => {
-    if (!selectedDate || selectedDate === startDate || selectedDate === endDate) return;
-    if (excludedSet.has(selectedDate)) return;
-    onChange([...excludedDates, selectedDate].sort());
-  };
-
-  const removeExclusion = () => {
-    if (!selectedDate) return;
-    onChange(excludedDates.filter((d) => d !== selectedDate));
-  };
-
-  const selectedExcluded = selectedDate ? excludedSet.has(selectedDate) : false;
-  const canActOnSelected =
-    !!selectedDate && selectedDate !== startDate && selectedDate !== endDate;
-
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-navy-700">제외할 날짜</p>
-      <p className="mb-2 text-xs text-navy-500">
-        {mode === "select"
-          ? "날짜를 선택한 뒤 제외 추가·해제를 누르세요. 시작일·종료일은 제외할 수 없습니다."
-          : "휴가·출장 등 기간 중 쉬는 날을 탭해 제외하세요. 시작일·종료일은 제외할 수 없습니다."}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {days.map((key) => {
-          const isBoundary = key === startDate || key === endDate;
-          const excluded = excludedSet.has(key);
-          const isSelected = selectedDate === key;
-          const isHighlighted = highlightDate === key && !isSelected;
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium text-navy-800">제외할 날짜</p>
+          <p className="mt-0.5 text-xs text-navy-500">
+            날짜를 눌러 제외·포함을 전환하세요. 시작·종료일은 고정입니다.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[10px] text-navy-600">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 ring-1 ring-sky-200">
+            <span className="h-2 w-2 rounded-full bg-primary-400" />
+            포함
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 ring-1 ring-sky-200">
+            <span className="h-2 w-2 rounded-full bg-navy-300" />
+            제외
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 ring-1 ring-sky-200">
+            <span className="h-2 w-2 rounded-full ring-2 ring-primary-300" />
+            시작·종료
+          </span>
+        </div>
+      </div>
 
+      <div className="space-y-4 rounded-2xl border border-sky-200/80 bg-white/90 p-3">
+        {months.map(({ year, month }) => {
+          const weeks = getMonthWeeks(year, month);
           return (
-            <button
-              key={key}
-              type="button"
-              disabled={mode === "toggle" && isBoundary}
-              onClick={() => {
-                if (mode === "select") {
-                  setSelectedDate(key);
-                  return;
-                }
-                toggle(key);
-              }}
-              className={cn(
-                "rounded-xl px-3 py-1.5 text-sm font-medium transition",
-                isBoundary
-                  ? "cursor-default bg-sky-50 text-navy-400"
-                  : excluded
-                    ? "bg-navy-100 text-navy-400 line-through"
-                    : "bg-sky-100/60 text-navy-700 hover:bg-sky-100",
-                isSelected && "ring-2 ring-primary-400 ring-offset-1",
-                isHighlighted && !excluded && "ring-2 ring-primary-300/80 ring-offset-1",
-              )}
-              title={
-                isBoundary
-                  ? "시작·종료일은 제외할 수 없습니다"
-                  : mode === "select"
-                    ? excluded
-                      ? "제외된 날짜"
-                      : "날짜 선택"
-                    : excluded
-                      ? "포함으로 되돌리기"
-                      : "이 날 제외"
-              }
-            >
-              {formatDayChip(key)}
-            </button>
+            <div key={`${year}-${month}`}>
+              <p className="mb-2 text-xs font-semibold text-navy-700">
+                {formatMonthLabel(year, month)}
+              </p>
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {WEEKDAYS.map((label, i) => (
+                  <div
+                    key={label}
+                    className={cn(
+                      "pb-1 text-[10px] font-medium",
+                      i === 0 ? "text-red-500" : i === 6 ? "text-primary-500" : "text-navy-500",
+                    )}
+                  >
+                    {label}
+                  </div>
+                ))}
+                {weeks.flat().map((day) => {
+                  const key = toDateLocal(day.getTime());
+                  const state = dayState(key, startDate, endDate, excludedSet);
+                  const inMonth = day.getMonth() === month;
+                  const dayNum = day.getDate();
+                  const isHighlighted = highlightDate === key;
+                  const clickable = state === "included" || state === "excluded";
+
+                  return (
+                    <button
+                      key={`${year}-${month}-${key}`}
+                      type="button"
+                      disabled={!clickable}
+                      onClick={() => toggle(key)}
+                      className={cn(
+                        "relative flex h-9 items-center justify-center rounded-xl text-sm transition",
+                        !inMonth && "opacity-30",
+                        state === "outside" && "cursor-default text-navy-300",
+                        state === "boundary" &&
+                          "cursor-default bg-primary-50 font-semibold text-primary-700 ring-2 ring-primary-300/60",
+                        state === "included" &&
+                          "bg-sky-50/80 font-medium text-navy-800 hover:bg-primary-100/60 hover:ring-1 hover:ring-primary-300/50",
+                        state === "excluded" &&
+                          "bg-navy-100/80 font-medium text-navy-400 line-through hover:bg-navy-200/60",
+                        isHighlighted &&
+                          state !== "boundary" &&
+                          "ring-2 ring-amber-400 ring-offset-1",
+                      )}
+                      title={
+                        state === "boundary"
+                          ? "시작·종료일은 제외할 수 없습니다"
+                          : state === "excluded"
+                            ? "클릭하면 일정에 포함"
+                            : state === "included"
+                              ? "클릭하면 이 날 제외"
+                              : undefined
+                      }
+                    >
+                      {dayNum}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>
 
-      {mode === "select" && canActOnSelected && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {!selectedExcluded ? (
-            <Button type="button" className="!min-h-9 !px-4 !py-2 text-sm" onClick={addExclusion}>
-              이 날 제외 추가
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              className="!min-h-9 !px-4 !py-2 text-sm"
-              onClick={removeExclusion}
-            >
-              제외 해제
-            </Button>
-          )}
-        </div>
-      )}
-
-      {excludedDates.length > 0 && (
-        <p className="mt-2 text-xs text-primary-600">
-          {excludedDates.length}일 제외 · 실제 {days.length - excludedDates.length}일
-        </p>
-      )}
+      <p className="mt-2 text-xs text-navy-600">
+        전체 <span className="font-medium text-navy-800">{days.length}일</span>
+        {" · "}
+        포함 <span className="font-medium text-primary-600">{includedCount}일</span>
+        {excludedDates.length > 0 && (
+          <>
+            {" · "}
+            제외 <span className="font-medium text-navy-500">{excludedDates.length}일</span>
+          </>
+        )}
+      </p>
     </div>
   );
 }

@@ -55,6 +55,7 @@ export function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedEventDay, setSelectedEventDay] = useState<Date | null>(null);
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
+  const [copyEvent, setCopyEvent] = useState<CalendarEvent | null>(null);
   const [focusExcludeDate, setFocusExcludeDate] = useState<string | undefined>(undefined);
   const [googleToast, setGoogleToast] = useState<string | null>(null);
 
@@ -129,6 +130,7 @@ export function CalendarPage() {
     range?: { start: number; end: number };
   }) => {
     setEditEvent(null);
+    setCopyEvent(null);
     setCreatePrefillDate(opts?.date ?? null);
     setPrefillRange(opts?.range ?? null);
     setShowCreate(true);
@@ -139,14 +141,25 @@ export function CalendarPage() {
     setCreatePrefillDate(null);
     setPrefillRange(null);
     setEditEvent(null);
+    setCopyEvent(null);
     setFocusExcludeDate(undefined);
   };
 
   const handleEdit = (event: CalendarEvent, focusedDay?: Date | null) => {
     setSelectedEvent(null);
     setSelectedEventDay(null);
+    setCopyEvent(null);
     setEditEvent(event);
     setFocusExcludeDate(focusedDay ? toDateLocal(focusedDay.getTime()) : undefined);
+    setShowCreate(true);
+  };
+
+  const handleCopy = (event: CalendarEvent) => {
+    setSelectedEvent(null);
+    setSelectedEventDay(null);
+    setEditEvent(null);
+    setCopyEvent(event);
+    setFocusExcludeDate(undefined);
     setShowCreate(true);
   };
 
@@ -447,6 +460,7 @@ export function CalendarPage() {
         prefillDate={createPrefillDate ?? (prefillRange ? new Date(prefillRange.start) : null)}
         prefillRange={prefillRange}
         editEvent={editEvent}
+        copyEvent={copyEvent}
         focusExcludeDate={focusExcludeDate}
         existingEvents={events}
       />
@@ -459,6 +473,7 @@ export function CalendarPage() {
           setSelectedEventDay(null);
         }}
         onEdit={handleEdit}
+        onCopy={handleCopy}
         onEventUpdated={(updated) => setSelectedEvent(updated)}
       />
 
