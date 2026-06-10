@@ -250,7 +250,10 @@ export function useCreateChecklistItem() {
   return useMutation({
     mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
       api.createChecklistItem(taskId, title),
-    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] });
+      invalidateTaskActivities(qc, v.taskId);
+    },
   });
 }
 
@@ -267,7 +270,10 @@ export function useUpdateChecklistItem() {
       title?: string;
       done?: boolean;
     }) => api.updateChecklistItem(taskId, itemId, data),
-    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] });
+      invalidateTaskActivities(qc, v.taskId);
+    },
   });
 }
 
@@ -276,7 +282,10 @@ export function useDeleteChecklistItem() {
   return useMutation({
     mutationFn: ({ taskId, itemId }: { taskId: string; itemId: string }) =>
       api.deleteChecklistItem(taskId, itemId),
-    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-checklist", v.taskId] });
+      invalidateTaskActivities(qc, v.taskId);
+    },
   });
 }
 
@@ -355,9 +364,10 @@ export function useUpdateTask() {
     onError: (_err, _vars, ctx) => {
       ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
     },
-    onSettled: () => {
+    onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: ["tasks", orgId] });
       qc.invalidateQueries({ queryKey: ["events"] });
+      invalidateTaskActivities(qc, vars.id);
     },
   });
 }
@@ -387,6 +397,18 @@ export function useDeleteTask() {
   });
 }
 
+export function useTaskActivities(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ["task-activities", taskId],
+    queryFn: () => api.getTaskActivities(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+function invalidateTaskActivities(qc: ReturnType<typeof useQueryClient>, taskId?: string) {
+  if (taskId) qc.invalidateQueries({ queryKey: ["task-activities", taskId] });
+}
+
 export function useTaskComments(taskId: string | undefined) {
   return useQuery({
     queryKey: ["task-comments", taskId],
@@ -403,6 +425,7 @@ export function useCreateTaskComment() {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["task-comments", vars.taskId] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
+      invalidateTaskActivities(qc, vars.taskId);
     },
   });
 }

@@ -1038,6 +1038,7 @@ app.get("/organizations/:orgId/tasks", async (c) => {
       due,
       isOverdue,
       sortOrder: r.sort_order ?? 0,
+      updatedAt: r.updated_at as number,
     };
   });
 
@@ -1124,6 +1125,9 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     });
   }
 
+  const { logTaskCreated } = await import("../utils/taskActivities");
+  await logTaskCreated(c.env.DB, orgId, id, user.id, body.title.trim());
+
   return c.json({ id }, 201);
 });
 
@@ -1133,14 +1137,19 @@ app.patch("/tasks/:taskId", async (c) => {
   const taskId = c.req.param("taskId");
 
   const existing = await c.env.DB.prepare(
-    "SELECT organization_id, assignee_id, title, due_at FROM tasks WHERE id = ?",
+    `SELECT organization_id, assignee_id, title, description, due_at, status, priority, team_id
+     FROM tasks WHERE id = ?`,
   )
     .bind(taskId)
     .first<{
       organization_id: string;
       assignee_id: string | null;
       title: string;
+      description: string | null;
       due_at: number | null;
+      status: string;
+      priority: string;
+      team_id: string | null;
     }>();
   if (!existing) return c.json({ error: "Not found" }, 404);
 
@@ -1164,6 +1173,8 @@ app.patch("/tasks/:taskId", async (c) => {
   if (body.labelIds !== undefined) {
     const { syncTaskLabels } = await import("../utils/taskExtras");
     await syncTaskLabels(c.env.DB, taskId, body.labelIds, existing.organization_id);
+    const { logTaskLabelsUpdated } = await import("../utils/taskActivities");
+    await logTaskLabelsUpdated(c.env.DB, existing.organization_id, taskId, user.id);
   }
 
   if (body.status !== undefined) {
@@ -1216,6 +1227,9 @@ app.patch("/tasks/:taskId", async (c) => {
   await c.env.DB.prepare(`UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`)
     .bind(...values)
     .run();
+
+  const { logTaskUpdates } = await import("../utils/taskActivities");
+  await logTaskUpdates(c.env.DB, existing.organization_id, taskId, user.id, existing, body);
 
   const { notifyTaskAssigned, notifyTaskDueSoon } = await import("../utils/notifications");
   const nextAssignee =
@@ -1331,9 +1345,19 @@ app.post("/tasks/:taskId/comments", async (c) => {
     .bind(id, taskId, user.id, body.body.trim(), ts)
     .run();
 
+  const trimmedBody = body.body.trim();
+  const preview = trimmedBody.slice(0, 80);
+  const { insertTaskActivity } = await import("../utils/taskActivities");
+  await insertTaskActivity(c.env.DB, {
+    taskId,
+    organizationId: task.organization_id,
+    actorId: user.id,
+    action: "comment",
+    summary: `댓글: ${trimmedBody.slice(0, 60)}${trimmedBody.length > 60 ? "…" : ""}`,
+  });
+
   const { notifyTaskComment, notifyTaskMention } = await import("../utils/notifications");
   const { parseMentionedUserIds } = await import("../utils/mentions");
-  const preview = body.body.trim().slice(0, 80);
 
   const { results: memberRows } = await c.env.DB.prepare(
     `SELECT u.id, u.name FROM memberships m JOIN users u ON u.id = m.user_id
@@ -1949,11 +1973,21 @@ app.post("/tasks/:taskId/checklist", async (c) => {
   const id = newId();
   const ts = now();
   const sortOrder = (maxRow?.m ?? -1) + 1;
+  const itemTitle = body.title.trim();
   await c.env.DB.prepare(
     "INSERT INTO task_checklist_items (id, task_id, title, done, sort_order, created_at) VALUES (?, ?, ?, 0, ?, ?)",
   )
-    .bind(id, taskId, body.title.trim(), sortOrder, ts)
+    .bind(id, taskId, itemTitle, sortOrder, ts)
     .run();
+
+  const { insertTaskActivity } = await import("../utils/taskActivities");
+  await insertTaskActivity(c.env.DB, {
+    taskId,
+    organizationId: task.organization_id,
+    actorId: user.id,
+    action: "checklist_add",
+    summary: `체크리스트 추가: ${itemTitle}`,
+  });
 
   return c.json({ id, sortOrder }, 201);
 });
@@ -1965,12 +1999,12 @@ app.patch("/tasks/:taskId/checklist/:itemId", async (c) => {
   const itemId = c.req.param("itemId");
 
   const item = await c.env.DB.prepare(
-    `SELECT c.id, t.organization_id FROM task_checklist_items c
+    `SELECT c.id, c.title, c.done, t.organization_id FROM task_checklist_items c
      JOIN tasks t ON t.id = c.task_id
      WHERE c.id = ? AND c.task_id = ?`,
   )
     .bind(itemId, taskId)
-    .first<{ id: string; organization_id: string }>();
+    .first<{ id: string; title: string; done: number; organization_id: string }>();
   if (!item) return c.json({ error: "Not found" }, 404);
 
   const member = await requireOrgPermission(c, user.id, item.organization_id, "tasks:write");
@@ -1996,6 +2030,18 @@ app.patch("/tasks/:taskId/checklist/:itemId", async (c) => {
   await c.env.DB.prepare(`UPDATE task_checklist_items SET ${updates.join(", ")} WHERE id = ?`)
     .bind(...values)
     .run();
+
+  if (body.done !== undefined && Boolean(body.done) !== Boolean(item.done)) {
+    const { insertTaskActivity } = await import("../utils/taskActivities");
+    await insertTaskActivity(c.env.DB, {
+      taskId,
+      organizationId: item.organization_id,
+      actorId: user.id,
+      action: "checklist_done",
+      summary: body.done ? `체크리스트 완료: ${item.title}` : `체크리스트 미완료: ${item.title}`,
+    });
+  }
+
   return c.json({ ok: true });
 });
 
@@ -2006,19 +2052,47 @@ app.delete("/tasks/:taskId/checklist/:itemId", async (c) => {
   const itemId = c.req.param("itemId");
 
   const item = await c.env.DB.prepare(
-    `SELECT c.id, t.organization_id FROM task_checklist_items c
+    `SELECT c.id, c.title, t.organization_id FROM task_checklist_items c
      JOIN tasks t ON t.id = c.task_id
      WHERE c.id = ? AND c.task_id = ?`,
   )
     .bind(itemId, taskId)
-    .first<{ id: string; organization_id: string }>();
+    .first<{ id: string; title: string; organization_id: string }>();
   if (!item) return c.json({ error: "Not found" }, 404);
 
   const member = await requireOrgPermission(c, user.id, item.organization_id, "tasks:write");
   if (member instanceof Response) return member;
 
   await c.env.DB.prepare("DELETE FROM task_checklist_items WHERE id = ?").bind(itemId).run();
+
+  const { insertTaskActivity } = await import("../utils/taskActivities");
+  await insertTaskActivity(c.env.DB, {
+    taskId,
+    organizationId: item.organization_id,
+    actorId: user.id,
+    action: "checklist_remove",
+    summary: `체크리스트 삭제: ${item.title}`,
+  });
+
   return c.json({ ok: true });
+});
+
+app.get("/tasks/:taskId/activities", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { fetchTaskActivities } = await import("../utils/taskActivities");
+  const activities = await fetchTaskActivities(c.env.DB, taskId);
+  return c.json({ activities });
 });
 
 // ── Google Calendar integration ──

@@ -22,9 +22,11 @@ import type { Task, TaskStatus } from "../../lib/types";
 interface TaskBoardViewProps {
   tasks: Task[];
   onOpen: (task: Task) => void;
+  onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onMove: (taskId: string, status: TaskStatus, sortOrder: number) => void;
   onCreate?: () => void;
+  canWrite?: boolean;
 }
 
 function columnId(status: TaskStatus) {
@@ -37,7 +39,15 @@ function resolveStatus(overId: string, tasks: Task[]): TaskStatus | null {
   return hit?.status ?? null;
 }
 
-export function TaskBoardView({ tasks, onOpen, onStatusChange, onMove, onCreate }: TaskBoardViewProps) {
+export function TaskBoardView({
+  tasks,
+  onOpen,
+  onEdit,
+  onStatusChange,
+  onMove,
+  onCreate,
+  canWrite = true,
+}: TaskBoardViewProps) {
   const [activeColumn, setActiveColumn] = useState<TaskStatus>("todo");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
@@ -131,7 +141,9 @@ export function TaskBoardView({ tasks, onOpen, onStatusChange, onMove, onCreate 
           column={TASK_COLUMNS.find((c) => c.id === activeColumn)!}
           tasks={tasksByColumn[activeColumn]}
           onOpen={onOpen}
+          onEdit={onEdit}
           onStatusChange={onStatusChange}
+          canWrite={canWrite}
         />
       </div>
 
@@ -148,14 +160,16 @@ export function TaskBoardView({ tasks, onOpen, onStatusChange, onMove, onCreate 
               column={col}
               tasks={tasksByColumn[col.id]}
               onOpen={onOpen}
+              onEdit={onEdit}
               onStatusChange={onStatusChange}
+              canWrite={canWrite}
             />
           ))}
         </div>
         <DragOverlay>
           {activeTask ? (
             <div className="rotate-2 opacity-90">
-              <TaskCard task={activeTask} onOpen={() => {}} onStatusChange={() => {}} />
+              <TaskCard task={activeTask} onOpen={() => {}} onEdit={() => {}} onStatusChange={() => {}} />
             </div>
           ) : null}
         </DragOverlay>
@@ -168,12 +182,16 @@ function DroppableColumn({
   column,
   tasks,
   onOpen,
+  onEdit,
   onStatusChange,
+  canWrite,
 }: {
   column: (typeof TASK_COLUMNS)[number];
   tasks: Task[];
   onOpen: (task: Task) => void;
+  onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
+  canWrite?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId(column.id) });
 
@@ -203,7 +221,9 @@ function DroppableColumn({
                 key={task.id}
                 task={task}
                 onOpen={onOpen}
+                onEdit={onEdit}
                 onStatusChange={onStatusChange}
+                canWrite={canWrite}
               />
             ))
           )}
@@ -217,12 +237,16 @@ function TaskColumn({
   column,
   tasks,
   onOpen,
+  onEdit,
   onStatusChange,
+  canWrite,
 }: {
   column: (typeof TASK_COLUMNS)[number];
   tasks: Task[];
   onOpen: (task: Task) => void;
+  onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
+  canWrite?: boolean;
 }) {
   return (
     <div>
@@ -233,7 +257,14 @@ function TaskColumn({
           </GlassCard>
         ) : (
           tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onOpen={onOpen} onStatusChange={onStatusChange} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              onOpen={onOpen}
+              onEdit={onEdit}
+              onStatusChange={onStatusChange}
+              canWrite={canWrite}
+            />
           ))
         )}
       </div>

@@ -6,10 +6,18 @@ import type { Task, TaskStatus } from "../../lib/types";
 interface SortableTaskCardProps {
   task: Task;
   onOpen: (task: Task) => void;
+  onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
+  canWrite?: boolean;
 }
 
-export function SortableTaskCard({ task, onOpen, onStatusChange }: SortableTaskCardProps) {
+export function SortableTaskCard({
+  task,
+  onOpen,
+  onEdit,
+  onStatusChange,
+  canWrite,
+}: SortableTaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     data: { type: "task", status: task.status },
@@ -23,7 +31,13 @@ export function SortableTaskCard({ task, onOpen, onStatusChange }: SortableTaskC
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TaskCard task={task} onOpen={onOpen} onStatusChange={onStatusChange} />
+      <TaskCard
+        task={task}
+        onOpen={onOpen}
+        onEdit={onEdit}
+        onStatusChange={onStatusChange}
+        canWrite={canWrite}
+      />
     </div>
   );
 }

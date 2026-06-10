@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, Trash2, X } from "lucide-react";
+import { MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { TaskActivityFolder } from "./TaskActivityFolder";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -23,9 +24,10 @@ import { cn } from "../../lib/cn";
 interface TaskDetailSheetProps {
   task: Task | null;
   onClose: () => void;
+  onEdit?: (task: Task) => void;
 }
 
-export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createComment = useCreateTaskComment();
@@ -84,13 +86,25 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-4">
         <div className="mb-4 flex items-start justify-between gap-3">
           <h2 className="text-lg font-bold text-navy-900">프로젝트 상세</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-navy-600 hover:bg-sky-100/60"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {canWrite && onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(task)}
+                className="flex h-10 items-center gap-1 rounded-xl px-3 text-xs font-medium text-primary-600 hover:bg-primary-400/10"
+              >
+                <Pencil className="h-4 w-4" />
+                수정
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-navy-600 hover:bg-sky-100/60"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 flex gap-1.5">
@@ -210,6 +224,11 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
         <TaskLabelsSection task={task} />
         <TaskChecklistSection taskId={task.id} />
         <EntityFilesSection entityType="task" entityId={task.id} />
+
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold text-navy-800">활동 이력</h3>
+          <TaskActivityFolder taskId={task.id} />
+        </div>
 
         <div className="mt-6 border-t border-sky-100/80 pt-4">
           <div className="mb-3 flex items-center gap-2">

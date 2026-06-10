@@ -413,6 +413,9 @@ export const api = {
   deleteTask: (taskId: string) =>
     request<{ ok: boolean }>(`/api/tasks/${taskId}`, { method: "DELETE" }),
 
+  getTaskActivities: (taskId: string) =>
+    request<{ activities: import("./types").TaskActivity[] }>(`/api/tasks/${taskId}/activities`),
+
   getTaskComments: (taskId: string) =>
     request<{ comments: import("./types").TaskComment[] }>(`/api/tasks/${taskId}/comments`),
 

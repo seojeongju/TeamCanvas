@@ -237,7 +237,20 @@ export type Task = {
   due: string;
   isOverdue?: boolean;
   sortOrder?: number;
+  updatedAt?: number;
   labels?: TaskLabel[];
+};
+
+export type TaskActivity = {
+  id: string;
+  taskId: string;
+  actorId: string;
+  actorName: string;
+  action: string;
+  field: string | null;
+  summary: string;
+  createdAt: number;
+  time: string;
 };
 
 export type TaskFilters = {

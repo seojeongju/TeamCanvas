@@ -4,6 +4,8 @@ import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { CreateTaskModal } from "../components/modals/CreateTaskModal";
+import { EditTaskModal } from "../components/modals/EditTaskModal";
+import { useHasPermission } from "../hooks/usePermissions";
 import { TaskBoardView } from "../components/tasks/TaskBoardView";
 import { TaskDetailSheet } from "../components/tasks/TaskDetailSheet";
 import { TaskFilterBar } from "../components/tasks/TaskFilterBar";
@@ -28,6 +30,8 @@ export function TasksPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createStatus, setCreateStatus] = useState<TaskStatus>("todo");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const canWrite = useHasPermission("tasks:write");
 
   const allTasks = data?.tasks ?? [];
   const teams = teamsData?.teams ?? [];
@@ -102,16 +106,20 @@ export function TasksPage() {
         <TaskBoardView
           tasks={tasks}
           onOpen={setSelectedTask}
+          onEdit={setEditTask}
           onStatusChange={handleStatusChange}
           onMove={handleMove}
           onCreate={() => openCreate("todo")}
+          canWrite={canWrite}
         />
       ) : (
         <TaskListView
           tasks={tasks}
           onOpen={setSelectedTask}
+          onEdit={setEditTask}
           onStatusChange={handleStatusChange}
           onCreate={() => openCreate("todo")}
+          canWrite={canWrite}
         />
       )}
 
@@ -130,7 +138,16 @@ export function TasksPage() {
         defaultStatus={createStatus}
       />
 
-      <TaskDetailSheet task={selectedTask} onClose={() => setSelectedTask(null)} />
+      <EditTaskModal task={editTask} onClose={() => setEditTask(null)} />
+
+      <TaskDetailSheet
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onEdit={(task) => {
+          setSelectedTask(null);
+          setEditTask(task);
+        }}
+      />
     </div>
   );
 }
