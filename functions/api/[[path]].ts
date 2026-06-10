@@ -478,6 +478,8 @@ app.post("/organizations/:orgId/events", async (c) => {
 
   return c.json({ id }, 201);
 });
+
+app.get("/organizations/:orgId/free-busy", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");

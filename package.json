@@ -9,6 +9,7 @@
     "dev:api": "npm run build --prefix apps/web && npx wrangler pages dev apps/web/dist --port 8788 --local",
     "build": "npm run build --prefix apps/web",
     "test": "npm run test --prefix apps/web",
+    "dev:e2e": "npm run build --prefix apps/web && npx wrangler d1 migrations apply teamcanvas-db --local -c wrangler.d1.jsonc && npx wrangler pages dev apps/web/dist --port 4173 --local",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "preview": "npm run preview --prefix apps/web",

@@ -31,8 +31,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: D1 migrate (local, E2E)
+        run: npx wrangler d1 migrations apply teamcanvas-db --local -c wrangler.d1.jsonc
+
       - name: Install Playwright
         run: npx playwright install chromium --with-deps
 
       - name: E2E tests
         run: npm run test:e2e
+        env:
+          ALLOW_DEV_AUTH: "true"

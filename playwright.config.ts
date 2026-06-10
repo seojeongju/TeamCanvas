@@ -13,9 +13,10 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npm run preview --prefix apps/web -- --host 127.0.0.1 --port 4173",
+    command: "npm run dev:e2e",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
+    env: { ALLOW_DEV_AUTH: "true" },
   },
 });

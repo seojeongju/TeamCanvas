@@ -5,10 +5,11 @@ import { startOfDay, endOfDay } from "../lib/dates";
 import {
   cacheEvents,
   cacheTasks,
-  getCachedEvents,
-  getCachedTasks,
+  getCachedEventsSync,
+  getCachedTasksSync,
   isOffline,
 } from "../lib/offlineCache";
+import { enqueueOfflineMutation, newOfflineId } from "../lib/offlineQueue";
 import type { Task, TaskFilters, UpdateTaskPayload } from "../lib/types";
 
 export function useOrgDetail() {
@@ -34,7 +35,7 @@ export function useEvents(from?: number, to?: number) {
     enabled: !!orgId,
     placeholderData: () => {
       if (!orgId || from == null || to == null) return undefined;
-      const cached = getCachedEvents(orgId, from, to);
+      const cached = getCachedEventsSync(orgId, from, to);
       return cached ? { events: cached } : undefined;
     },
     networkMode: isOffline() ? "always" : "online",
@@ -144,7 +145,20 @@ export function useCreateEvent() {
   const orgId = useCurrentOrgId();
 
   return useMutation({
-    mutationFn: (data: EventPayload) => api.createEvent(orgId!, data),
+    mutationFn: async (data: EventPayload) => {
+      if (isOffline()) {
+        const id = newOfflineId();
+        await enqueueOfflineMutation({
+          id,
+          type: "createEvent",
+          orgId: orgId!,
+          payload: data,
+          createdAt: Date.now(),
+        });
+        return { id };
+      }
+      return api.createEvent(orgId!, data);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["event-reminders"] });
@@ -219,7 +233,7 @@ export function useTasks(filters?: TaskFilters) {
     enabled: !!orgId,
     placeholderData: () => {
       if (!orgId) return undefined;
-      const cached = getCachedTasks(orgId);
+      const cached = getCachedTasksSync(orgId);
       return cached ? { tasks: cached } : undefined;
     },
     networkMode: isOffline() ? "always" : "online",
@@ -346,7 +360,7 @@ export function useCreateTask() {
   const orgId = useCurrentOrgId();
 
   return useMutation({
-    mutationFn: (data: {
+    mutationFn: async (data: {
       title: string;
       status?: string;
       dueAt?: number;
@@ -356,7 +370,20 @@ export function useCreateTask() {
       teamId?: string | null;
       eventId?: string | null;
       labelIds?: string[];
-    }) => api.createTask(orgId!, data),
+    }) => {
+      if (isOffline()) {
+        const id = newOfflineId();
+        await enqueueOfflineMutation({
+          id,
+          type: "createTask",
+          orgId: orgId!,
+          payload: data,
+          createdAt: Date.now(),
+        });
+        return { id };
+      }
+      return api.createTask(orgId!, data);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       qc.invalidateQueries({ queryKey: ["events"] });

@@ -93,8 +93,8 @@
 |---|------|----------|------|------|
 | 4.1 | 공개 마케팅 랜딩 | P1 | 1주 | ✅ |
 | 4.2 | Vitest 단위 테스트 (날짜·RRULE) | P1 | 1주 | ✅ (recurrence) |
-| 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ✅ (랜딩) |
-| 4.4 | IndexedDB 오프라인 + Background Sync | P2 | 2주 | ⬜ |
+| 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ✅ |
+| 4.4 | IndexedDB 오프라인 + Background Sync | P2 | 2주 | ✅ (캐시·생성 큐) |
 | 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | ⬜ |
 | 4.6 | 다국어 (ko/en) | P3 | 2주 | ⬜ |
 
@@ -259,16 +259,24 @@ apps/web/src/components/dashboard/  ← 신규
 | D-2 | 카카오워크 웹훅 provider | ✅ |
 | D-3 | Playwright E2E — 랜딩 스모크 | ✅ |
 
-## 8. Sprint E 이후 (참고 순서)
+## 8. Sprint E — E2E·오프라인 ✅ (2026-06-09)
+
+| # | 기능 | 상태 |
+|---|------|------|
+| E-1 | Playwright E2E — dev 로그인·일정·프로젝트 CRUD | ✅ |
+| E-2 | IndexedDB 오프라인 캐시 (tasks/events) | ✅ |
+| E-3 | 오프라인 생성 큐 + 온라인 자동 동기화 | ✅ |
+
+## 9. Sprint F 이후 (참고 순서)
 
 1. 멀티 조직 지원 (보류 — PRD vs API 정합 필요)
-2. Playwright E2E 확장 (로그인·일정·업무 CRUD)
-3. IndexedDB 오프라인 + Background Sync
-4. AI 일정 제안 고도화
+2. Playwright E2E 확장 (PWA·초대 링크)
+3. AI 일정 제안 고도화
+4. 보안 하드닝 (rate limit, CSP)
 
 ---
 
-## 9. 기술 결정 메모
+## 10. 기술 결정 메모
 
 | 주제 | 결정 | 근거 |
 |------|------|------|
@@ -280,7 +288,7 @@ apps/web/src/components/dashboard/  ← 신규
 
 ---
 
-## 10. 로컬 개발 & 배포 (빠른 참조)
+## 11. 로컬 개발 & 배포 (빠른 참조)
 
 ```bash
 # 개발
@@ -302,17 +310,17 @@ git -c safe.directory=D:/Program_DEV/TeamCanvas push origin main
 
 ---
 
-## 11. 다음 세션 이어하기 프롬프트
+## 12. 다음 세션 이어하기 프롬프트
 
 ```
-TeamCanvas 고도화 Sprint E를 진행해줘.
+TeamCanvas 고도화 Sprint F를 진행해줘.
 
-참고 문서: docs/ROADMAP.md (섹션 8 — Sprint E 이후)
+참고 문서: docs/ROADMAP.md (섹션 9 — Sprint F 이후)
 최신 커밋: (git log -1)
 
 다음 후보:
-1. Playwright E2E 확장 (로그인·일정·업무)
-2. IndexedDB 오프라인
+1. Playwright E2E 확장 (PWA·초대 링크)
+2. AI 일정 제안 고도화
 3. 멀티 조직 (정책 결정 후)
 
 완료 후 npm run test && npm run build && npm run test:e2e 검증, 커밋·푸시·배포까지 해줘.
