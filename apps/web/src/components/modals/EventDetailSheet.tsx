@@ -23,7 +23,9 @@ import {
   useUpdateEventRsvp,
 } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
+import { useHasPermission } from "../../hooks/usePermissions";
 import { useTeamDetail } from "../../hooks/useOrgSettings";
+import { useAuthStore } from "../../stores/authStore";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -48,6 +50,9 @@ export function EventDetailSheet({
   onEventUpdated?: (event: CalendarEvent) => void;
 }) {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const canDeleteAny = useHasPermission("events:delete");
+  const canWrite = useHasPermission("events:write");
   const deleteEvent = useDeleteEvent();
   const updateEvent = useUpdateEvent();
   const createTask = useCreateTask();
@@ -100,6 +105,12 @@ export function EventDetailSheet({
   }, [displayEvent?.id, displayEvent?.excludedDates]);
 
   if (!displayEvent) return null;
+
+  const canDelete =
+    displayEvent.sourceType !== "google" &&
+    displayEvent.sourceType !== "task" &&
+    (canDeleteAny ||
+      (canWrite && !!displayEvent.creatorId && displayEvent.creatorId === user?.id));
 
   const handleExcludedChange = (dates: string[]) => {
     setExcludedDates(pruneExcludedDates(dates, startDate, endDate));
@@ -322,14 +333,17 @@ export function EventDetailSheet({
             <Pencil className="h-4 w-4" />
             수정
           </Button>
-          <Button
-            variant="ghost"
-            className="text-red-600 hover:bg-red-50"
-            onClick={handleDelete}
-            disabled={deleteEvent.isPending}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {canDelete && (
+            <Button
+              variant="ghost"
+              className="text-red-600 hover:bg-red-50"
+              onClick={handleDelete}
+              disabled={deleteEvent.isPending}
+              aria-label="일정 삭제"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 

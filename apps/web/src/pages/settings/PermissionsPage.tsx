@@ -75,7 +75,7 @@ export function PermissionsPage() {
             <h2 className="mb-3 text-sm font-semibold text-navy-800">역할 안내</h2>
             <GlassCard className="space-y-2 p-4 text-xs text-navy-600">
               <p><strong className="text-navy-800">소유자·관리자</strong> — 조직·팀·멤버 설정 가능</p>
-              <p><strong className="text-navy-800">멤버</strong> — 소속 팀 조회, 일정·프로젝트 작성, 본인이 만든 프로젝트 삭제</p>
+              <p><strong className="text-navy-800">멤버</strong> — 소속 팀 조회, 일정·프로젝트 작성, 본인이 만든 일정·프로젝트 삭제</p>
               <p><strong className="text-navy-800">게스트</strong> — 초대받은 일정·프로젝트만 조회</p>
               <p className="pt-1">팀 리드는 소속 팀의 멤버 추가·제거가 가능합니다.</p>
               <p className="pt-1">

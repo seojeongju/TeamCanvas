@@ -243,6 +243,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       teamName: r.team_name ?? "조직",
       time: formatEventTime(r.start_at as number, r.end_at as number, Boolean(r.all_day)),
       sourceType: "event" as const,
+      creatorId: r.creator_id,
     };
   });
 
@@ -569,6 +570,7 @@ app.get("/events/:eventId", async (c) => {
     teamName: row.team_name ?? "조직",
     time: formatEventTime(row.start_at as number, row.end_at as number, Boolean(row.all_day)),
     sourceType: "event" as const,
+    creatorId: row.creator_id,
   };
 
   return c.json({ event });
@@ -944,14 +946,18 @@ app.delete("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
 
   const event = await c.env.DB.prepare(
-    "SELECT organization_id FROM events WHERE id = ?",
+    "SELECT organization_id, creator_id FROM events WHERE id = ?",
   )
     .bind(eventId)
-    .first<{ organization_id: string }>();
+    .first<{ organization_id: string; creator_id: string }>();
   if (!event) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:delete");
-  if (member instanceof Response) return member;
+  const canDeleteAny = await requireOrgPermission(c, user.id, event.organization_id, "events:delete");
+  if (canDeleteAny instanceof Response) {
+    if (event.creator_id !== user.id) return canDeleteAny;
+    const canWrite = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
+    if (canWrite instanceof Response) return canWrite;
+  }
 
   await c.env.DB.prepare("DELETE FROM events WHERE id = ?").bind(eventId).run();
   return c.json({ ok: true });

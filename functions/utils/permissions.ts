@@ -64,7 +64,6 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     "teams:read",
     "events:read",
     "events:write",
-    "events:delete",
     "tasks:read",
     "tasks:write",
   ],

@@ -143,6 +143,7 @@ export type CalendarEvent = {
   sourceType?: "event" | "task" | "google";
   /** Google 개인 일정 — API에서 본인 요청에만 포함 */
   isPersonal?: boolean;
+  creatorId?: string;
   taskId?: string;
 };
 
