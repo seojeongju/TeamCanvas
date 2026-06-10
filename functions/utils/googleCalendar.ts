@@ -54,10 +54,19 @@ export async function exchangeGoogleCalendarCode(
   };
 }
 
+async function readGoogleApiError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: { message?: string }; error_description?: string };
+    return body.error?.message ?? body.error_description ?? res.statusText;
+  } catch {
+    return res.statusText;
+  }
+}
+
 export async function refreshGoogleAccessToken(
   env: Env,
   refreshToken: string,
-): Promise<{ access_token: string; expires_in: number } | null> {
+): Promise<{ access_token: string; expires_in: number } | { error: string }> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -68,7 +77,10 @@ export async function refreshGoogleAccessToken(
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const detail = await readGoogleApiError(res);
+    return { error: detail };
+  }
   return (await res.json()) as { access_token: string; expires_in: number };
 }
 
@@ -93,7 +105,11 @@ export async function getValidGoogleAccessToken(
   }
 
   const refreshed = await refreshGoogleAccessToken(env, row.refresh_token);
-  if (!refreshed) return null;
+  if ("error" in refreshed) {
+    throw new Error(
+      `Google 토큰 갱신 실패: ${refreshed.error}. 연결 해제 후 다시 연결해 주세요.`,
+    );
+  }
 
   const expiresAt = now() + refreshed.expires_in * 1000;
   await db
@@ -123,8 +139,15 @@ export async function syncGoogleCalendarEvents(
   from: number,
   to: number,
 ): Promise<{ imported: number }> {
-  const accessToken = await getValidGoogleAccessToken(db, env, userId, orgId);
-  if (!accessToken) throw new Error("Google Calendar not connected");
+  let accessToken: string;
+  try {
+    const token = await getValidGoogleAccessToken(db, env, userId, orgId);
+    if (!token) throw new Error("Google 캘린더가 연결되어 있지 않습니다.");
+    accessToken = token;
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    throw new Error("Google 캘린더 토큰을 확인할 수 없습니다.");
+  }
 
   const tokenRow = await db
     .prepare("SELECT calendar_id FROM google_calendar_tokens WHERE user_id = ? AND organization_id = ?")
@@ -142,7 +165,15 @@ export async function syncGoogleCalendarEvents(
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error("Google Calendar API failed");
+  if (!res.ok) {
+    const detail = await readGoogleApiError(res);
+    if (res.status === 403 && /disabled|not enabled/i.test(detail)) {
+      throw new Error(
+        "Google Calendar API가 비활성화되어 있습니다. Google Cloud Console에서 Calendar API를 활성화해 주세요.",
+      );
+    }
+    throw new Error(`Google Calendar API 오류 (${res.status}): ${detail}`);
+  }
 
   const data = (await res.json()) as { items?: GoogleEventItem[] };
   const items = data.items ?? [];

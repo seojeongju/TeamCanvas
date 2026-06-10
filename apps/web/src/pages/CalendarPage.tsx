@@ -61,7 +61,11 @@ export function CalendarPage() {
     return dedupeCalendarEvents(calendarEvents, taskEvents);
   }, [calendarEvents, tasksData?.tasks, from, to]);
 
-  const { data: reminderData } = useEventReminders(Date.now(), Date.now() + 24 * 60 * 60 * 1000);
+  const reminderRange = useMemo(() => {
+    const from = Date.now();
+    return { from, to: from + 24 * 60 * 60 * 1000 };
+  }, []);
+  const { data: reminderData } = useEventReminders(reminderRange.from, reminderRange.to);
   const reminders = reminderData?.reminders ?? [];
   const markDelivered = useMarkReminderDelivered();
 

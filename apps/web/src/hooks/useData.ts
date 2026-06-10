@@ -64,7 +64,8 @@ export function useEventReminders(from?: number, to?: number) {
   return useQuery({
     queryKey: ["event-reminders", orgId, from, to],
     queryFn: () => api.getEventReminders(orgId!, from, to),
-    enabled: !!orgId,
+    enabled: !!orgId && from != null && to != null,
+    staleTime: 30_000,
     refetchInterval: 60_000,
   });
 }

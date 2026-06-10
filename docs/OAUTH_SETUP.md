@@ -118,6 +118,7 @@ OAuth consent screen이 **Testing** 상태면, **Test users**에 연동할 Googl
 | `token_exchange_failed` | Redirect URI가 콘솔과 100% 일치하는지 |
 | Google 503 | `GOOGLE_CLIENT_ID` / `SECRET` Secret 등록 |
 | 캘린더 연결 실패 | Calendar API 활성화, `calendar.readonly` scope, 캘린더 callback URI 등록 |
+| 동기화 400 (`/sync`) | Network 탭 응답 `error` 확인. 토큰 갱신 실패면 **연결 해제 → 재연결**, API 비활성화면 Calendar API Enable |
 | 연결됐는데 일정 없음 | **동기화** 클릭, primary 캘린더에 해당 기간 일정 있는지 확인 |
 | 카카오 이메일 없음 | 동의 항목에서 이메일 필수, scope 설정 |
 | 로컬에서 빈 페이지 | `npm run dev`(루트)로 API 8788 + Vite 5173 동시 실행 |

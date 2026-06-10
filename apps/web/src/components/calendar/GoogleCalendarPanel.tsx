@@ -91,6 +91,11 @@ export function GoogleCalendarPanel() {
               {sync.data.imported}개 일정 반영됨
             </p>
           )}
+          {sync.isError && (
+            <p className="mt-1 text-[10px] text-red-600">
+              동기화 실패: {sync.error instanceof Error ? sync.error.message : "알 수 없는 오류"}
+            </p>
+          )}
         </div>
       </div>
 
