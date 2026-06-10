@@ -117,6 +117,7 @@ type EventPayload = {
   attendeeUserIds?: string[];
   reminderMinutes?: number[];
   recurrenceRule?: string | null;
+  excludedDates?: string[];
 };
 
 export function useCreateEvent() {

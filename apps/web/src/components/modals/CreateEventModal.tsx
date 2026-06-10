@@ -38,6 +38,8 @@ import {
 } from "../../lib/eventTypes";
 import { useAuthStore } from "../../stores/authStore";
 import { cn } from "../../lib/cn";
+import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
+import { parseExcludedDates, pruneExcludedDates } from "../../lib/eventExcludedDates";
 
 interface CreateEventModalProps {
   open: boolean;
@@ -103,6 +105,7 @@ export function CreateEventModal({
   const [allDay, setAllDay] = useState(false);
   const [allDayStart, setAllDayStart] = useState("");
   const [allDayEnd, setAllDayEnd] = useState("");
+  const [excludedDates, setExcludedDates] = useState<string[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "team" | "org">(INITIAL_ADVANCED.visibility);
   const [teamId, setTeamId] = useState(INITIAL_ADVANCED.teamId);
@@ -151,6 +154,7 @@ export function CreateEventModal({
     setAllDay(template?.eventType === "vacation");
     setAllDayStart(dateStr);
     setAllDayEnd(dateStr);
+    setExcludedDates([]);
     setShowAdvanced(!!template);
     setVisibility(template?.visibility ?? INITIAL_ADVANCED.visibility);
     setTeamId(INITIAL_ADVANCED.teamId);
@@ -174,6 +178,7 @@ export function CreateEventModal({
     setAllDay(editEvent.allDay);
     setAllDayStart(dateStr);
     setAllDayEnd(toDatetimeLocal(editEvent.endAt).slice(0, 10));
+    setExcludedDates(parseExcludedDates(editEvent.excludedDates));
     setVisibility((editEvent.visibility as "private" | "team" | "org") ?? "org");
     setTeamId(editEvent.teamId ?? "");
     setDescription(editEvent.description ?? "");
@@ -201,6 +206,11 @@ export function CreateEventModal({
       setTeamId(teams[0].id);
     }
   }, [visibility, teamId, teams]);
+
+  useEffect(() => {
+    if (!allDay || !allDayStart || !allDayEnd) return;
+    setExcludedDates((prev) => pruneExcludedDates(prev, allDayStart, allDayEnd));
+  }, [allDay, allDayStart, allDayEnd]);
 
   const currentUser = useAuthStore((s) => s.user);
   const participants = (participantsData?.participants ?? []).filter((p) => p.id);
@@ -367,6 +377,7 @@ export function CreateEventModal({
             : recurrence === "weekly"
               ? "FREQ=WEEKLY"
               : "FREQ=MONTHLY",
+      excludedDates: allDay ? pruneExcludedDates(excludedDates, allDayStart, allDayEnd) : [],
     };
 
     try {
@@ -506,25 +517,36 @@ export function CreateEventModal({
             <input
               type="checkbox"
               checked={allDay}
-              onChange={(e) => setAllDay(e.target.checked)}
+              onChange={(e) => {
+                setAllDay(e.target.checked);
+                if (!e.target.checked) setExcludedDates([]);
+              }}
               className="h-4 w-4 rounded accent-primary-400"
             />
             종일 일정
           </label>
 
           {allDay ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="시작일"
-                type="date"
-                value={allDayStart}
-                onChange={(e) => setAllDayStart(e.target.value)}
-              />
-              <Input
-                label="종료일"
-                type="date"
-                value={allDayEnd}
-                onChange={(e) => setAllDayEnd(e.target.value)}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="시작일"
+                  type="date"
+                  value={allDayStart}
+                  onChange={(e) => setAllDayStart(e.target.value)}
+                />
+                <Input
+                  label="종료일"
+                  type="date"
+                  value={allDayEnd}
+                  onChange={(e) => setAllDayEnd(e.target.value)}
+                />
+              </div>
+              <EventExcludedDatesPicker
+                startDate={allDayStart}
+                endDate={allDayEnd}
+                excludedDates={excludedDates}
+                onChange={setExcludedDates}
               />
             </div>
           ) : (

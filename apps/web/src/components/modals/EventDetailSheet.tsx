@@ -4,7 +4,8 @@ import { CheckSquare, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-re
 import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { ToastMessage } from "../ui/ToastMessage";
-import { colorClass, formatRecurrenceRule } from "../../lib/dates";
+import { colorClass, formatRecurrenceRule, toDateLocal } from "../../lib/dates";
+import { formatExcludedDatesSummary } from "../../lib/eventExcludedDates";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
 import {
   useCreateEventComment,
@@ -71,6 +72,15 @@ export function EventDetailSheet({
 
   if (!event) return null;
 
+  const excludedSummary =
+    event.allDay && event.excludedDates?.length
+      ? formatExcludedDatesSummary(
+          toDateLocal(event.startAt),
+          toDateLocal(event.endAt),
+          event.excludedDates,
+        )
+      : null;
+
   const handleConvertToTask = async () => {
     const result = await createTask.mutateAsync({
       title: event.title,
@@ -126,6 +136,10 @@ export function EventDetailSheet({
           <p className="mb-3 text-xs text-primary-600">
             반복: {formatRecurrenceRule(event.recurrenceRule)}
           </p>
+        )}
+
+        {excludedSummary && (
+          <p className="mb-3 text-xs text-navy-600">{excludedSummary}</p>
         )}
 
         {attendees.length > 0 && (

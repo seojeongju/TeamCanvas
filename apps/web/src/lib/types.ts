@@ -135,6 +135,7 @@ export type CalendarEvent = {
   allDay: boolean;
   visibility?: "private" | "team" | "org" | string;
   recurrenceRule?: string | null;
+  excludedDates?: string[];
   teamId?: string | null;
   color: string;
   teamName: string;

@@ -1,4 +1,4 @@
-import { endOfDay, isSameCalendarDay, startOfDay } from "./dates";
+import { endOfDay, isSameCalendarDay, startOfDay, toDateLocal } from "./dates";
 import type { CalendarEvent } from "./types";
 
 export type CalendarViewMode = "month" | "week" | "day" | "agenda";
@@ -73,10 +73,17 @@ export function getViewRange(viewMode: CalendarViewMode, focusDate: Date): { fro
   return { from: startOfDay(monthStart.getTime()), to: endOfDay(monthEnd.getTime()) };
 }
 
-export function eventsForDay<T extends { startAt: number; endAt: number }>(events: T[], day: Date): T[] {
+export function eventsForDay<T extends { startAt: number; endAt: number; excludedDates?: string[] }>(
+  events: T[],
+  day: Date,
+): T[] {
   const from = startOfDay(day.getTime());
   const to = endOfDay(day.getTime());
-  return events.filter((e) => e.startAt < to && e.endAt > from);
+  const dayKey = toDateLocal(day.getTime());
+  return events.filter((e) => {
+    if (!(e.startAt < to && e.endAt > from)) return false;
+    return !(e.excludedDates ?? []).includes(dayKey);
+  });
 }
 
 export function eventBlockStyle(
@@ -145,6 +152,53 @@ function eventStartColInWeek(event: CalendarEvent, week: Date[]): number {
   return 0;
 }
 
+function dayIncludedInEvent(event: CalendarEvent, week: Date[], col: number): boolean {
+  const from = startOfDay(week[col].getTime());
+  const to = endOfDay(from);
+  if (!(event.startAt < to && event.endAt > from)) return false;
+  return !(event.excludedDates ?? []).includes(toDateLocal(from));
+}
+
+function hasIncludedDayBefore(event: CalendarEvent, week: Date[], col: number): boolean {
+  if (col > 0) return dayIncludedInEvent(event, week, col - 1);
+  const weekStart = startOfDay(week[0].getTime());
+  if (event.startAt >= weekStart) return false;
+  const prev = new Date(weekStart);
+  prev.setDate(prev.getDate() - 1);
+  const from = startOfDay(prev.getTime());
+  const to = endOfDay(from);
+  if (!(event.startAt < to && event.endAt > from)) return false;
+  return !(event.excludedDates ?? []).includes(toDateLocal(from));
+}
+
+function hasIncludedDayAfter(event: CalendarEvent, week: Date[], col: number): boolean {
+  if (col < 6) return dayIncludedInEvent(event, week, col + 1);
+  const weekEnd = endOfDay(week[6].getTime());
+  if (event.endAt <= weekEnd) return false;
+  const next = new Date(startOfDay(week[6].getTime()));
+  next.setDate(next.getDate() + 1);
+  const from = startOfDay(next.getTime());
+  const to = endOfDay(from);
+  if (!(event.startAt < to && event.endAt > from)) return false;
+  return !(event.excludedDates ?? []).includes(toDateLocal(from));
+}
+
+function barRunsInWeek(event: CalendarEvent, week: Date[]): { startCol: number; endCol: number }[] {
+  const runs: { startCol: number; endCol: number }[] = [];
+  let runStart = -1;
+
+  for (let i = 0; i < 7; i++) {
+    if (dayIncludedInEvent(event, week, i)) {
+      if (runStart === -1) runStart = i;
+    } else if (runStart !== -1) {
+      runs.push({ startCol: runStart, endCol: i - 1 });
+      runStart = -1;
+    }
+  }
+  if (runStart !== -1) runs.push({ startCol: runStart, endCol: 6 });
+  return runs;
+}
+
 /** 주·월 그리드 위 멀티데이 일정 막대 배치 */
 export function layoutMonthBarSegments(
   weeks: Date[][],
@@ -161,31 +215,22 @@ export function layoutMonthBarSegments(
     for (const event of barEvents) {
       if (event.endAt <= weekStart || event.startAt > weekEnd) continue;
 
-      let startCol = -1;
-      let endCol = -1;
-      for (let i = 0; i < 7; i++) {
-        const from = startOfDay(week[i].getTime());
-        const to = endOfDay(week[i].getTime());
-        if (event.startAt < to && event.endAt > from) {
-          if (startCol === -1) startCol = i;
-          endCol = i;
-        }
-      }
-      if (startCol < 0) continue;
-
-      const continuesFromPrev = event.startAt < weekStart;
-      const continuesToNext = event.endAt > weekEnd;
       const titleCol = eventStartColInWeek(event, week);
+      const titleDayKey = toDateLocal(week[titleCol].getTime());
+      const titleExcluded = (event.excludedDates ?? []).includes(titleDayKey);
 
-      raw.push({
-        event,
-        weekIndex,
-        startCol,
-        span: endCol - startCol + 1,
-        showTitle: titleCol >= startCol && titleCol <= endCol,
-        roundLeft: !continuesFromPrev,
-        roundRight: !continuesToNext,
-      });
+      for (const run of barRunsInWeek(event, week)) {
+        raw.push({
+          event,
+          weekIndex,
+          startCol: run.startCol,
+          span: run.endCol - run.startCol + 1,
+          showTitle:
+            !titleExcluded && titleCol >= run.startCol && titleCol <= run.endCol,
+          roundLeft: !hasIncludedDayBefore(event, week, run.startCol),
+          roundRight: !hasIncludedDayAfter(event, week, run.endCol),
+        });
+      }
     }
 
     raw.sort((a, b) => a.startCol - b.startCol || b.span - a.span);

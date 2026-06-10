@@ -315,6 +315,7 @@ export const api = {
       attendeeUserIds?: string[];
       reminderMinutes?: number[];
       recurrenceRule?: string | null;
+      excludedDates?: string[];
     },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/events`, {
@@ -374,6 +375,7 @@ export const api = {
       attendeeUserIds?: string[];
       reminderMinutes?: number[];
       recurrenceRule?: string | null;
+      excludedDates?: string[];
     },
   ) =>
     request<{ ok: boolean }>(`/api/events/${eventId}`, {

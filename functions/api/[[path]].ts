@@ -26,6 +26,10 @@ import { signOAuthState, verifyOAuthState } from "../utils/jwt";
 import { frontendUrl } from "../utils/email";
 import { getUserBusyBlocks } from "../utils/freeBusy";
 import { enhanceWithAi, findFreeSlots } from "../utils/eventSuggestions";
+import {
+  parseExcludedDatesJson,
+  validateExcludedDates,
+} from "../utils/eventExcludedDates";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
@@ -232,6 +236,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       allDay: Boolean(r.all_day),
       visibility: r.visibility,
       recurrenceRule: r.recurrence_rule,
+      excludedDates: parseExcludedDatesJson(r.excluded_dates_json as string | null),
       location: r.location ?? null,
       teamId: r.team_id ?? null,
       color: r.color ?? "#4A9FE8",
@@ -346,11 +351,15 @@ app.post("/organizations/:orgId/events", async (c) => {
     attendeeUserIds?: string[];
     reminderMinutes?: number[];
     recurrenceRule?: string | null;
+    excludedDates?: string[];
   }>();
 
   if (!body.title?.trim() || !body.startAt || !body.endAt) {
     return c.json({ error: "title, startAt, endAt required" }, 400);
   }
+
+  const excludedResult = validateExcludedDates(body.excludedDates, body.startAt, body.endAt);
+  if (!excludedResult.ok) return c.json({ error: excludedResult.error }, 400);
 
   const id = newId();
   const ts = now();
@@ -363,9 +372,9 @@ app.post("/organizations/:orgId/events", async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO events (
       id, organization_id, team_id, creator_id, title, description, location,
-      start_at, end_at, all_day, visibility, recurrence_rule, color, created_at, updated_at
+      start_at, end_at, all_day, visibility, recurrence_rule, excluded_dates_json, color, created_at, updated_at
     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -380,6 +389,7 @@ app.post("/organizations/:orgId/events", async (c) => {
       body.allDay ? 1 : 0,
       visibility,
       body.recurrenceRule ?? null,
+      excludedResult.json,
       body.color ?? "#4A9FE8",
       ts,
       ts,
@@ -551,6 +561,7 @@ app.get("/events/:eventId", async (c) => {
     allDay: Boolean(row.all_day),
     visibility: row.visibility,
     recurrenceRule: row.recurrence_rule,
+    excludedDates: parseExcludedDatesJson(row.excluded_dates_json as string | null),
     location: row.location ?? null,
     teamId: row.team_id ?? null,
     color: row.color ?? "#4A9FE8",
@@ -812,10 +823,10 @@ app.patch("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
 
   const event = await c.env.DB.prepare(
-    "SELECT organization_id, creator_id, start_at FROM events WHERE id = ?",
+    "SELECT organization_id, creator_id, start_at, excluded_dates_json FROM events WHERE id = ?",
   )
     .bind(eventId)
-    .first<{ organization_id: string; creator_id: string; start_at: number }>();
+    .first<{ organization_id: string; creator_id: string; start_at: number; excluded_dates_json: string | null }>();
   if (!event) return c.json({ error: "Not found" }, 404);
 
   const member = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
@@ -834,10 +845,26 @@ app.patch("/events/:eventId", async (c) => {
     attendeeUserIds?: string[];
     reminderMinutes?: number[];
     recurrenceRule?: string | null;
+    excludedDates?: string[];
   }>();
 
   if (!body.title?.trim() || !body.startAt || !body.endAt) {
     return c.json({ error: "title, startAt, endAt required" }, 400);
+  }
+
+  let excludedJson = event.excluded_dates_json;
+  if (body.excludedDates !== undefined) {
+    const excludedResult = validateExcludedDates(body.excludedDates, body.startAt, body.endAt);
+    if (!excludedResult.ok) return c.json({ error: excludedResult.error }, 400);
+    excludedJson = excludedResult.json;
+  } else {
+    const revalidated = validateExcludedDates(
+      parseExcludedDatesJson(event.excluded_dates_json),
+      body.startAt,
+      body.endAt,
+    );
+    if (!revalidated.ok) return c.json({ error: revalidated.error }, 400);
+    excludedJson = revalidated.json;
   }
 
   const orgId = event.organization_id;
@@ -851,7 +878,8 @@ app.patch("/events/:eventId", async (c) => {
   await c.env.DB.prepare(
     `UPDATE events SET
       title = ?, description = ?, location = ?, start_at = ?, end_at = ?,
-      all_day = ?, team_id = ?, color = ?, visibility = ?, recurrence_rule = ?, updated_at = ?
+      all_day = ?, team_id = ?, color = ?, visibility = ?, recurrence_rule = ?,
+      excluded_dates_json = ?, updated_at = ?
      WHERE id = ?`,
   )
     .bind(
@@ -865,6 +893,7 @@ app.patch("/events/:eventId", async (c) => {
       body.color ?? "#4A9FE8",
       visibility,
       body.recurrenceRule ?? null,
+      excludedJson,
       ts,
       eventId,
     )

@@ -1,6 +1,6 @@
 import { GlassCard } from "../ui/GlassCard";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
-import { AGENDA_DAYS, addDaysToDate } from "../../lib/calendarUtils";
+import { AGENDA_DAYS, addDaysToDate, eventsForDay } from "../../lib/calendarUtils";
 import { cn } from "../../lib/cn";
 import type { CalendarEvent } from "../../lib/types";
 
@@ -33,20 +33,11 @@ export function AgendaView({
 }) {
   const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDaysToDate(focusDate, i));
 
-  const byDay = new Map<string, CalendarEvent[]>();
-  for (const e of events) {
-    const key = dateKey(new Date(e.startAt));
-    byDay.set(key, [...(byDay.get(key) ?? []), e]);
-  }
-  for (const [, list] of byDay) {
-    list.sort((a, b) => a.startAt - b.startAt);
-  }
-
   return (
     <div className="space-y-4">
       {days.map((day) => {
         const key = dateKey(day);
-        const dayEvents = byDay.get(key) ?? [];
+        const dayEvents = eventsForDay(events, day).sort((a, b) => a.startAt - b.startAt);
         const isToday = day.toDateString() === new Date().toDateString();
 
         return (

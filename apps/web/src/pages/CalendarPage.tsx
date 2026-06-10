@@ -15,8 +15,8 @@ import { GoogleCalendarPanel } from "../components/calendar/GoogleCalendarPanel"
 import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
-import { getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
-import { colorClass, formatRecurrenceRule, startOfDay, endOfDay } from "../lib/dates";
+import { eventsForDay, getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
+import { colorClass, formatRecurrenceRule } from "../lib/dates";
 import type { EventTemplateId } from "../lib/eventTemplates";
 import type { CalendarEvent } from "../lib/types";
 import { cn } from "../lib/cn";
@@ -82,9 +82,7 @@ export function CalendarPage() {
     return `${focusDate.getFullYear()}년 ${focusDate.getMonth() + 1}월`;
   }, [viewMode, focusDate]);
 
-  const todayEvents = events.filter(
-    (e) => e.startAt >= startOfDay(today.getTime()) && e.startAt <= endOfDay(today.getTime()),
-  );
+  const todayEvents = eventsForDay(events, today).sort((a, b) => a.startAt - b.startAt);
 
   const navigate = (delta: number) => {
     setFocusDate((d) => {
