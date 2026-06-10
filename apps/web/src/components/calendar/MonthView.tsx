@@ -27,7 +27,7 @@ export function MonthView({
   events: CalendarEvent[];
   holidays?: OrgHoliday[];
   onDayClick: (date: Date) => void;
-  onEventClick: (event: CalendarEvent) => void;
+  onEventClick: (event: CalendarEvent, day?: Date) => void;
 }) {
   const today = new Date();
 
@@ -83,7 +83,7 @@ export function MonthView({
                         gridColumn: `${seg.startCol + 1} / span ${seg.span}`,
                         gridRow: seg.lane + 1,
                       }}
-                      onClick={() => onEventClick(seg.event)}
+                      onClick={() => onEventClick(seg.event, week[seg.startCol])}
                       className={cn(
                         "min-h-0 truncate px-1 text-left text-[9px] font-medium leading-[14px] text-white",
                         colorClass(seg.event.color),
@@ -150,12 +150,12 @@ export function MonthView({
                               tabIndex={0}
                               onClick={(ev) => {
                                 ev.stopPropagation();
-                                onEventClick(e);
+                                onEventClick(e, day);
                               }}
                               onKeyDown={(ev) => {
                                 if (ev.key === "Enter") {
                                   ev.stopPropagation();
-                                  onEventClick(e);
+                                  onEventClick(e, day);
                                 }
                               }}
                               className={cn(

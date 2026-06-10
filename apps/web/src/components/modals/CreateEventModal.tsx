@@ -48,6 +48,8 @@ interface CreateEventModalProps {
   prefillRange?: { start: number; end: number } | null;
   templateId?: EventTemplateId | null;
   editEvent?: CalendarEvent | null;
+  /** 수정 시 캘린더에서 클릭한 날짜 (제외일 편집 초기 선택) */
+  focusExcludeDate?: string;
   existingEvents?: CalendarEvent[];
 }
 
@@ -89,6 +91,7 @@ export function CreateEventModal({
   prefillRange,
   templateId,
   editEvent,
+  focusExcludeDate,
   existingEvents = [],
 }: CreateEventModalProps) {
   const createEvent = useCreateEvent();
@@ -547,6 +550,8 @@ export function CreateEventModal({
                 endDate={allDayEnd}
                 excludedDates={excludedDates}
                 onChange={setExcludedDates}
+                highlightDate={isEdit ? focusExcludeDate : undefined}
+                mode={isEdit ? "select" : "toggle"}
               />
             </div>
           ) : (

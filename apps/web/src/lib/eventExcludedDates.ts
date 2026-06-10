@@ -1,4 +1,5 @@
 import { fromDateLocal, toDateLocal } from "./dates";
+import type { CalendarEvent } from "./types";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -53,4 +54,10 @@ export function formatExcludedDatesSummary(
   });
 
   return `${included}일 일정 · ${pruned.length}일 제외 (${labels.join(", ")})`;
+}
+
+export function canManageExcludedDates(event: CalendarEvent): boolean {
+  if (event.sourceType && event.sourceType !== "event") return false;
+  if (!event.allDay) return false;
+  return isMultiDayAllDayRange(toDateLocal(event.startAt), toDateLocal(event.endAt));
 }

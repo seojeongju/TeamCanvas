@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, Link2, Plus } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
@@ -16,7 +17,7 @@ import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTa
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
 import { eventsForDay, getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
-import { colorClass, formatRecurrenceRule } from "../lib/dates";
+import { colorClass, formatRecurrenceRule, toDateLocal } from "../lib/dates";
 import type { EventTemplateId } from "../lib/eventTemplates";
 import type { CalendarEvent } from "../lib/types";
 import { cn } from "../lib/cn";
@@ -25,6 +26,7 @@ import { useCurrentOrgId } from "../stores/orgStore";
 import { Button } from "../components/ui/Button";
 
 export function CalendarPage() {
+  const qc = useQueryClient();
   const routerNavigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const orgId = useCurrentOrgId();
@@ -40,7 +42,9 @@ export function CalendarPage() {
   const [prefillRange, setPrefillRange] = useState<{ start: number; end: number } | null>(null);
   const [templateId, setTemplateId] = useState<EventTemplateId | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedEventDay, setSelectedEventDay] = useState<Date | null>(null);
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
+  const [focusExcludeDate, setFocusExcludeDate] = useState<string | undefined>(undefined);
   const [googleToast, setGoogleToast] = useState<string | null>(null);
 
   const { from, to } = getViewRange(viewMode, focusDate);
@@ -113,15 +117,18 @@ export function CalendarPage() {
     setPrefillRange(null);
     setTemplateId(null);
     setEditEvent(null);
+    setFocusExcludeDate(undefined);
   };
 
-  const handleEdit = (event: CalendarEvent) => {
+  const handleEdit = (event: CalendarEvent, focusedDay?: Date | null) => {
     setSelectedEvent(null);
+    setSelectedEventDay(null);
     setEditEvent(event);
+    setFocusExcludeDate(focusedDay ? toDateLocal(focusedDay.getTime()) : undefined);
     setShowCreate(true);
   };
 
-  const handleEventClick = (event: CalendarEvent) => {
+  const handleEventClick = (event: CalendarEvent, day?: Date) => {
     if (event.sourceType === "google") {
       setGoogleToast("Google 캘린더 일정은 읽기 전용입니다.");
       return;
@@ -131,6 +138,7 @@ export function CalendarPage() {
       return;
     }
     setSelectedEvent(event);
+    setSelectedEventDay(day ?? null);
   };
 
   useEffect(() => {
@@ -142,10 +150,14 @@ export function CalendarPage() {
       error: "Google 캘린더 연결에 실패했습니다.",
     };
     setGoogleToast(messages[google] ?? null);
+    if (google === "connected") {
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["google-calendar"] });
+    }
     const next = new URLSearchParams(searchParams);
     next.delete("google");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, qc]);
 
   useEffect(() => {
     if (!googleToast) return;
@@ -330,7 +342,7 @@ export function CalendarPage() {
               <button
                 key={event.id}
                 type="button"
-                onClick={() => handleEventClick(event)}
+                onClick={() => handleEventClick(event, today)}
                 className="w-full text-left"
               >
                 <GlassCard className="flex items-center gap-3 p-4 transition hover:bg-sky-50/50">
@@ -396,13 +408,19 @@ export function CalendarPage() {
         prefillRange={prefillRange}
         templateId={templateId}
         editEvent={editEvent}
+        focusExcludeDate={focusExcludeDate}
         existingEvents={events}
       />
 
       <EventDetailSheet
         event={selectedEvent}
-        onClose={() => setSelectedEvent(null)}
+        focusedDay={selectedEventDay}
+        onClose={() => {
+          setSelectedEvent(null);
+          setSelectedEventDay(null);
+        }}
         onEdit={handleEdit}
+        onEventUpdated={(updated) => setSelectedEvent(updated)}
       />
 
       {showIcalFeed && <IcalFeedModal onClose={() => setShowIcalFeed(false)} />}

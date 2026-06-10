@@ -7,8 +7,9 @@ FRONTEND_URL=http://localhost:5173
 # RESEND_API_KEY=re_xxxxxxxx
 # EMAIL_FROM=TeamCanvas <noreply@yourdomain.com>
 
-# OAuth — Redirect URI: {APP_URL}/auth/callback/google|kakao
-# APP_URL=http://localhost:8788
+# OAuth — Redirect URI (로그인): {APP_URL}/auth/callback/google|kakao
+# Google 캘린더 연동 callback: {APP_URL}/api/integrations/google-calendar/callback
+# APP_URL=http://127.0.0.1:8788
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
 # KAKAO_CLIENT_ID=

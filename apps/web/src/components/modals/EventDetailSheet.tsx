@@ -4,15 +4,22 @@ import { CheckSquare, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-re
 import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { ToastMessage } from "../ui/ToastMessage";
+import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
 import { colorClass, formatRecurrenceRule, toDateLocal } from "../../lib/dates";
-import { formatExcludedDatesSummary } from "../../lib/eventExcludedDates";
+import {
+  canManageExcludedDates,
+  parseExcludedDates,
+  pruneExcludedDates,
+} from "../../lib/eventExcludedDates";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
 import {
   useCreateEventComment,
   useCreateTask,
   useDeleteEvent,
+  useEvent,
   useEventAttendees,
   useEventComments,
+  useUpdateEvent,
   useUpdateEventRsvp,
 } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
@@ -28,18 +35,25 @@ const VISIBILITY_LABELS: Record<string, string> = {
 
 export function EventDetailSheet({
   event,
+  focusedDay,
   onClose,
   onEdit,
+  onEventUpdated,
 }: {
   event: CalendarEvent | null;
+  /** 캘린더에서 클릭한 날짜 — 제외일 편집 시 초기 선택 */
+  focusedDay?: Date | null;
   onClose: () => void;
-  onEdit: (event: CalendarEvent) => void;
+  onEdit: (event: CalendarEvent, focusedDay?: Date | null) => void;
+  onEventUpdated?: (event: CalendarEvent) => void;
 }) {
   const navigate = useNavigate();
   const deleteEvent = useDeleteEvent();
+  const updateEvent = useUpdateEvent();
   const createTask = useCreateTask();
   const updateRsvp = useUpdateEventRsvp();
   const createComment = useCreateEventComment();
+  const { data: freshEventData } = useEvent(event?.id);
   const { data: membersData } = useOrgMembers();
   const { data: attendeesData } = useEventAttendees(event?.id);
   const { data: commentsData } = useEventComments(event?.id);
@@ -48,21 +62,30 @@ export function EventDetailSheet({
   const members = membersData?.members ?? [];
   const [commentBody, setCommentBody] = useState("");
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
+  const [excludedDates, setExcludedDates] = useState<string[]>([]);
+  const [excludedDirty, setExcludedDirty] = useState(false);
+
+  const displayEvent = freshEventData?.event ?? event;
 
   const { data: teamData } = useTeamDetail(
-    event?.visibility === "team" && event?.teamId ? event.teamId : undefined,
+    displayEvent?.visibility === "team" && displayEvent?.teamId ? displayEvent.teamId : undefined,
   );
 
   const mentionMembers = useMemo(() => {
     const orgMembers = members.map((m) => ({ id: m.user_id, name: m.name }));
-    if (event?.visibility !== "team" || !event?.teamId || !teamData?.members?.length) {
+    if (displayEvent?.visibility !== "team" || !displayEvent?.teamId || !teamData?.members?.length) {
       return orgMembers;
     }
     const teamIds = new Set(teamData.members.map((m) => m.userId));
     const teamFirst = orgMembers.filter((m) => teamIds.has(m.id));
     const rest = orgMembers.filter((m) => !teamIds.has(m.id));
     return [...teamFirst, ...rest];
-  }, [members, event?.visibility, event?.teamId, teamData?.members]);
+  }, [members, displayEvent?.visibility, displayEvent?.teamId, teamData?.members]);
+
+  const startDate = displayEvent ? toDateLocal(displayEvent.startAt) : "";
+  const endDate = displayEvent ? toDateLocal(displayEvent.endAt) : "";
+  const focusDateKey = focusedDay ? toDateLocal(focusedDay.getTime()) : undefined;
+  const showExcludedEditor = displayEvent ? canManageExcludedDates(displayEvent) : false;
 
   useEffect(() => {
     if (!toast) return;
@@ -70,32 +93,64 @@ export function EventDetailSheet({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  if (!event) return null;
+  useEffect(() => {
+    if (!displayEvent) return;
+    setExcludedDates(parseExcludedDates(displayEvent.excludedDates));
+    setExcludedDirty(false);
+  }, [displayEvent?.id, displayEvent?.excludedDates]);
 
-  const excludedSummary =
-    event.allDay && event.excludedDates?.length
-      ? formatExcludedDatesSummary(
-          toDateLocal(event.startAt),
-          toDateLocal(event.endAt),
-          event.excludedDates,
-        )
-      : null;
+  if (!displayEvent) return null;
+
+  const handleExcludedChange = (dates: string[]) => {
+    setExcludedDates(pruneExcludedDates(dates, startDate, endDate));
+    setExcludedDirty(true);
+  };
+
+  const handleSaveExcluded = async () => {
+    const normalized = pruneExcludedDates(excludedDates, startDate, endDate);
+    try {
+      await updateEvent.mutateAsync({
+        eventId: displayEvent.id,
+        title: displayEvent.title,
+        startAt: displayEvent.startAt,
+        endAt: displayEvent.endAt,
+        allDay: displayEvent.allDay,
+        description: displayEvent.description ?? undefined,
+        location: displayEvent.location ?? undefined,
+        teamId: displayEvent.teamId ?? null,
+        color: displayEvent.color,
+        visibility: (displayEvent.visibility as "private" | "team" | "org") ?? "org",
+        attendeeUserIds: attendees.map((a) => a.user_id),
+        reminderMinutes: [10],
+        recurrenceRule: displayEvent.recurrenceRule ?? null,
+        excludedDates: normalized,
+      });
+      setExcludedDirty(false);
+      setToast({ tone: "info", message: "제외 날짜를 저장했습니다." });
+      onEventUpdated?.({ ...displayEvent, excludedDates: normalized });
+    } catch (err) {
+      setToast({
+        tone: "error",
+        message: err instanceof Error ? err.message : "제외 날짜 저장에 실패했습니다.",
+      });
+    }
+  };
 
   const handleConvertToTask = async () => {
     const result = await createTask.mutateAsync({
-      title: event.title,
-      description: event.description ?? undefined,
-      dueAt: event.endAt,
-      teamId: event.teamId ?? undefined,
-      eventId: event.id,
+      title: displayEvent.title,
+      description: displayEvent.description ?? undefined,
+      dueAt: displayEvent.endAt,
+      teamId: displayEvent.teamId ?? undefined,
+      eventId: displayEvent.id,
     });
     onClose();
     navigate(`/tasks?task=${result.id}`);
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`"${event.title}" 일정을 삭제할까요?`)) return;
-    await deleteEvent.mutateAsync(event.id);
+    if (!window.confirm(`"${displayEvent.title}" 일정을 삭제할까요?`)) return;
+    await deleteEvent.mutateAsync(displayEvent.id);
     onClose();
   };
 
@@ -104,12 +159,12 @@ export function EventDetailSheet({
       <button className="absolute inset-0 bg-navy-900/30 backdrop-blur-sm" onClick={onClose} aria-label="닫기" />
       <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-y-auto overscroll-contain rounded-t-3xl p-6 shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
         <div className="mb-4 flex items-start gap-3">
-          <div className={cn("mt-1 h-10 w-1.5 shrink-0 rounded-full", colorClass(event.color))} />
+          <div className={cn("mt-1 h-10 w-1.5 shrink-0 rounded-full", colorClass(displayEvent.color))} />
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-bold text-navy-900">{event.title}</h2>
-            <p className="mt-1 text-sm text-navy-600">{event.time}</p>
+            <h2 className="text-xl font-bold text-navy-900">{displayEvent.title}</h2>
+            <p className="mt-1 text-sm text-navy-600">{displayEvent.time}</p>
             <p className="text-xs text-navy-500">
-              {event.teamName} · {VISIBILITY_LABELS[event.visibility ?? "org"] ?? event.visibility}
+              {displayEvent.teamName} · {VISIBILITY_LABELS[displayEvent.visibility ?? "org"] ?? displayEvent.visibility}
             </p>
           </div>
           <button
@@ -121,25 +176,45 @@ export function EventDetailSheet({
           </button>
         </div>
 
-        {event.description && (
-          <p className="mb-3 whitespace-pre-wrap text-sm text-navy-700">{event.description}</p>
+        {displayEvent.description && (
+          <p className="mb-3 whitespace-pre-wrap text-sm text-navy-700">{displayEvent.description}</p>
         )}
 
-        {event.location && (
+        {displayEvent.location && (
           <p className="mb-3 flex items-center gap-1.5 text-sm text-navy-600">
             <MapPin className="h-4 w-4 shrink-0" />
-            {event.location}
+            {displayEvent.location}
           </p>
         )}
 
-        {event.recurrenceRule && (
+        {displayEvent.recurrenceRule && (
           <p className="mb-3 text-xs text-primary-600">
-            반복: {formatRecurrenceRule(event.recurrenceRule)}
+            반복: {formatRecurrenceRule(displayEvent.recurrenceRule)}
           </p>
         )}
 
-        {excludedSummary && (
-          <p className="mb-3 text-xs text-navy-600">{excludedSummary}</p>
+        {showExcludedEditor && (
+          <div className="mb-4 rounded-2xl border border-sky-100/80 bg-sky-50/40 p-4">
+            <EventExcludedDatesPicker
+              startDate={startDate}
+              endDate={endDate}
+              excludedDates={excludedDates}
+              onChange={handleExcludedChange}
+              highlightDate={focusDateKey}
+              mode="select"
+            />
+            {excludedDirty && (
+              <Button
+                type="button"
+                fullWidth
+                className="mt-3 !min-h-10"
+                disabled={updateEvent.isPending}
+                onClick={handleSaveExcluded}
+              >
+                {updateEvent.isPending ? "저장 중..." : "제외 날짜 저장"}
+              </Button>
+            )}
+          </div>
         )}
 
         {attendees.length > 0 && (
@@ -163,20 +238,20 @@ export function EventDetailSheet({
           <button
             type="button"
             className="rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700"
-            onClick={() => updateRsvp.mutate({ eventId: event.id, rsvp: "accepted" })}
+            onClick={() => updateRsvp.mutate({ eventId: displayEvent.id, rsvp: "accepted" })}
           >
             참석
           </button>
           <button
             type="button"
             className="rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-700"
-            onClick={() => updateRsvp.mutate({ eventId: event.id, rsvp: "declined" })}
+            onClick={() => updateRsvp.mutate({ eventId: displayEvent.id, rsvp: "declined" })}
           >
             불참
           </button>
         </div>
 
-        <EntityFilesSection entityType="event" entityId={event.id} />
+        <EntityFilesSection entityType="event" entityId={displayEvent.id} />
 
         <div className="mt-4 border-t border-sky-100/80 pt-4">
           <div className="mb-3 flex items-center gap-2">
@@ -204,7 +279,7 @@ export function EventDetailSheet({
               e.preventDefault();
               if (!commentBody.trim()) return;
               try {
-                await createComment.mutateAsync({ eventId: event.id, body: commentBody.trim() });
+                await createComment.mutateAsync({ eventId: displayEvent.id, body: commentBody.trim() });
                 setCommentBody("");
                 setToast({
                   tone: "info",
@@ -243,7 +318,7 @@ export function EventDetailSheet({
         </Button>
 
         <div className="flex gap-2">
-          <Button variant="secondary" fullWidth onClick={() => onEdit(event)}>
+          <Button variant="secondary" fullWidth onClick={() => onEdit(displayEvent, focusedDay)}>
             <Pencil className="h-4 w-4" />
             수정
           </Button>

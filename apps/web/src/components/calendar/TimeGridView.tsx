@@ -25,7 +25,7 @@ export function TimeGridView({
 }: {
   days: Date[];
   events: CalendarEvent[];
-  onEventClick: (event: CalendarEvent) => void;
+  onEventClick: (event: CalendarEvent, day?: Date) => void;
   onRangeSelect: (startAt: number, endAt: number) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -137,7 +137,7 @@ export function TimeGridView({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onEventClick(event);
+                        onEventClick(event, day);
                       }}
                       className={cn(
                         "absolute inset-x-0.5 z-10 overflow-hidden rounded-md px-1 py-0.5 text-left text-[10px] font-medium text-white shadow-sm",

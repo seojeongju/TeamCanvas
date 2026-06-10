@@ -28,7 +28,7 @@ export function AgendaView({
 }: {
   focusDate: Date;
   events: CalendarEvent[];
-  onEventClick: (event: CalendarEvent) => void;
+  onEventClick: (event: CalendarEvent, day?: Date) => void;
   onDayClick: (date: Date) => void;
 }) {
   const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDaysToDate(focusDate, i));
@@ -62,7 +62,7 @@ export function AgendaView({
                   <button
                     key={event.id}
                     type="button"
-                    onClick={() => onEventClick(event)}
+                    onClick={() => onEventClick(event, day)}
                     className="w-full text-left"
                   >
                     <GlassCard className="flex items-center gap-3 p-3 transition hover:bg-sky-50/50">
