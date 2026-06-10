@@ -15,6 +15,7 @@ import { GlassCard } from "../ui/GlassCard";
 import { SortableTaskCard } from "./SortableTaskCard";
 import { TaskCard } from "./TaskCard";
 import { TaskEmptyState } from "./TaskEmptyState";
+import { TaskPaginatedColumn } from "./TaskPaginatedColumn";
 import { TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { Task, TaskStatus } from "../../lib/types";
@@ -140,6 +141,7 @@ export function TaskBoardView({
         <TaskColumn
           column={TASK_COLUMNS.find((c) => c.id === activeColumn)!}
           tasks={tasksByColumn[activeColumn]}
+          resetKey={`${activeColumn}-${tasks.length}`}
           onOpen={onOpen}
           onEdit={onEdit}
           onStatusChange={onStatusChange}
@@ -159,6 +161,7 @@ export function TaskBoardView({
               key={col.id}
               column={col}
               tasks={tasksByColumn[col.id]}
+              resetKey={`${col.id}-${tasks.length}`}
               onOpen={onOpen}
               onEdit={onEdit}
               onStatusChange={onStatusChange}
@@ -181,6 +184,7 @@ export function TaskBoardView({
 function DroppableColumn({
   column,
   tasks,
+  resetKey,
   onOpen,
   onEdit,
   onStatusChange,
@@ -188,6 +192,7 @@ function DroppableColumn({
 }: {
   column: (typeof TASK_COLUMNS)[number];
   tasks: Task[];
+  resetKey: string;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
@@ -210,24 +215,33 @@ function DroppableColumn({
           isOver && "bg-sky-50/80 ring-2 ring-primary-400/20",
         )}
       >
-        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          {tasks.length === 0 ? (
-            <GlassCard className="p-4 text-center text-xs text-navy-500">
-              {column.label} 프로젝트가 없습니다
-            </GlassCard>
-          ) : (
-            tasks.map((task) => (
-              <SortableTaskCard
-                key={task.id}
-                task={task}
-                onOpen={onOpen}
-                onEdit={onEdit}
-                onStatusChange={onStatusChange}
-                canWrite={canWrite}
-              />
-            ))
-          )}
-        </SortableContext>
+        {tasks.length === 0 ? (
+          <GlassCard className="p-4 text-center text-xs text-navy-500">
+            {column.label} 프로젝트가 없습니다
+          </GlassCard>
+        ) : (
+          <TaskPaginatedColumn tasks={tasks} resetKey={resetKey}>
+            {(visibleTasks) => (
+              <SortableContext
+                items={visibleTasks.map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {visibleTasks.map((task) => (
+                    <SortableTaskCard
+                      key={task.id}
+                      task={task}
+                      onOpen={onOpen}
+                      onEdit={onEdit}
+                      onStatusChange={onStatusChange}
+                      canWrite={canWrite}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            )}
+          </TaskPaginatedColumn>
+        )}
       </div>
     </div>
   );
@@ -236,6 +250,7 @@ function DroppableColumn({
 function TaskColumn({
   column,
   tasks,
+  resetKey,
   onOpen,
   onEdit,
   onStatusChange,
@@ -243,20 +258,25 @@ function TaskColumn({
 }: {
   column: (typeof TASK_COLUMNS)[number];
   tasks: Task[];
+  resetKey: string;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite?: boolean;
 }) {
+  if (tasks.length === 0) {
+    return (
+      <GlassCard className="p-4 text-center text-xs text-navy-500">
+        {column.label} 프로젝트가 없습니다
+      </GlassCard>
+    );
+  }
+
   return (
-    <div>
-      <div className="space-y-2">
-        {tasks.length === 0 ? (
-          <GlassCard className="p-4 text-center text-xs text-navy-500">
-            {column.label} 프로젝트가 없습니다
-          </GlassCard>
-        ) : (
-          tasks.map((task) => (
+    <TaskPaginatedColumn tasks={tasks} resetKey={resetKey}>
+      {(visibleTasks) => (
+        <div className="space-y-2">
+          {visibleTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -265,9 +285,9 @@ function TaskColumn({
               onStatusChange={onStatusChange}
               canWrite={canWrite}
             />
-          ))
-        )}
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </TaskPaginatedColumn>
   );
 }

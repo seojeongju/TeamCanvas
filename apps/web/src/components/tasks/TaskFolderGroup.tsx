@@ -46,11 +46,12 @@ export function TaskFolderGroup({
   /** 라벨 폴더 UI (완료 프로젝트) */
   byLabel?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(group.tasks.length > TASK_LIST_PAGE_SIZE);
   const [innerPage, setInnerPage] = useState(0);
 
   useEffect(() => {
     setInnerPage(0);
+    setExpanded(group.tasks.length > TASK_LIST_PAGE_SIZE);
   }, [group.key, group.tasks.length]);
 
   if (group.tasks.length === 1) {
