@@ -7,7 +7,6 @@ import {
   formatEventTimePill,
   fromDatetimeLocal,
   setDateKeepTime,
-  nearestMinuteStep,
   snapMinuteToStep,
   timePartsFromTimestamp,
   timestampFromTimeParts,
@@ -31,11 +30,37 @@ interface EventDateTimePickerProps {
   onValidationChange?: (error: string | null) => void;
 }
 
-function applyTimeParts(datetime: string, parts: TimeWheelParts): string {
+function applyTimeParts(datetime: string, parts: TimeWheelParts, snapMinute = false): string {
   if (!datetime) return datetime;
   const dateTs = fromDatetimeLocal(datetime);
-  const snapped: TimeWheelParts = { ...parts, minute: snapMinuteToStep(parts.minute) };
-  return toDatetimeLocal(timestampFromTimeParts(dateTs, snapped));
+  const minute = snapMinute ? snapMinuteToStep(parts.minute) : parts.minute;
+  return toDatetimeLocal(timestampFromTimeParts(dateTs, { ...parts, minute }));
+}
+
+function parseHourInput(text: string): number | null {
+  if (!text) return null;
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 1 || n > 12) return null;
+  return n;
+}
+
+function commitHourInput(text: string, current: number): number {
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 1) return current;
+  return Math.min(12, n);
+}
+
+function parseMinuteInput(text: string): number | null {
+  if (!text) return null;
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 0 || n > 59) return null;
+  return n;
+}
+
+function commitMinuteInput(text: string, current: number): number {
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 0) return current;
+  return Math.min(59, n);
 }
 
 export function EventDateTimePicker({
@@ -62,8 +87,8 @@ export function EventDateTimePicker({
     }
   }, [start, end, onValidationChange]);
 
-  const updateActiveTime = (parts: TimeWheelParts) => {
-    const next = applyTimeParts(activeDatetime, parts);
+  const updateActiveTime = (parts: TimeWheelParts, snapMinute = false) => {
+    const next = applyTimeParts(activeDatetime, parts, snapMinute);
     if (activeField === "start") {
       onStartChange(next);
       const startTime = fromDatetimeLocal(next);
@@ -137,17 +162,25 @@ export function EventDateTimePicker({
             formatItem={(h) => String(h)}
             ariaLabel="시"
             className="max-w-[64px]"
+            editable
+            maxInputLength={2}
+            parseInput={parseHourInput}
+            commitInput={commitHourInput}
           />
           <span className="pb-1 text-xl font-semibold text-navy-900" aria-hidden>
             :
           </span>
           <WheelPicker
             items={MINUTES_5}
-            value={nearestMinuteStep(timeParts.minute)}
-            onChange={(minute) => updateActiveTime({ ...timeParts, minute })}
+            value={timeParts.minute}
+            onChange={(minute) => updateActiveTime({ ...timeParts, minute }, true)}
             formatItem={(m) => String(m).padStart(2, "0")}
             ariaLabel="분"
             className="max-w-[64px]"
+            editable
+            maxInputLength={2}
+            parseInput={parseMinuteInput}
+            commitInput={commitMinuteInput}
           />
         </div>
       </div>
