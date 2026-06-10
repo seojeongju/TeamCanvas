@@ -5,7 +5,7 @@ import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { ToastMessage } from "../ui/ToastMessage";
 import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
-import { colorClass, formatRecurrenceRule, toDateLocal } from "../../lib/dates";
+import { colorClass, formatEventTimeRange, formatRecurrenceRule, toDateLocal } from "../../lib/dates";
 import {
   canManageExcludedDates,
   parseExcludedDates,
@@ -194,7 +194,9 @@ export function EventDetailSheet({
           />
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-bold text-navy-900">{displayTitle}</h2>
-            <p className="mt-1 text-sm text-navy-600">{displayEvent.time}</p>
+            <p className="mt-1 text-sm text-navy-600">
+              {formatEventTimeRange(displayEvent.startAt, displayEvent.endAt, displayEvent.allDay)}
+            </p>
             {isGoogleEvent ? (
               <p className="mt-1 flex items-center gap-1 text-xs text-red-600/90">
                 <Lock className="h-3 w-3 shrink-0" aria-hidden />

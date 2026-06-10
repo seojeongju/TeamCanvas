@@ -1,4 +1,4 @@
-import { endOfDay, startOfDay } from "./dates";
+import { endOfDay, fromDateLocal, startOfDay, toDateLocal } from "./dates";
 import type { CalendarEvent, Task, TaskFilters, TaskPriority, TaskStatus } from "./types";
 
 export const TASK_COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
@@ -103,13 +103,15 @@ export function tasksToCalendarEvents(tasks: Task[], from: number, to: number): 
     .filter((t) => t.dueAt && t.dueAt >= from && t.dueAt <= to && t.status !== "done")
     .map((t) => {
       const due = t.dueAt!;
+      const dueDateKey = toDateLocal(due);
+      const dayStart = fromDateLocal(dueDateKey);
       return {
         id: `task-${t.id}`,
         taskId: t.id,
         sourceType: "task" as const,
         title: t.title,
-        startAt: startOfDay(due),
-        endAt: endOfDay(due),
+        startAt: dayStart,
+        endAt: dayStart + 86400000,
         allDay: true,
         color: t.isOverdue ? "#EF4444" : "#F97316",
         teamName: t.teamName ?? "프로젝트 마감",

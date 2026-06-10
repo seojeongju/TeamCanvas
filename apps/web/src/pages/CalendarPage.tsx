@@ -23,7 +23,6 @@ import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
 import { eventsForDay, getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
 import { toDateLocal } from "../lib/dates";
-import type { EventTemplateId } from "../lib/eventTemplates";
 import type { CalendarEvent } from "../lib/types";
 import { api } from "../lib/api";
 import { useCurrentOrgId } from "../stores/orgStore";
@@ -53,7 +52,6 @@ export function CalendarPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createPrefillDate, setCreatePrefillDate] = useState<Date | null>(null);
   const [prefillRange, setPrefillRange] = useState<{ start: number; end: number } | null>(null);
-  const [templateId, setTemplateId] = useState<EventTemplateId | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [selectedEventDay, setSelectedEventDay] = useState<Date | null>(null);
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
@@ -129,12 +127,10 @@ export function CalendarPage() {
   const openCreate = (opts?: {
     date?: Date;
     range?: { start: number; end: number };
-    template?: EventTemplateId;
   }) => {
     setEditEvent(null);
     setCreatePrefillDate(opts?.date ?? null);
     setPrefillRange(opts?.range ?? null);
-    setTemplateId(opts?.template ?? null);
     setShowCreate(true);
   };
 
@@ -142,7 +138,6 @@ export function CalendarPage() {
     setShowCreate(false);
     setCreatePrefillDate(null);
     setPrefillRange(null);
-    setTemplateId(null);
     setEditEvent(null);
     setFocusExcludeDate(undefined);
   };
@@ -451,7 +446,6 @@ export function CalendarPage() {
         onClose={closeCreate}
         prefillDate={createPrefillDate ?? (prefillRange ? new Date(prefillRange.start) : null)}
         prefillRange={prefillRange}
-        templateId={templateId}
         editEvent={editEvent}
         focusExcludeDate={focusExcludeDate}
         existingEvents={events}

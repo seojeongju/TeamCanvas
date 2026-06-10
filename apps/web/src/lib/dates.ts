@@ -30,6 +30,45 @@ export function fromDateLocal(value: string): number {
   return new Date(`${value}T00:00:00`).getTime();
 }
 
+/** 종일 일정의 마지막 포함 날짜 (YYYY-MM-DD). UTC endOfDay 타임존 넘침 보정 */
+export function getAllDayInclusiveEndKey(startAt: number, endAt: number): string {
+  const startKey = toDateLocal(startAt);
+  let endKey = toDateLocal(endAt);
+
+  const endDate = new Date(endAt);
+  const midnight = new Date(endDate);
+  midnight.setHours(0, 0, 0, 0);
+  if (endAt === midnight.getTime() && endKey > startKey) {
+    const last = new Date(midnight);
+    last.setDate(last.getDate() - 1);
+    return toDateLocal(last.getTime());
+  }
+
+  if (endKey > startKey && endAt - startAt <= 86400000) {
+    return startKey;
+  }
+
+  return endKey;
+}
+
+export function eventIncludesCalendarDay(
+  event: { startAt: number; endAt: number; allDay?: boolean; excludedDates?: string[] },
+  day: Date,
+): boolean {
+  const dayKey = toDateLocal(day.getTime());
+  if ((event.excludedDates ?? []).includes(dayKey)) return false;
+
+  if (event.allDay) {
+    const startKey = toDateLocal(event.startAt);
+    const endKey = getAllDayInclusiveEndKey(event.startAt, event.endAt);
+    return dayKey >= startKey && dayKey <= endKey;
+  }
+
+  const from = startOfDay(day.getTime());
+  const to = endOfDay(day.getTime());
+  return event.startAt < to && event.endAt > from;
+}
+
 export function isSameCalendarDay(a: number, b: number): boolean {
   const da = new Date(a);
   const db = new Date(b);
@@ -103,6 +142,22 @@ const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"] as const;
 export function formatEventDateLabel(ts: number): string {
   const d = new Date(ts);
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAY_KO[d.getDay()]})`;
+}
+
+/** 일정 목록·상세용 시간 범위 (브라우저 로컬 타임존) */
+export function formatEventTimeRange(
+  startAt: number,
+  endAt: number,
+  allDay?: boolean,
+): string {
+  if (allDay) return "종일";
+  const fmt = (t: number) =>
+    new Date(t).toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  return `${fmt(startAt)} - ${fmt(endAt)}`;
 }
 
 export function formatEventTimePill(ts: number): string {

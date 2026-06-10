@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import { useCreateTask, useTeams } from "../../hooks/useData";
+import { LabelPillPicker } from "../ui/LabelPillPicker";
+import {
+  useCreateTask,
+  useCreateTaskLabel,
+  useDeleteTaskLabel,
+  useTaskLabels,
+  useTeams,
+} from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
 import { PRIORITY_OPTIONS } from "../../lib/taskUtils";
@@ -17,6 +24,9 @@ interface CreateTaskModalProps {
 
 export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: CreateTaskModalProps) {
   const createTask = useCreateTask();
+  const { data: labelsData } = useTaskLabels();
+  const createLabel = useCreateTaskLabel();
+  const deleteLabel = useDeleteTaskLabel();
   const { data: membersData } = useOrgMembers();
   const { data: teamsData } = useTeams();
   const userId = useAuthStore((s) => s.user?.id);
@@ -28,14 +38,17 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [teamId, setTeamId] = useState("");
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
+  const [labelIds, setLabelIds] = useState<string[]>([]);
 
   const members = membersData?.members ?? [];
   const teams = teamsData?.teams ?? [];
+  const labels = labelsData?.labels ?? [];
 
   useEffect(() => {
     if (open) {
       setStatus(defaultStatus);
       setAssigneeId(userId ?? "");
+      setLabelIds([]);
     }
   }, [open, defaultStatus, userId]);
 
@@ -53,6 +66,7 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
       assigneeId: assigneeId || undefined,
       priority,
       teamId: teamId || null,
+      labelIds: labelIds.length > 0 ? labelIds : undefined,
     });
     setTitle("");
     setDescription("");
@@ -60,18 +74,33 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
     setAssigneeId(userId ?? "");
     setPriority("medium");
     setTeamId("");
+    setLabelIds([]);
     onClose();
   };
 
   return (
     <Modal open={open} onClose={onClose} title="프로젝트 추가">
       <form onSubmit={handleSubmit} className="space-y-4">
+        <LabelPillPicker
+          title="라벨"
+          labels={labels}
+          selectedIds={labelIds}
+          onChange={setLabelIds}
+          mode="multiple"
+          onCreateLabel={(data) => createLabel.mutateAsync(data)}
+          onDeleteLabel={(labelId) => deleteLabel.mutateAsync(labelId)}
+          isCreating={createLabel.isPending}
+          isDeleting={deleteLabel.isPending}
+          emptyMessage="새 라벨을 만들어 프로젝트를 분류하세요."
+        />
+
         <Input
           label="프로젝트 제목"
           placeholder="할 일을 입력하세요"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required
+          autoFocus
         />
 
         <div className="flex flex-col gap-1.5">

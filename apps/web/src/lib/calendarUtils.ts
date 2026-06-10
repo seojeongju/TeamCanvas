@@ -1,4 +1,10 @@
-import { endOfDay, isSameCalendarDay, startOfDay, toDateLocal } from "./dates";
+import {
+  endOfDay,
+  eventIncludesCalendarDay,
+  isSameCalendarDay,
+  startOfDay,
+  toDateLocal,
+} from "./dates";
 import type { CalendarEvent } from "./types";
 
 export type CalendarViewMode = "month" | "week" | "day" | "agenda";
@@ -73,17 +79,10 @@ export function getViewRange(viewMode: CalendarViewMode, focusDate: Date): { fro
   return { from: startOfDay(monthStart.getTime()), to: endOfDay(monthEnd.getTime()) };
 }
 
-export function eventsForDay<T extends { startAt: number; endAt: number; excludedDates?: string[] }>(
-  events: T[],
-  day: Date,
-): T[] {
-  const from = startOfDay(day.getTime());
-  const to = endOfDay(day.getTime());
-  const dayKey = toDateLocal(day.getTime());
-  return events.filter((e) => {
-    if (!(e.startAt < to && e.endAt > from)) return false;
-    return !(e.excludedDates ?? []).includes(dayKey);
-  });
+export function eventsForDay<
+  T extends { startAt: number; endAt: number; allDay?: boolean; excludedDates?: string[] },
+>(events: T[], day: Date): T[] {
+  return events.filter((e) => eventIncludesCalendarDay(e, day));
 }
 
 export function eventBlockStyle(
@@ -153,34 +152,21 @@ function eventStartColInWeek(event: CalendarEvent, week: Date[]): number {
 }
 
 function dayIncludedInEvent(event: CalendarEvent, week: Date[], col: number): boolean {
-  const from = startOfDay(week[col].getTime());
-  const to = endOfDay(from);
-  if (!(event.startAt < to && event.endAt > from)) return false;
-  return !(event.excludedDates ?? []).includes(toDateLocal(from));
+  return eventIncludesCalendarDay(event, week[col]);
 }
 
 function hasIncludedDayBefore(event: CalendarEvent, week: Date[], col: number): boolean {
   if (col > 0) return dayIncludedInEvent(event, week, col - 1);
-  const weekStart = startOfDay(week[0].getTime());
-  if (event.startAt >= weekStart) return false;
-  const prev = new Date(weekStart);
+  const prev = new Date(week[0]);
   prev.setDate(prev.getDate() - 1);
-  const from = startOfDay(prev.getTime());
-  const to = endOfDay(from);
-  if (!(event.startAt < to && event.endAt > from)) return false;
-  return !(event.excludedDates ?? []).includes(toDateLocal(from));
+  return eventIncludesCalendarDay(event, prev);
 }
 
 function hasIncludedDayAfter(event: CalendarEvent, week: Date[], col: number): boolean {
   if (col < 6) return dayIncludedInEvent(event, week, col + 1);
-  const weekEnd = endOfDay(week[6].getTime());
-  if (event.endAt <= weekEnd) return false;
-  const next = new Date(startOfDay(week[6].getTime()));
+  const next = new Date(week[6]);
   next.setDate(next.getDate() + 1);
-  const from = startOfDay(next.getTime());
-  const to = endOfDay(from);
-  if (!(event.startAt < to && event.endAt > from)) return false;
-  return !(event.excludedDates ?? []).includes(toDateLocal(from));
+  return eventIncludesCalendarDay(event, next);
 }
 
 function barRunsInWeek(event: CalendarEvent, week: Date[]): { startCol: number; endCol: number }[] {

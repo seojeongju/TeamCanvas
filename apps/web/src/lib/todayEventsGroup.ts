@@ -1,4 +1,5 @@
 import { isPersonalGoogleEvent } from "./calendarEventSources";
+import { formatEventTimeRange } from "./dates";
 import type { CalendarEvent } from "./types";
 
 /** 이모지 접두어 제거 후 그룹 키 */
@@ -51,5 +52,5 @@ export function groupTodayEvents(events: CalendarEvent[]): TodayEventGroup[] {
 export function eventListSubtitle(event: CalendarEvent): string {
   if (isPersonalGoogleEvent(event)) return "내 Google 일정 · 팀원에게 비공개";
   if (event.sourceType === "task") return `프로젝트 마감 · ${event.teamName}`;
-  return `${event.time} · ${event.teamName}`;
+  return `${formatEventTimeRange(event.startAt, event.endAt, event.allDay)} · ${event.teamName}`;
 }

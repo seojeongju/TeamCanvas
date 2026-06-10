@@ -18,6 +18,8 @@ import {
   slugify,
   startOfDay,
   endOfDay,
+  fromDateLocal,
+  toDateLocal,
   formatEventTime,
   hashToken,
   appUrl,
@@ -264,14 +266,15 @@ app.get("/organizations/:orgId/events", async (c) => {
     for (const row of taskRows ?? []) {
       const r = row as Record<string, unknown>;
       const dueAt = r.due_at as number;
-      const dayStart = startOfDay(dueAt);
-      const dayEnd = endOfDay(dueAt);
+      const dueDateKey = toDateLocal(dueAt);
+      const dayStart = fromDateLocal(dueDateKey);
+      const dayEndExclusive = dayStart + 86400000;
       events.push({
         id: `task-due:${r.id}`,
         title: `📋 ${r.title}`,
         description: "프로젝트 마감",
         startAt: dayStart,
-        endAt: dayEnd,
+        endAt: dayEndExclusive,
         allDay: true,
         visibility: "org",
         recurrenceRule: null,
@@ -279,7 +282,7 @@ app.get("/organizations/:orgId/events", async (c) => {
         teamId: r.team_id ?? null,
         color: "#F97316",
         teamName: (r.team_name as string) ?? "프로젝트",
-        time: formatEventTime(dayStart, dayEnd, true),
+        time: formatEventTime(dayStart, dayEndExclusive, true),
         sourceType: "task" as const,
         taskId: r.id,
       });
@@ -1180,6 +1183,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     priority?: string;
     teamId?: string | null;
     eventId?: string | null;
+    labelIds?: string[];
   }>();
 
   if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
@@ -1233,6 +1237,11 @@ app.post("/organizations/:orgId/tasks", async (c) => {
 
   const { logTaskCreated } = await import("../utils/taskActivities");
   await logTaskCreated(c.env.DB, orgId, id, user.id, body.title.trim());
+
+  if (body.labelIds?.length) {
+    const { syncTaskLabels } = await import("../utils/taskExtras");
+    await syncTaskLabels(c.env.DB, id, body.labelIds, orgId);
+  }
 
   return c.json({ id }, 201);
 });

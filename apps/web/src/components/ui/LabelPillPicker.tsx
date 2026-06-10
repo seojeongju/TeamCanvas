@@ -21,7 +21,9 @@ type LabelPillPickerProps = {
   onChange: (ids: string[]) => void;
   mode?: "single" | "multiple";
   onCreateLabel: (data: { name: string; color: string }) => Promise<TaskLabel>;
+  onDeleteLabel?: (labelId: string) => Promise<unknown>;
   isCreating?: boolean;
+  isDeleting?: boolean;
   emptyMessage?: string;
 };
 
@@ -32,12 +34,15 @@ export function LabelPillPicker({
   onChange,
   mode = "multiple",
   onCreateLabel,
+  onDeleteLabel,
   isCreating = false,
+  isDeleting = false,
   emptyMessage = "라벨을 만들어 분류하세요.",
 }: LabelPillPickerProps) {
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(LABEL_PRESET_COLORS[0]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const selectedSet = new Set(selectedIds);
 
@@ -58,6 +63,21 @@ export function LabelPillPicker({
     onChange(mode === "single" ? [created.id] : [...selectedIds, created.id]);
     setNewName("");
     setShowNew(false);
+  };
+
+  const handleDelete = async (label: TaskLabel) => {
+    if (!onDeleteLabel) return;
+    const ok = window.confirm(`"${label.name}" 라벨을 삭제할까요?\n연결된 프로젝트·일정에서도 제거됩니다.`);
+    if (!ok) return;
+    setDeletingId(label.id);
+    try {
+      await onDeleteLabel(label.id);
+      if (selectedSet.has(label.id)) {
+        onChange(selectedIds.filter((id) => id !== label.id));
+      }
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -116,22 +136,43 @@ export function LabelPillPicker({
         <div className="flex flex-wrap gap-1.5">
           {labels.map((label) => {
             const active = selectedSet.has(label.id);
+            const isRemoving = deletingId === label.id;
             return (
-              <button
+              <div
                 key={label.id}
-                type="button"
-                onClick={() => toggleLabel(label)}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition",
+                  "inline-flex items-center overflow-hidden rounded-full transition",
                   active ? "text-white shadow-sm" : "bg-white/80 text-navy-700 ring-1 ring-sky-200",
+                  isRemoving && "opacity-50",
                 )}
                 style={active ? { backgroundColor: label.color } : undefined}
               >
-                {label.name}
-                {active && mode === "multiple" && (
-                  <X className="h-3 w-3 opacity-80" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => toggleLabel(label)}
+                  disabled={isRemoving || isDeleting}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-medium transition",
+                    active && mode === "multiple" && "pr-1",
+                  )}
+                >
+                  {label.name}
+                </button>
+                {onDeleteLabel && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(label)}
+                    disabled={isRemoving || isDeleting}
+                    className={cn(
+                      "flex h-full items-center justify-center px-1.5 transition hover:bg-black/10",
+                      active ? "text-white/90" : "text-navy-400 hover:text-red-600",
+                    )}
+                    aria-label={`${label.name} 라벨 삭제`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

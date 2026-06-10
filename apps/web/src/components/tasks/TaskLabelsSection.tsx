@@ -1,6 +1,7 @@
 import { LabelPillPicker } from "../ui/LabelPillPicker";
 import {
   useCreateTaskLabel,
+  useDeleteTaskLabel,
   useTaskLabels,
   useUpdateTask,
 } from "../../hooks/useData";
@@ -9,6 +10,7 @@ import type { Task } from "../../lib/types";
 export function TaskLabelsSection({ task }: { task: Task }) {
   const { data: labelsData } = useTaskLabels();
   const createLabel = useCreateTaskLabel();
+  const deleteLabel = useDeleteTaskLabel();
   const updateTask = useUpdateTask();
 
   const allLabels = labelsData?.labels ?? [];
@@ -21,7 +23,9 @@ export function TaskLabelsSection({ task }: { task: Task }) {
         selectedIds={taskLabelIds}
         onChange={(ids) => updateTask.mutate({ id: task.id, labelIds: ids })}
         onCreateLabel={(data) => createLabel.mutateAsync(data)}
+        onDeleteLabel={(labelId) => deleteLabel.mutateAsync(labelId)}
         isCreating={createLabel.isPending}
+        isDeleting={deleteLabel.isPending}
         emptyMessage="라벨을 만들어 프로젝트를 분류하세요."
       />
     </div>

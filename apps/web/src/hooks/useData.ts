@@ -337,6 +337,7 @@ export function useCreateTask() {
       priority?: string;
       teamId?: string | null;
       eventId?: string | null;
+      labelIds?: string[];
     }) => api.createTask(orgId!, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });

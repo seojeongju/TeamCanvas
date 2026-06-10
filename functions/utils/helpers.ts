@@ -40,6 +40,16 @@ export function endOfDay(ts: number): number {
   return d.getTime();
 }
 
+export function toDateLocal(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function fromDateLocal(value: string): number {
+  return new Date(`${value}T00:00:00`).getTime();
+}
+
 export function formatEventTime(start: number, end: number, allDay: boolean): string {
   if (allDay) return "종일";
   const fmt = (t: number) =>

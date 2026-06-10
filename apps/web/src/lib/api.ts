@@ -397,6 +397,7 @@ export const api = {
       priority?: string;
       teamId?: string | null;
       eventId?: string | null;
+      labelIds?: string[];
     },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/tasks`, {

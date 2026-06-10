@@ -10,6 +10,7 @@ import { AttendeePicker } from "./AttendeePicker";
 import {
   useCreateEvent,
   useCreateTaskLabel,
+  useDeleteTaskLabel,
   useEventAttendees,
   useEventParticipants,
   useOrgDetail,
@@ -18,11 +19,11 @@ import {
   useUpdateEvent,
 } from "../../hooks/useData";
 import { findConflictingEvents } from "../../lib/eventConflicts";
-import { EVENT_TEMPLATES, getEventTemplate, type EventTemplateId } from "../../lib/eventTemplates";
 import type { CalendarEvent, EventSuggestion } from "../../lib/types";
 import {
   addDays,
   formatDateChipLabel,
+  formatEventTimeRange,
   fromDatetimeLocal,
   getSmartDefaultRange,
   isSameCalendarDay,
@@ -48,7 +49,6 @@ interface CreateEventModalProps {
   onClose: () => void;
   prefillDate?: Date | null;
   prefillRange?: { start: number; end: number } | null;
-  templateId?: EventTemplateId | null;
   editEvent?: CalendarEvent | null;
   /** 수정 시 캘린더에서 클릭한 날짜 (제외일 편집 초기 선택) */
   focusExcludeDate?: string;
@@ -91,7 +91,6 @@ export function CreateEventModal({
   onClose,
   prefillDate,
   prefillRange,
-  templateId,
   editEvent,
   focusExcludeDate,
   existingEvents = [],
@@ -100,6 +99,7 @@ export function CreateEventModal({
   const updateEvent = useUpdateEvent();
   const { data: labelsData } = useTaskLabels();
   const createLabel = useCreateTaskLabel();
+  const deleteLabel = useDeleteTaskLabel();
   const { data: participantsData } = useEventParticipants();
   const { data: teamsData } = useTeams();
   const { data: editAttendeesData } = useEventAttendees(editEvent?.id);
@@ -148,35 +148,30 @@ export function CreateEventModal({
     if (createInitializedRef.current) return;
     createInitializedRef.current = true;
 
-    const template = templateId ? getEventTemplate(templateId) : null;
     const range = prefillRange
       ? { start: prefillRange.start, end: prefillRange.end }
       : getSmartDefaultRange(prefillDate ?? undefined, workHours);
 
-    if (template && !prefillRange) {
-      range.end = range.start + template.durationMinutes * 60 * 1000;
-    }
-
     const dateStr = toDatetimeLocal(range.start).slice(0, 10);
-    setEventType(template?.eventType ?? "meeting");
-    setTitle(template?.title ?? "");
+    setEventType("meeting");
+    setTitle("");
     setStart(toDatetimeLocal(range.start));
     setEnd(toDatetimeLocal(range.end));
-    setAllDay(template?.eventType === "vacation");
+    setAllDay(false);
     setAllDayStart(dateStr);
     setAllDayEnd(dateStr);
     setExcludedDates([]);
-    setShowAdvanced(!!template);
-    setVisibility(template?.visibility ?? INITIAL_ADVANCED.visibility);
+    setShowAdvanced(false);
+    setVisibility(INITIAL_ADVANCED.visibility);
     setTeamId(INITIAL_ADVANCED.teamId);
     setDescription("");
     setLocation("");
-    setReminderMinutes(template ? [...template.reminderMinutes] : [...INITIAL_ADVANCED.reminderMinutes]);
+    setReminderMinutes([...INITIAL_ADVANCED.reminderMinutes]);
     setAttendeeUserIds([]);
-    setRecurrence(template?.recurrence ?? INITIAL_ADVANCED.recurrence);
+    setRecurrence(INITIAL_ADVANCED.recurrence);
     setTimeError(null);
     setTeamError(null);
-  }, [open, editEvent, prefillDate, prefillRange, templateId, workHours]);
+  }, [open, editEvent, prefillDate, prefillRange, workHours]);
 
   useEffect(() => {
     if (!open || !editEvent) return;
@@ -216,14 +211,9 @@ export function CreateEventModal({
 
     setSelectedLabelId((prev) => {
       if (prev && labels.some((l) => l.id === prev)) return prev;
-      const template = templateId ? getEventTemplate(templateId) : null;
-      if (template) {
-        const matched = findLabelIdByColor(labels, getEventType(template.eventType).color);
-        if (matched) return matched;
-      }
       return labels[0].id;
     });
-  }, [open, editEvent, labels, templateId]);
+  }, [open, editEvent, labels]);
 
   useEffect(() => {
     if (!toast) return;
@@ -319,23 +309,6 @@ export function CreateEventModal({
     setReminderMinutes((prev) =>
       prev.includes(minutes) ? prev.filter((m) => m !== minutes) : [...prev, minutes].sort((a, b) => a - b),
     );
-  };
-
-  const applyTemplate = (id: EventTemplateId) => {
-    const t = getEventTemplate(id);
-    setEventType(t.eventType);
-    const matchedLabel = findLabelIdByColor(labels, getEventType(t.eventType).color);
-    if (matchedLabel) setSelectedLabelId(matchedLabel);
-    setTitle(t.title);
-    setVisibility(t.visibility);
-    setRecurrence(t.recurrence);
-    setReminderMinutes([...t.reminderMinutes]);
-    if (t.eventType === "vacation") setAllDay(true);
-    if (!allDay && start && t.durationMinutes > 0) {
-      const startTs = fromDatetimeLocal(start);
-      setEnd(toDatetimeLocal(startTs + t.durationMinutes * 60 * 1000));
-    }
-    setShowAdvanced(true);
   };
 
   const handleVisibilityChange = (value: "private" | "team" | "org") => {
@@ -452,25 +425,6 @@ export function CreateEventModal({
     <>
       <Modal open={open} onClose={onClose} title={isEdit ? "일정 수정" : "일정 추가"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isEdit && (
-            <div>
-              <p className="mb-2 text-sm font-medium text-navy-700">템플릿</p>
-              <div className="flex flex-wrap gap-2">
-                {EVENT_TEMPLATES.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => applyTemplate(t.id)}
-                    className="rounded-xl bg-sky-100/60 px-3 py-1.5 text-left text-xs transition hover:bg-sky-100"
-                    title={t.description}
-                  >
-                    <span className="font-medium text-navy-800">{t.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <LabelPillPicker
             title="라벨"
             labels={labels}
@@ -478,7 +432,9 @@ export function CreateEventModal({
             onChange={(ids) => setSelectedLabelId(ids[0] ?? null)}
             mode="single"
             onCreateLabel={(data) => createLabel.mutateAsync(data)}
+            onDeleteLabel={(labelId) => deleteLabel.mutateAsync(labelId)}
             isCreating={createLabel.isPending}
+            isDeleting={deleteLabel.isPending}
             emptyMessage="새 라벨을 만들어 일정을 분류하세요."
           />
 
@@ -587,7 +543,7 @@ export function CreateEventModal({
               <ul className="mt-1 space-y-0.5">
                 {conflicts.slice(0, 3).map((c) => (
                   <li key={c.id} className="text-xs text-amber-700">
-                    · {c.title} ({c.time})
+                    · {c.title} ({formatEventTimeRange(c.startAt, c.endAt, c.allDay)})
                   </li>
                 ))}
               </ul>

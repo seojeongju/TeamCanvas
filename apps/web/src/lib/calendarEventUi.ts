@@ -1,4 +1,5 @@
 import { cn } from "./cn";
+import { formatEventTimeRange } from "./dates";
 import { normalizeEventGroupTitle } from "./todayEventsGroup";
 import { isPersonalGoogleEvent } from "./calendarEventSources";
 import type { CalendarEvent } from "./types";
@@ -33,7 +34,7 @@ export function formatEventWhen(event: CalendarEvent, day?: Date): string {
     }
     return `${start.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })} – ${endDay.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })} · 종일`;
   }
-  return event.time;
+  return formatEventTimeRange(event.startAt, event.endAt, event.allDay);
 }
 
 export function eventSourceLabel(event: CalendarEvent): string {
