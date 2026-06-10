@@ -3,6 +3,14 @@ import { newId, now } from "./helpers";
 import { sendNotificationEmail } from "./email";
 import { sendPushToUser } from "./push";
 
+export function eventDetailLink(eventId: string): string {
+  return `/calendar?event=${encodeURIComponent(eventId)}`;
+}
+
+export function taskDetailLink(taskId: string): string {
+  return `/tasks?task=${encodeURIComponent(taskId)}`;
+}
+
 export async function createNotification(
   db: D1Database,
   env: Env | undefined,
@@ -87,7 +95,7 @@ export async function notifyTaskAssigned(
     type: "task_assigned",
     title: "프로젝트가 배정되었습니다",
     body: opts.taskTitle,
-    link: `/tasks?task=${opts.taskId}`,
+    link: taskDetailLink(opts.taskId),
   });
 }
 
@@ -113,7 +121,7 @@ export async function notifyTaskDueSoon(
     type: "task_due_soon",
     title: "프로젝트 마감이 임박했습니다",
     body: `${opts.taskTitle} · ${dueLabel}`,
-    link: `/tasks?task=${opts.taskId}`,
+    link: taskDetailLink(opts.taskId),
   });
 }
 
@@ -136,7 +144,7 @@ export async function notifyTaskComment(
     type: "task_comment",
     title: "프로젝트에 댓글이 달렸습니다",
     body: `${opts.taskTitle}: ${opts.preview}`,
-    link: `/tasks?task=${opts.taskId}`,
+    link: taskDetailLink(opts.taskId),
   });
 }
 
@@ -159,7 +167,72 @@ export async function notifyTaskMention(
     type: "task_mention",
     title: "댓글에서 멘션되었습니다",
     body: `${opts.taskTitle}: ${opts.preview}`,
-    link: `/tasks?task=${opts.taskId}`,
+    link: taskDetailLink(opts.taskId),
+  });
+}
+
+export async function notifyEventAttendee(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    attendeeId: string;
+    actorId: string;
+    actorName: string;
+    organizationId: string;
+    eventId: string;
+    eventTitle: string;
+    startAt: number;
+  },
+) {
+  if (!opts.attendeeId || opts.attendeeId === opts.actorId) return;
+  const when = new Date(opts.startAt).toLocaleString("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  await createNotification(db, env, {
+    userId: opts.attendeeId,
+    organizationId: opts.organizationId,
+    type: "event_attendee",
+    title: "일정에 초대되었습니다",
+    body: `${opts.actorName}님이 「${opts.eventTitle}」 · ${when}`,
+    link: eventDetailLink(opts.eventId),
+  });
+}
+
+export async function notifyEventReminder(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    userId: string;
+    organizationId: string;
+    eventId: string;
+    eventTitle: string;
+    reminderMinutes: number;
+    startAt: number;
+  },
+) {
+  if (!opts.userId) return;
+  const startLabel = new Date(opts.startAt).toLocaleString("ko-KR", {
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const lead =
+    opts.reminderMinutes >= 1440
+      ? `${Math.round(opts.reminderMinutes / 1440)}일 전`
+      : opts.reminderMinutes >= 60
+        ? `${Math.round(opts.reminderMinutes / 60)}시간 전`
+        : `${opts.reminderMinutes}분 전`;
+  await createNotification(db, env, {
+    userId: opts.userId,
+    organizationId: opts.organizationId,
+    type: "event_reminder",
+    title: "일정이 곧 시작됩니다",
+    body: `「${opts.eventTitle}」 · ${startLabel} (${lead} 알림)`,
+    link: eventDetailLink(opts.eventId),
   });
 }
 
@@ -183,7 +256,7 @@ export async function notifyEventComment(
     type: "event_comment",
     title: "일정에 댓글이 달렸습니다",
     body: `${opts.actorName}님이 「${opts.eventTitle}」: ${opts.preview}`,
-    link: `/calendar?event=${opts.eventId}`,
+    link: eventDetailLink(opts.eventId),
   });
 }
 
@@ -207,6 +280,6 @@ export async function notifyEventMention(
     type: "event_mention",
     title: "일정 댓글에서 멘션되었습니다",
     body: `${opts.actorName}님이 「${opts.eventTitle}」에서 멘션: ${opts.preview}`,
-    link: `/calendar?event=${opts.eventId}`,
+    link: eventDetailLink(opts.eventId),
   });
 }

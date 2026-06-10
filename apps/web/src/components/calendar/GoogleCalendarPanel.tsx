@@ -90,14 +90,6 @@ export function GoogleCalendarPanel() {
   }, [orgId]);
 
   useEffect(() => {
-    if (connected) setExpanded(true);
-  }, [connected]);
-
-  useEffect(() => {
-    if (sync.isError) setExpanded(true);
-  }, [sync.isError]);
-
-  useEffect(() => {
     if (!orgId || !connected || autoSyncedRef.current) return;
     const updatedAt = status?.updatedAt;
     const stale = !updatedAt || Date.now() - updatedAt > STALE_MS;
@@ -110,7 +102,9 @@ export function GoogleCalendarPanel() {
   if (!orgId) return null;
 
   const collapsedSummary = connected
-    ? "연동됨 · 내 Google 일정만 표시"
+    ? sync.isError
+      ? "연동됨 · 동기화 오류 — 탭하여 확인"
+      : "연동됨 · 내 Google 일정만 표시"
     : "내 Google 일정 가져오기 · 사용 전 관리자 설정 필요";
 
   return (

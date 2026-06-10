@@ -9,6 +9,7 @@ import {
   useNotifications,
 } from "../hooks/useData";
 import { cn } from "../lib/cn";
+import { resolveNotificationLink } from "../lib/notificationLinks";
 import type { Notification } from "../lib/types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -16,6 +17,8 @@ const TYPE_LABELS: Record<string, string> = {
   task_due_soon: "마감 임박",
   task_comment: "프로젝트 댓글",
   task_mention: "멘션",
+  event_attendee: "일정 초대",
+  event_reminder: "일정 알림",
   event_comment: "일정 댓글",
   event_mention: "일정 멘션",
 };
@@ -38,9 +41,8 @@ export function NotificationsPage() {
     if (notif.unread) {
       await markRead.mutateAsync(notif.id);
     }
-    if (notif.link) {
-      navigate(notif.link);
-    }
+    const link = resolveNotificationLink(notif);
+    if (link) navigate(link);
   };
 
   return (
@@ -69,7 +71,8 @@ export function NotificationsPage() {
         <div className="space-y-2">
           {notifications.map((notif) => {
             const label = typeLabel(notif.type);
-            const clickable = Boolean(notif.link);
+            const link = resolveNotificationLink(notif);
+            const clickable = Boolean(link);
 
             return (
               <GlassCard

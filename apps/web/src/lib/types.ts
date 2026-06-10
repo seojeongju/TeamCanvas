@@ -208,6 +208,7 @@ export type EventReminder = {
   eventId: string;
   title: string;
   startAt: number;
+  endAt?: number;
   remindAt: number;
   reminderMinutes: number;
 };

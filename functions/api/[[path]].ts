@@ -367,8 +367,9 @@ app.post("/organizations/:orgId/events", async (c) => {
   const ts = now();
   const visibility = body.visibility ?? (body.teamId ? "team" : "org");
   const attendeeUserIds = Array.from(new Set((body.attendeeUserIds ?? []).filter(Boolean)));
+  const rawReminderMinutes = body.reminderMinutes ?? [10];
   const reminderMinutes = Array.from(
-    new Set((body.reminderMinutes ?? [10]).filter((m) => Number.isFinite(m) && m > 0 && m <= 10080)),
+    new Set(rawReminderMinutes.filter((m) => Number.isFinite(m) && m > 0 && m <= 10080)),
   );
 
   await c.env.DB.prepare(
@@ -410,6 +411,19 @@ app.post("/organizations/:orgId/events", async (c) => {
       .prepare("INSERT OR IGNORE INTO event_attendees (event_id, user_id, rsvp) VALUES (?, ?, 'pending')")
       .bind(id, attendeeId)
       .run();
+  }
+
+  const { notifyEventAttendee } = await import("../utils/notifications");
+  for (const attendeeId of validAttendees) {
+    await notifyEventAttendee(c.env.DB, c.env, {
+      attendeeId,
+      actorId: user.id,
+      actorName: user.name,
+      organizationId: orgId,
+      eventId: id,
+      eventTitle: body.title.trim(),
+      startAt: body.startAt,
+    });
   }
 
   const reminderTargets = new Set<string>([user.id, ...validAttendees]);
@@ -768,20 +782,59 @@ app.get("/organizations/:orgId/reminders", async (c) => {
   const access = await requireOrgPermission(c, user.id, orgId, "events:read");
   if (access instanceof Response) return access;
 
-  const from = Number(c.req.query("from") ?? now());
-  const to = Number(c.req.query("to") ?? from + 24 * 60 * 60 * 1000);
+  const ts = now();
+  const windowMs = 24 * 60 * 60 * 1000;
+  const from = Number(c.req.query("from") ?? ts - windowMs);
+  const to = Number(c.req.query("to") ?? ts + windowMs);
+
+  try {
+    const { notifyEventReminder } = await import("../utils/notifications");
+    const dueNotifyRows = await c.env.DB
+      .prepare(
+        `SELECT r.id, r.event_id, r.reminder_minutes, r.remind_at, e.title, e.start_at
+         FROM event_reminders r
+         JOIN events e ON e.id = r.event_id
+         WHERE r.organization_id = ?
+           AND r.user_id = ?
+           AND r.remind_at <= ?
+           AND r.delivered_at IS NULL
+           AND r.notified_at IS NULL`,
+      )
+      .bind(orgId, user.id, ts)
+      .all<Record<string, unknown>>();
+
+    for (const row of dueNotifyRows.results ?? []) {
+      await notifyEventReminder(c.env.DB, c.env, {
+        userId: user.id,
+        organizationId: orgId,
+        eventId: row.event_id as string,
+        eventTitle: row.title as string,
+        reminderMinutes: row.reminder_minutes as number,
+        startAt: row.start_at as number,
+      });
+      await c.env.DB
+        .prepare("UPDATE event_reminders SET notified_at = ? WHERE id = ?")
+        .bind(ts, row.id as string)
+        .run();
+    }
+  } catch {
+    // notified_at 컬럼 미적용 등 — 목록 조회는 계속 진행
+  }
 
   const { results } = await c.env.DB.prepare(
-    `SELECT r.id, r.event_id, r.reminder_minutes, r.remind_at, e.title, e.start_at
+    `SELECT r.id, r.event_id, r.reminder_minutes, r.remind_at, e.title, e.start_at, e.end_at
      FROM event_reminders r
      JOIN events e ON e.id = r.event_id
      WHERE r.organization_id = ?
        AND r.user_id = ?
-       AND r.remind_at BETWEEN ? AND ?
        AND r.delivered_at IS NULL
-     ORDER BY r.remind_at ASC`,
+       AND e.end_at > ?
+       AND r.remind_at >= ?
+       AND r.remind_at <= ?
+     ORDER BY r.remind_at ASC
+     LIMIT 20`,
   )
-    .bind(orgId, user.id, from, to)
+    .bind(orgId, user.id, ts, from, to)
     .all();
 
   return c.json({
@@ -792,6 +845,7 @@ app.get("/organizations/:orgId/reminders", async (c) => {
         eventId: row.event_id,
         title: row.title,
         startAt: row.start_at,
+        endAt: row.end_at,
         remindAt: row.remind_at,
         reminderMinutes: row.reminder_minutes,
       };
@@ -909,12 +963,32 @@ app.patch("/events/:eventId", async (c) => {
   const activeMembers = new Set((memberRows.results ?? []).map((m) => m.user_id));
   const validAttendees = attendeeUserIds.filter((uid) => uid !== user.id && activeMembers.has(uid));
 
+  const prevAttendeeRows = await c.env.DB
+    .prepare("SELECT user_id FROM event_attendees WHERE event_id = ?")
+    .bind(eventId)
+    .all<{ user_id: string }>();
+  const prevAttendees = new Set((prevAttendeeRows.results ?? []).map((r) => r.user_id));
+
   await c.env.DB.prepare("DELETE FROM event_attendees WHERE event_id = ?").bind(eventId).run();
   for (const attendeeId of validAttendees) {
     await c.env.DB
       .prepare("INSERT OR IGNORE INTO event_attendees (event_id, user_id, rsvp) VALUES (?, ?, 'pending')")
       .bind(eventId, attendeeId)
       .run();
+  }
+
+  const { notifyEventAttendee } = await import("../utils/notifications");
+  for (const attendeeId of validAttendees) {
+    if (prevAttendees.has(attendeeId)) continue;
+    await notifyEventAttendee(c.env.DB, c.env, {
+      attendeeId,
+      actorId: user.id,
+      actorName: user.name,
+      organizationId: orgId,
+      eventId,
+      eventTitle: body.title.trim(),
+      startAt: body.startAt,
+    });
   }
 
   await c.env.DB

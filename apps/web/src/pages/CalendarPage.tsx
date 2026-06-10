@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Download, Link2, Plus } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,7 +13,9 @@ import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { EventDetailSheet } from "../components/modals/EventDetailSheet";
 import { IcalFeedModal } from "../components/modals/IcalFeedModal";
 import { GoogleCalendarPanel } from "../components/calendar/GoogleCalendarPanel";
+import { UpcomingRemindersPanel } from "../components/calendar/UpcomingRemindersPanel";
 import { CalendarSourceLegend, TodayEventsList } from "../components/calendar/TodayEventsList";
+import { getReminderQueryRange } from "../lib/eventReminders";
 import { splitCalendarEvents } from "../lib/calendarEventSources";
 import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
@@ -36,13 +38,16 @@ export function CalendarPage() {
   const [exporting, setExporting] = useState(false);
   const [showIcalFeed, setShowIcalFeed] = useState(false);
   const deepLinkEventId = searchParams.get("event");
-  const { data: deepLinkData } = useEvent(
-    deepLinkEventId &&
-      !deepLinkEventId.startsWith("task-due:") &&
-      !deepLinkEventId.startsWith("google:")
-      ? deepLinkEventId
-      : undefined,
-  );
+  const deepLinkHandledRef = useRef<string | null>(null);
+  const needsEventFetch =
+    !!deepLinkEventId &&
+    !deepLinkEventId.startsWith("task-due:") &&
+    !deepLinkEventId.startsWith("google:");
+  const {
+    data: deepLinkData,
+    isFetched: deepLinkFetched,
+    isError: deepLinkError,
+  } = useEvent(needsEventFetch ? deepLinkEventId : undefined);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [focusDate, setFocusDate] = useState(today);
   const [showCreate, setShowCreate] = useState(false);
@@ -67,11 +72,17 @@ export function CalendarPage() {
     return dedupeCalendarEvents(calendarEvents, taskEvents);
   }, [calendarEvents, tasksData?.tasks, from, to]);
 
-  const reminderRange = useMemo(() => {
-    const from = Date.now();
-    return { from, to: from + 24 * 60 * 60 * 1000 };
+  const [reminderNow, setReminderNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setReminderNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
-  const { data: reminderData } = useEventReminders(reminderRange.from, reminderRange.to);
+  const reminderRange = useMemo(() => getReminderQueryRange(reminderNow), [reminderNow]);
+  const {
+    data: reminderData,
+    isLoading: remindersLoading,
+    isError: remindersError,
+  } = useEventReminders(reminderRange.from, reminderRange.to);
   const reminders = reminderData?.reminders ?? [];
   const markDelivered = useMarkReminderDelivered();
 
@@ -179,15 +190,25 @@ export function CalendarPage() {
 
   useEffect(() => {
     const eventId = searchParams.get("event");
-    if (!eventId) return;
+    if (!eventId) {
+      deepLinkHandledRef.current = null;
+      return;
+    }
+    if (deepLinkHandledRef.current === eventId) return;
 
     const clearParam = () => {
-      const next = new URLSearchParams(searchParams);
-      next.delete("event");
-      setSearchParams(next, { replace: true });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("event");
+          return next;
+        },
+        { replace: true },
+      );
     };
 
     const openEvent = (event: CalendarEvent) => {
+      deepLinkHandledRef.current = eventId;
       if (event.sourceType === "task" && event.taskId) {
         clearParam();
         routerNavigate(`/tasks?task=${event.taskId}`);
@@ -195,19 +216,59 @@ export function CalendarPage() {
       }
       setFocusDate(new Date(event.startAt));
       setSelectedEvent(event);
+      setSelectedEventDay(new Date(event.startAt));
       clearParam();
     };
 
-    const inView = calendarEvents.find((e) => e.id === eventId);
-    if (inView) {
-      openEvent(inView);
+    if (eventId.startsWith("task-due:")) {
+      deepLinkHandledRef.current = eventId;
+      clearParam();
+      routerNavigate(`/tasks?task=${encodeURIComponent(eventId.slice("task-due:".length))}`);
       return;
     }
 
-    if (deepLinkData?.event) {
-      openEvent(deepLinkData.event);
+    const inList = events.find((e) => e.id === eventId);
+    if (inList) {
+      openEvent(inList);
+      return;
     }
-  }, [searchParams, calendarEvents, deepLinkData?.event, routerNavigate, setSearchParams]);
+
+    if (deepLinkData?.event?.id === eventId) {
+      openEvent(deepLinkData.event);
+      return;
+    }
+
+    if (needsEventFetch && deepLinkFetched && deepLinkError) {
+      deepLinkHandledRef.current = eventId;
+      clearParam();
+    }
+  }, [
+    searchParams,
+    events,
+    deepLinkData?.event,
+    needsEventFetch,
+    deepLinkFetched,
+    deepLinkError,
+    routerNavigate,
+    setSearchParams,
+  ]);
+
+  const openReminderEvent = (eventId: string) => {
+    const found = events.find((e) => e.id === eventId);
+    if (found) {
+      handleEventClick(found);
+      return;
+    }
+    deepLinkHandledRef.current = null;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("event", eventId);
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   const handleExportIcal = async () => {
     if (!orgId) return;
@@ -351,30 +412,20 @@ export function CalendarPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-navy-900">다가오는 알림</h2>
-        {reminders.length === 0 ? (
-          <GlassCard className="p-4 text-sm text-navy-600">24시간 내 예정된 알림이 없습니다.</GlassCard>
-        ) : (
-          <div className="space-y-2">
-            {reminders.slice(0, 5).map((r) => (
-              <GlassCard key={r.id} className="p-4">
-                <p className="font-medium text-navy-900">{r.title}</p>
-                <p className="mt-1 text-xs text-navy-600">
-                  {new Date(r.remindAt).toLocaleString("ko-KR")} · 시작{" "}
-                  {new Date(r.startAt).toLocaleString("ko-KR")}
-                </p>
-                <button
-                  type="button"
-                  className="mt-2 rounded-lg bg-primary-400/10 px-2.5 py-1 text-xs font-medium text-primary-600"
-                  onClick={() => markDelivered.mutate(r.id)}
-                  disabled={markDelivered.isPending}
-                >
-                  확인
-                </button>
-              </GlassCard>
-            ))}
-          </div>
-        )}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-navy-900">다가오는 알림</h2>
+          {reminders.length > 0 && (
+            <span className="text-xs text-navy-500">{reminders.length}건</span>
+          )}
+        </div>
+        <UpcomingRemindersPanel
+          reminders={reminders}
+          isLoading={remindersLoading}
+          isError={remindersError}
+          onOpenEvent={openReminderEvent}
+          onDismiss={(id) => markDelivered.mutate(id)}
+          isDismissing={markDelivered.isPending}
+        />
       </section>
 
       <section>
