@@ -13,14 +13,15 @@ import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { EventDetailSheet } from "../components/modals/EventDetailSheet";
 import { IcalFeedModal } from "../components/modals/IcalFeedModal";
 import { GoogleCalendarPanel } from "../components/calendar/GoogleCalendarPanel";
+import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
+import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
 import { eventsForDay, getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
-import { colorClass, formatRecurrenceRule, toDateLocal } from "../lib/dates";
+import { toDateLocal } from "../lib/dates";
 import type { EventTemplateId } from "../lib/eventTemplates";
 import type { CalendarEvent } from "../lib/types";
-import { cn } from "../lib/cn";
 import { api } from "../lib/api";
 import { useCurrentOrgId } from "../stores/orgStore";
 import { Button } from "../components/ui/Button";
@@ -56,7 +57,7 @@ export function CalendarPage() {
 
   const events = useMemo(() => {
     const taskEvents = tasksToCalendarEvents(tasksData?.tasks ?? [], from, to);
-    return [...calendarEvents, ...taskEvents].sort((a, b) => a.startAt - b.startAt);
+    return dedupeCalendarEvents(calendarEvents, taskEvents);
   }, [calendarEvents, tasksData?.tasks, from, to]);
 
   const { data: reminderData } = useEventReminders(Date.now(), Date.now() + 24 * 60 * 60 * 1000);
@@ -337,31 +338,10 @@ export function CalendarPage() {
             </button>
           </GlassCard>
         ) : (
-          <div className="space-y-2">
-            {todayEvents.map((event) => (
-              <button
-                key={event.id}
-                type="button"
-                onClick={() => handleEventClick(event, today)}
-                className="w-full text-left"
-              >
-                <GlassCard className="flex items-center gap-3 p-4 transition hover:bg-sky-50/50">
-                  <div className={cn("h-full min-h-10 w-1 rounded-full", colorClass(event.color))} />
-                  <div className="flex-1">
-                    <p className="font-medium text-navy-900">{event.title}</p>
-                    <p className="text-xs text-navy-600">
-                      {event.sourceType === "task" ? "업무 마감" : event.time} · {event.teamName}
-                    </p>
-                    {event.recurrenceRule && (
-                      <p className="mt-0.5 text-[11px] text-primary-600">
-                        반복: {formatRecurrenceRule(event.recurrenceRule)}
-                      </p>
-                    )}
-                  </div>
-                </GlassCard>
-              </button>
-            ))}
-          </div>
+          <TodayEventsList
+            events={todayEvents}
+            onEventClick={(event) => handleEventClick(event, today)}
+          />
         )}
       </section>
 

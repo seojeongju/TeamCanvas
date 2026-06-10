@@ -69,10 +69,55 @@ export function MonthView({
           const barRows = maxLane >= 0 ? maxLane + 1 : 0;
 
           return (
-            <div key={weekIndex}>
+            <div key={weekIndex} className="space-y-0.5">
+              {/* 1. 날짜 숫자 */}
+              <div className="grid grid-cols-7 gap-1">
+                {week.map((day) => {
+                  const inMonth = day.getMonth() === month;
+                  const isToday = day.toDateString() === today.toDateString();
+                  const dayHolidays = inMonth
+                    ? holidaysForDay(year, month, day.getDate(), holidays)
+                    : [];
+
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      type="button"
+                      onClick={() => onDayClick(day)}
+                      className={cn(
+                        "flex min-h-[30px] flex-col items-center rounded-xl py-0.5 text-sm transition",
+                        !inMonth && "opacity-35",
+                        !isToday && "text-navy-800 hover:bg-sky-100/50",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full text-sm",
+                          isToday && "bg-primary-400 font-bold text-white shadow-glow",
+                        )}
+                      >
+                        {day.getDate()}
+                      </span>
+                      {dayHolidays.length > 0 && (
+                        <span
+                          className={cn(
+                            "mt-0.5 max-w-full truncate px-0.5 text-[8px] font-medium",
+                            isToday ? "text-primary-600" : "text-red-500",
+                          )}
+                          title={dayHolidays.map((h) => h.name).join(", ")}
+                        >
+                          {dayHolidays[0].name}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 2. 멀티데이 막대 (날짜 아래) */}
               {barRows > 0 && (
                 <div
-                  className="mb-0.5 grid grid-cols-7 gap-1"
+                  className="grid grid-cols-7 gap-1"
                   style={{ gridTemplateRows: `repeat(${barRows}, ${BAR_ROW_HEIGHT}px)` }}
                 >
                   {visibleBars.map((seg) => (
@@ -106,74 +151,47 @@ export function MonthView({
               )}
 
               {hiddenBarCount > 0 && (
-                <p className="mb-0.5 px-1 text-[8px] text-navy-500">+{hiddenBarCount}개 일정</p>
+                <p className="px-1 text-[8px] text-navy-500">+{hiddenBarCount}개 일정</p>
               )}
 
+              {/* 3. 단일일 칩 (막대 아래) */}
               <div className="grid grid-cols-7 gap-1">
                 {week.map((day) => {
                   const inMonth = day.getMonth() === month;
                   const isToday = day.toDateString() === today.toDateString();
                   const dayChips = singleDayChipEvents(day, events);
-                  const dayHolidays = inMonth ? holidaysForDay(year, month, day.getDate(), holidays) : [];
 
                   return (
-                    <button
-                      key={day.toISOString()}
-                      type="button"
-                      onClick={() => onDayClick(day)}
+                    <div
+                      key={`chips-${day.toISOString()}`}
                       className={cn(
-                        "relative flex min-h-[52px] flex-col items-center rounded-xl p-0.5 text-sm transition",
+                        "flex min-h-[18px] flex-col gap-0.5 px-0.5 pb-1",
                         !inMonth && "opacity-35",
-                        isToday
-                          ? "bg-primary-400 font-bold text-white shadow-glow"
-                          : "text-navy-800 hover:bg-sky-100/50",
                       )}
                     >
-                      <span className="mt-1">{day.getDate()}</span>
-                      {dayHolidays.length > 0 && (
+                      {dayChips.slice(0, 2).map((e) => (
                         <span
+                          key={e.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => onEventClick(e, day)}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter") onEventClick(e, day);
+                          }}
                           className={cn(
-                            "max-w-full truncate px-0.5 text-[8px] font-medium",
-                            isToday ? "text-white/90" : "text-red-500",
+                            "truncate rounded px-0.5 text-[9px] font-medium",
+                            isToday
+                              ? "bg-primary-400/15 text-primary-700"
+                              : `${colorClass(e.color)} text-white`,
                           )}
-                          title={dayHolidays.map((h) => h.name).join(", ")}
                         >
-                          {dayHolidays[0].name}
+                          {e.title}
                         </span>
+                      ))}
+                      {dayChips.length > 2 && (
+                        <span className="text-[8px] text-navy-500">+{dayChips.length - 2}</span>
                       )}
-                      {dayChips.length > 0 && (
-                        <div className="mt-auto flex w-full flex-col gap-0.5 px-0.5 pb-0.5">
-                          {dayChips.slice(0, 2).map((e) => (
-                            <span
-                              key={e.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                onEventClick(e, day);
-                              }}
-                              onKeyDown={(ev) => {
-                                if (ev.key === "Enter") {
-                                  ev.stopPropagation();
-                                  onEventClick(e, day);
-                                }
-                              }}
-                              className={cn(
-                                "truncate rounded px-0.5 text-[9px] font-medium",
-                                isToday ? "bg-white/25 text-white" : `${colorClass(e.color)} text-white`,
-                              )}
-                            >
-                              {e.title}
-                            </span>
-                          ))}
-                          {dayChips.length > 2 && (
-                            <span className={cn("text-[8px]", isToday ? "text-white/80" : "text-navy-500")}>
-                              +{dayChips.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
