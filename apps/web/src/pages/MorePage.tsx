@@ -71,8 +71,8 @@ export function MorePage() {
     {
       icon: Settings,
       label: "앱 설정",
-      desc: "알림, PWA",
-      onClick: () => {},
+      desc: "설치 · 알림 · PWA",
+      onClick: () => navigate("/settings/app"),
       show: true,
     },
   ].filter((item) => item.show);

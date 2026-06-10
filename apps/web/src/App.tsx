@@ -28,6 +28,8 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
 import { AdminOrgDetailPage } from "./pages/admin/AdminOrgDetailPage";
 import { AdminPlansPage } from "./pages/admin/AdminPlansPage";
+import { AppSettingsPage } from "./pages/settings/AppSettingsPage";
+import { PwaInstallBanner } from "./components/layout/PwaInstallBanner";
 
 function ProtectedLayout() {
   return (
@@ -48,6 +50,7 @@ function AdminLayout() {
 export default function App() {
   return (
     <BrowserRouter>
+      <PwaInstallBanner />
       <Routes>
         <Route
           path="/login"
@@ -86,6 +89,7 @@ export default function App() {
           <Route path="settings/permissions" element={<PermissionsPage />} />
           <Route path="settings/notifications" element={<NotificationSettingsPage />} />
           <Route path="settings/audit" element={<AuditLogsPage />} />
+          <Route path="settings/app" element={<AppSettingsPage />} />
         </Route>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboardPage />} />
