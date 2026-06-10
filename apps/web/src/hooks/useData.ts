@@ -50,6 +50,15 @@ export function useTeams() {
   });
 }
 
+export function useOrgActivity(limit = 20) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["org-activity", orgId, limit],
+    queryFn: () => api.getOrgActivity(orgId!, limit),
+    enabled: !!orgId,
+  });
+}
+
 export function useEventParticipants() {
   const orgId = useCurrentOrgId();
   return useQuery({

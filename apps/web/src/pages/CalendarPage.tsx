@@ -18,6 +18,7 @@ import { CalendarSourceLegend, TodayEventsList } from "../components/calendar/To
 import { getReminderQueryRange } from "../lib/eventReminders";
 import { splitCalendarEvents } from "../lib/calendarEventSources";
 import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
+import { expandCalendarEvents, resolveParentEventId } from "../lib/recurrence";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
@@ -68,7 +69,8 @@ export function CalendarPage() {
 
   const events = useMemo(() => {
     const taskEvents = tasksToCalendarEvents(tasksData?.tasks ?? [], from, to);
-    return dedupeCalendarEvents(calendarEvents, taskEvents);
+    const merged = dedupeCalendarEvents(calendarEvents, taskEvents);
+    return expandCalendarEvents(merged, from, to);
   }, [calendarEvents, tasksData?.tasks, from, to]);
 
   const [reminderNow, setReminderNow] = useState(Date.now());
@@ -168,8 +170,13 @@ export function CalendarPage() {
       routerNavigate(`/tasks?task=${event.taskId}`);
       return;
     }
-    setSelectedEvent(event);
-    setSelectedEventDay(day ?? null);
+    const parentId = resolveParentEventId(event);
+    const forDetail =
+      parentId !== event.id
+        ? { ...event, id: parentId, parentEventId: parentId }
+        : event;
+    setSelectedEvent(forDetail);
+    setSelectedEventDay(day ?? (event.occurrenceStartAt ? new Date(event.occurrenceStartAt) : null));
   };
 
   useEffect(() => {
@@ -235,9 +242,9 @@ export function CalendarPage() {
       return;
     }
 
-    const inList = events.find((e) => e.id === eventId);
+    const inList = events.find((e) => e.id === eventId || resolveParentEventId(e) === eventId);
     if (inList) {
-      openEvent(inList);
+      openEvent(inList.parentEventId ? { ...inList, id: eventId } : inList);
       return;
     }
 
@@ -262,7 +269,7 @@ export function CalendarPage() {
   ]);
 
   const openReminderEvent = (eventId: string) => {
-    const found = events.find((e) => e.id === eventId);
+    const found = events.find((e) => e.id === eventId || resolveParentEventId(e) === eventId);
     if (found) {
       handleEventClick(found);
       return;

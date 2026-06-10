@@ -118,6 +118,15 @@ export type TeamDetail = {
   canManage: boolean;
 };
 
+export type OrgActivityItem = {
+  id: string;
+  kind: "audit" | "task";
+  actorName: string;
+  summary: string;
+  link: string | null;
+  createdAt: number;
+};
+
 export type OrgSettings = {
   id: string;
   name: string;
@@ -145,6 +154,11 @@ export type CalendarEvent = {
   isPersonal?: boolean;
   creatorId?: string;
   taskId?: string;
+  /** 반복 일정 occurrence — 상세/수정은 parentEventId 기준 */
+  parentEventId?: string;
+  occurrenceDate?: string;
+  occurrenceStartAt?: number;
+  isRecurrenceOccurrence?: boolean;
 };
 
 export type TaskLabel = {

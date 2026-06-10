@@ -265,6 +265,11 @@ export const api = {
     );
   },
 
+  getOrgActivity: (orgId: string, limit = 20) =>
+    request<{ items: import("./types").OrgActivityItem[] }>(
+      `/api/organizations/${orgId}/activity?limit=${limit}`,
+    ),
+
   getTeams: (orgId: string) =>
     request<{ teams: import("./types").Team[] }>(`/api/organizations/${orgId}/teams`),
 

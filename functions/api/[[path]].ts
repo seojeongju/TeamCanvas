@@ -205,7 +205,11 @@ app.get("/organizations/:orgId/events", async (c) => {
     `SELECT e.*, t.name as team_name
      FROM events e
      LEFT JOIN teams t ON t.id = e.team_id
-     WHERE e.organization_id = ? AND e.start_at < ? AND e.end_at > ?
+     WHERE e.organization_id = ?
+       AND (
+         (e.start_at < ? AND e.end_at > ?)
+         OR (e.recurrence_rule IS NOT NULL AND e.recurrence_rule != '' AND e.start_at < ?)
+       )
        AND (
          e.visibility = 'org'
          OR e.creator_id = ?
@@ -221,6 +225,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       orgId,
       to,
       from,
+      to,
       user.id,
       user.id,
       ...(teamBindNeeded ? [user.id] : []),
@@ -429,19 +434,19 @@ app.post("/organizations/:orgId/events", async (c) => {
     });
   }
 
-  const reminderTargets = new Set<string>([user.id, ...validAttendees]);
-  for (const targetUserId of reminderTargets) {
-    for (const minutes of reminderMinutes) {
-      const remindAt = body.startAt - minutes * 60 * 1000;
-      if (remindAt <= ts) continue;
-      await c.env.DB
-        .prepare(
-          `INSERT INTO event_reminders (id, event_id, organization_id, user_id, reminder_minutes, remind_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(newId(), id, orgId, targetUserId, minutes, remindAt, ts)
-        .run();
-    }
+  const reminderTargets = Array.from(new Set<string>([user.id, ...validAttendees]));
+  if (reminderMinutes.length > 0 && reminderTargets.length > 0) {
+    const { insertEventReminders } = await import("../utils/reminders");
+    await insertEventReminders(c.env.DB, {
+      eventId: id,
+      organizationId: orgId,
+      startAt: body.startAt,
+      recurrenceRule: body.recurrenceRule,
+      excludedDates: parseExcludedDatesJson(excludedResult.json),
+      reminderMinutes,
+      targetUserIds: reminderTargets,
+      createdAt: ts,
+    });
   }
 
   return c.json({ id }, 201);
@@ -791,35 +796,8 @@ app.get("/organizations/:orgId/reminders", async (c) => {
   const to = Number(c.req.query("to") ?? ts + windowMs);
 
   try {
-    const { notifyEventReminder } = await import("../utils/notifications");
-    const dueNotifyRows = await c.env.DB
-      .prepare(
-        `SELECT r.id, r.event_id, r.reminder_minutes, r.remind_at, e.title, e.start_at
-         FROM event_reminders r
-         JOIN events e ON e.id = r.event_id
-         WHERE r.organization_id = ?
-           AND r.user_id = ?
-           AND r.remind_at <= ?
-           AND r.delivered_at IS NULL
-           AND r.notified_at IS NULL`,
-      )
-      .bind(orgId, user.id, ts)
-      .all<Record<string, unknown>>();
-
-    for (const row of dueNotifyRows.results ?? []) {
-      await notifyEventReminder(c.env.DB, c.env, {
-        userId: user.id,
-        organizationId: orgId,
-        eventId: row.event_id as string,
-        eventTitle: row.title as string,
-        reminderMinutes: row.reminder_minutes as number,
-        startAt: row.start_at as number,
-      });
-      await c.env.DB
-        .prepare("UPDATE event_reminders SET notified_at = ? WHERE id = ?")
-        .bind(ts, row.id as string)
-        .run();
-    }
+    const { processDueReminders } = await import("../utils/reminders");
+    await processDueReminders(c.env.DB, c.env);
   } catch {
     // notified_at 컬럼 미적용 등 — 목록 조회는 계속 진행
   }
@@ -999,19 +977,19 @@ app.patch("/events/:eventId", async (c) => {
     .bind(eventId)
     .run();
 
-  const reminderTargets = new Set<string>([event.creator_id, ...validAttendees]);
-  for (const targetUserId of reminderTargets) {
-    for (const minutes of reminderMinutes) {
-      const remindAt = body.startAt - minutes * 60 * 1000;
-      if (remindAt <= ts) continue;
-      await c.env.DB
-        .prepare(
-          `INSERT INTO event_reminders (id, event_id, organization_id, user_id, reminder_minutes, remind_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(newId(), eventId, orgId, targetUserId, minutes, remindAt, ts)
-        .run();
-    }
+  const reminderTargets = Array.from(new Set<string>([event.creator_id, ...validAttendees]));
+  if (reminderMinutes.length > 0 && reminderTargets.length > 0) {
+    const { insertEventReminders } = await import("../utils/reminders");
+    await insertEventReminders(c.env.DB, {
+      eventId,
+      organizationId: orgId,
+      startAt: body.startAt,
+      recurrenceRule: body.recurrenceRule ?? null,
+      excludedDates: parseExcludedDatesJson(excludedJson),
+      reminderMinutes,
+      targetUserIds: reminderTargets,
+      createdAt: ts,
+    });
   }
 
   return c.json({ ok: true });
@@ -1536,6 +1514,21 @@ app.delete("/tasks/:taskId", async (c) => {
   await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(taskId).run();
 
   return c.json({ ok: true });
+});
+
+// ── Activity feed ──
+
+app.get("/organizations/:orgId/activity", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (member instanceof Response) return member;
+
+  const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
+  const { fetchOrgActivity } = await import("../utils/orgActivity");
+  const items = await fetchOrgActivity(c.env.DB, orgId, limit);
+  return c.json({ items });
 });
 
 // ── Search ──

@@ -3,15 +3,17 @@ import { ChevronRight, Plus, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
+import { ActivityFeed } from "../components/dashboard/ActivityFeed";
 import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
 import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { useAuthStore } from "../stores/authStore";
-import { useOrgDetail, useEvents, useTasks } from "../hooks/useData";
+import { useOrgDetail, useEvents, useOrgActivity, useTasks } from "../hooks/useData";
 import { useLogout } from "../hooks/useAuth";
 import { eventsForDay } from "../lib/calendarUtils";
 import { endOfDay, startOfDay } from "../lib/dates";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
+import { expandCalendarEvents, resolveParentEventId } from "../lib/recurrence";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
 import type { CalendarEvent } from "../lib/types";
 
@@ -22,6 +24,11 @@ export function DashboardPage() {
   const to = endOfDay(Date.now());
   const { data: eventsData } = useEvents(from, to);
   const { data: tasksData } = useTasks();
+  const {
+    data: activityData,
+    isLoading: activityLoading,
+    isError: activityError,
+  } = useOrgActivity(20);
   const [showCreate, setShowCreate] = useState(false);
   const [createPrefillDate, setCreatePrefillDate] = useState<Date | null>(null);
   const logout = useLogout();
@@ -34,7 +41,8 @@ export function DashboardPage() {
     const calendarEvents = eventsData?.events ?? [];
     const taskEvents = tasksToCalendarEvents(tasks, from, to);
     const merged = dedupeCalendarEvents(calendarEvents, taskEvents);
-    return eventsForDay(merged, new Date(from)).sort((a, b) => a.startAt - b.startAt);
+    const expanded = expandCalendarEvents(merged, from, to);
+    return eventsForDay(expanded, new Date(from)).sort((a, b) => a.startAt - b.startAt);
   }, [eventsData?.events, tasks, from, to]);
   const doingTasks = tasks.filter((t) => t.status === "doing").length;
   const doneTasks = tasks.filter((t) => t.status === "done").length;
@@ -53,7 +61,7 @@ export function DashboardPage() {
       navigate(`/tasks?task=${event.taskId}`);
       return;
     }
-    navigate(`/calendar?event=${event.id}`);
+    navigate(`/calendar?event=${resolveParentEventId(event)}`);
   };
 
   const firstName = user?.name?.replace(/^\S+\s/, "").split(" ")[0] ?? user?.name ?? "팀원";
@@ -117,6 +125,18 @@ export function DashboardPage() {
         ) : (
           <TodayEventsList events={todayEvents} onEventClick={handleEventClick} />
         )}
+      </section>
+
+      <section>
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold text-navy-900">최근 활동</h2>
+          <p className="text-xs text-navy-500">팀 업무·조직 변경 내역</p>
+        </div>
+        <ActivityFeed
+          items={activityData?.items ?? []}
+          isLoading={activityLoading}
+          isError={activityError}
+        />
       </section>
 
       <button

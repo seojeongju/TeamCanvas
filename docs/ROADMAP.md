@@ -2,7 +2,7 @@
 
 > **버전:** 2.0  
 > **최종 갱신:** 2026-06-10  
-> **최신 커밋:** `058fc8f` — 제외 날짜 캘린더 월별 단일 뷰  
+> **최신 커밋:** Sprint A 구현 후 갱신 예정  
 > **프로덕션:** https://teamcanvas.pages.dev  
 > **관련 문서:** [PRD](./PRD.md) · [개발 계획서](./DEVELOPMENT_PLAN.md) · [배포](./DEPLOY.md)
 
@@ -42,9 +42,9 @@
 
 | 항목 | 현황 | 영향 |
 |------|------|------|
-| **반복 일정 캘린더 표시** | `recurrence_rule` 저장만, 인스턴스 확장 없음 | 휴가·정기 회의 신뢰도 ↓ |
-| **서버 리마인더 Cron** | 클라이언트 `UpcomingRemindersPanel` 폴링 | 앱 미실행 시 알림 없음 |
-| **조직 활동 피드** | `task_activities`만, 조직 단위 피드 없음 | PM 가시성 부족 |
+| ~~**반복 일정 캘린더 표시**~~ | ✅ `recurrence.ts` 클라이언트 확장 | — |
+| ~~**서버 리마인더 Cron**~~ | ✅ `_scheduled.ts` + `processDueReminders` | — |
+| ~~**조직 활동 피드**~~ | ✅ `GET .../activity` + 대시보드 | — |
 | **일정 공유 링크** | 미구현 (PRD Should) | 외부 공유 불가 |
 | **Google Calendar 양방향** | 읽기만 | 쓰기 동기화 없음 |
 | **멀티 조직** | UI만 (`OrgSwitcher`), API 1인 1조직 | 겸직·컨설턴트 미지원 |
@@ -64,10 +64,10 @@
 
 | # | 기능 | 우선순위 | 예상 | 상태 |
 |---|------|----------|------|------|
-| 1.1 | 반복 일정 캘린더 확장 | P0 | 1.5주 | ⬜ 미착수 |
-| 1.2 | 서버 Cron 리마인더 + Web Push | P0 | 1주 | ⬜ 미착수 |
+| 1.1 | 반복 일정 캘린더 확장 | P0 | 1.5주 | ✅ 완료 |
+| 1.2 | 서버 Cron 리마인더 + Web Push | P0 | 1주 | ✅ 완료 |
 | 1.3 | 일정 ↔ 업무 양방향 연결 | P1 | 0.5주 | ⬜ 미착수 |
-| 1.4 | 조직 활동 피드 | P1 | 1주 | ⬜ 미착수 |
+| 1.4 | 조직 활동 피드 | P1 | 1주 | ✅ 완료 |
 
 ### Phase 2 — 협업 확장 (6~8주)
 
@@ -113,27 +113,27 @@
 
 #### 구현 단계
 
-- [ ] **A-1.** `apps/web/src/lib/recurrence.ts` 신규
+- [x] **A-1.** `apps/web/src/lib/recurrence.ts` 신규
   - `expandRecurrence(event, rangeStart, rangeEnd): ExpandedOccurrence[]`
   - 입력: `startAt`, `endAt`, `allDay`, `recurrenceRule`, `excludedDates`
   - 출력: 가상 occurrence (`occurrenceKey`, `startAt`, `endAt`, `parentEventId`)
   - `FREQ=DAILY/WEEKLY/MONTHLY`만 지원 (현 UI와 동일)
   - `excludedDates`에 포함된 날짜 스킵
 
-- [ ] **A-2.** 캘린더 뷰 통합
+- [x] **A-2.** 캘린더 뷰 통합
   - `CalendarPage.tsx` — 이벤트 fetch 후 `expandRecurrence` 적용
   - `MonthView.tsx`, `TimeGridView.tsx`, `AgendaView.tsx` — 확장된 목록 소비
   - 반복 원본 1건 + occurrence N건 표시 (원본 ID 유지, `occurrenceDate` 메타)
 
-- [ ] **A-3.** 상세·수정 UX
+- [x] **A-3.** 상세·수정 UX
   - occurrence 클릭 → `EventDetailSheet` (원본 이벤트 로드)
   - 반복 배지 유지 (`formatRecurrenceRule` in `dates.ts`)
 
-- [ ] **A-4.** API (선택 — 성능 이슈 시)
+- [x] **A-4.** API — 반복 일정 조회 쿼리 확장
   - 현재: 클라이언트 확장으로 시작 (범위 쿼리는 기존 `GET .../events?from=&to=` 유지)
   - 대량 반복 시: `functions/utils/recurrence.ts` 서버 확장 검토
 
-- [ ] **A-5.** 테스트
+- [ ] **A-5.** 테스트 (Vitest — Sprint B로 이연)
   - `apps/web/src/lib/recurrence.test.ts` — 주간 반복, 제외일, 월 경계
 
 #### 완료 기준 (Acceptance Criteria)
@@ -168,21 +168,21 @@ functions/api/[[path]].ts               ← events 조회 (변경 최소화)
 
 #### 구현 단계
 
-- [ ] **B-1.** Cron Worker 또는 Pages scheduled
+- [x] **B-1.** Cron Worker 또는 Pages scheduled
   - `functions/cron/reminders.ts` 또는 별도 `workers/cron-reminders`
   - 5분마다: `remind_at <= now AND sent_at IS NULL` 조회
   - 인앱 `notifications` INSERT + Web Push 발송
 
-- [ ] **B-2.** `wrangler.jsonc` scheduled trigger 설정
+- [x] **B-2.** `wrangler.jsonc` scheduled trigger 설정
   ```jsonc
   "triggers": { "crons": ["*/5 * * * *"] }
   ```
 
-- [ ] **B-3.** 리마인더 생성 로직 점검
+- [x] **B-3.** 리마인더 생성 로직 — 반복 일정 90일 occurrence 확장
   - 일정 생성/수정 시 `event_reminders` row 생성 확인 (`api/[[path]].ts`)
   - 반복 일정 연동: Task A 완료 후 occurrence별 remind_at 생성 검토
 
-- [ ] **B-4.** 알림 설정 연동
+- [x] **B-4.** 알림 설정 연동 (`notification_preferences` 기존 활용)
   - `notification_preferences` — push 비활성 사용자 스킵
   - `NotificationSettingsPage.tsx` 채널 존중
 
@@ -210,14 +210,14 @@ migrations/*event_reminders*
 
 ### 4.3 Task C — 조직 활동 피드 (P1, Sprint A 여유 시)
 
-- [ ] **C-1.** API: `GET /api/organizations/:id/activity`
+- [x] **C-1.** API: `GET /api/organizations/:id/activity`
   - `audit_logs` + `task_activities` + 최근 `events`/`tasks` 생성 UNION
   - 페이지네이션 (cursor, 20건)
 
-- [ ] **C-2.** UI: `DashboardPage.tsx` 또는 `ActivityFeed.tsx` 신규
+- [x] **C-2.** UI: `ActivityFeed.tsx` + `DashboardPage.tsx`
   - 아이콘·액터·시간·링크 (`?event=`, `?task=`)
 
-- [ ] **C-3.** 완료 기준: 대시보드에 최근 20건 활동 표시, 클릭 시 상세 이동
+- [x] **C-3.** 완료 기준: 대시보드에 최근 20건 활동 표시, 클릭 시 상세 이동
 
 #### 관련 파일
 ```
