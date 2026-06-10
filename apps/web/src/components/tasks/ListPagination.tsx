@@ -7,22 +7,26 @@ export function ListPagination({
   totalItems,
   pageSize,
   onPageChange,
+  itemLabel = "건",
 }: {
   page: number;
   totalPages: number;
   totalItems: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  /** 표시 단위 (예: "폴더") */
+  itemLabel?: string;
 }) {
-  if (totalItems <= pageSize) return null;
+  if (totalPages <= 1) return null;
 
   const from = page * pageSize + 1;
   const to = Math.min(totalItems, (page + 1) * pageSize);
 
   return (
-    <div className="flex items-center justify-between gap-2 pt-2">
-      <p className="text-[10px] text-navy-500">
-        {from}–{to} / {totalItems}건
+    <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-sky-100/80 bg-sky-50/40 px-3 py-2">
+      <p className="text-xs text-navy-600">
+        {from}–{to} / {totalItems}
+        {itemLabel}
       </p>
       <div className="flex items-center gap-1">
         <button
@@ -37,7 +41,7 @@ export function ListPagination({
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="min-w-[3.5rem] text-center text-[10px] font-medium tabular-nums text-navy-700">
+        <span className="min-w-[4rem] text-center text-xs font-medium tabular-nums text-navy-700">
           {page + 1} / {totalPages}
         </span>
         <button

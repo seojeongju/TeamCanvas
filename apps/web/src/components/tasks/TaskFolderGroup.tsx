@@ -71,9 +71,8 @@ export function TaskFolderGroup({
     group.accentColor && !accentClass ? { backgroundColor: group.accentColor } : undefined;
   const FolderIcon = byLabel ? Tag : Folder;
   const innerTotalPages = pageCount(group.tasks.length);
-  const visibleTasks = expanded
-    ? paginateItems(group.tasks, innerPage)
-    : [];
+  const safeInnerPage = Math.max(0, Math.min(innerPage, innerTotalPages - 1));
+  const visibleTasks = expanded ? paginateItems(group.tasks, safeInnerPage) : [];
 
   return (
     <div className="overflow-hidden rounded-2xl border border-sky-100/80 bg-white/50">
@@ -120,11 +119,12 @@ export function TaskFolderGroup({
             />
           ))}
           <ListPagination
-            page={innerPage}
+            page={safeInnerPage}
             totalPages={innerTotalPages}
             totalItems={group.tasks.length}
             pageSize={TASK_LIST_PAGE_SIZE}
             onPageChange={setInnerPage}
+            itemLabel="건"
           />
         </div>
       )}
