@@ -268,7 +268,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       events.push({
         id: `task-due:${r.id}`,
         title: `📋 ${r.title}`,
-        description: "업무 마감",
+        description: "프로젝트 마감",
         startAt: dayStart,
         endAt: dayEnd,
         allDay: true,
@@ -277,7 +277,7 @@ app.get("/organizations/:orgId/events", async (c) => {
         location: null,
         teamId: r.team_id ?? null,
         color: "#F97316",
-        teamName: (r.team_name as string) ?? "업무",
+        teamName: (r.team_name as string) ?? "프로젝트",
         time: formatEventTime(dayStart, dayEnd, true),
         sourceType: "task" as const,
         taskId: r.id,

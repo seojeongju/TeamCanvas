@@ -97,7 +97,7 @@ export function toDateInputValue(dueAt?: number | null) {
   return `${y}-${m}-${day}`;
 }
 
-/** 마감일이 있는 미완료 업무를 캘린더 all-day 이벤트로 변환 */
+/** 마감일이 있는 미완료 프로젝트를 캘린더 all-day 이벤트로 변환 */
 export function tasksToCalendarEvents(tasks: Task[], from: number, to: number): CalendarEvent[] {
   return tasks
     .filter((t) => t.dueAt && t.dueAt >= from && t.dueAt <= to && t.status !== "done")
@@ -112,7 +112,7 @@ export function tasksToCalendarEvents(tasks: Task[], from: number, to: number): 
         endAt: endOfDay(due),
         allDay: true,
         color: t.isOverdue ? "#EF4444" : "#F97316",
-        teamName: t.teamName ?? "업무 마감",
+        teamName: t.teamName ?? "프로젝트 마감",
         time: t.isOverdue ? "마감 지연" : "마감",
         visibility: "private",
       };

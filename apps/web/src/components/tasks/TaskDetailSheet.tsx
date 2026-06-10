@@ -64,7 +64,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`"${task.title}" 업무를 삭제할까요?`)) return;
+    if (!window.confirm(`"${task.title}" 프로젝트를 삭제할까요?`)) return;
     await deleteTask.mutateAsync(task.id);
     onClose();
   };
@@ -77,7 +77,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
       <button className="absolute inset-0 bg-navy-900/30 backdrop-blur-sm" onClick={onClose} aria-label="닫기" />
       <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-y-auto overscroll-contain rounded-t-3xl p-6 shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
         <div className="mb-4 flex items-start justify-between gap-3">
-          <h2 className="text-lg font-bold text-navy-900">업무 상세</h2>
+          <h2 className="text-lg font-bold text-navy-900">프로젝트 상세</h2>
           <button
             type="button"
             onClick={onClose}
@@ -125,7 +125,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
                 description !== (task.description ?? "") && save({ description: description || null })
               }
               rows={3}
-              placeholder="업무 설명 (선택)"
+              placeholder="프로젝트 설명 (선택)"
               className={cn(selectClass, "min-h-[88px] resize-none py-3")}
             />
           </div>

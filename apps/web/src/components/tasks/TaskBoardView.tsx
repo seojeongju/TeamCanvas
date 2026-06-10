@@ -195,7 +195,7 @@ function DroppableColumn({
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.length === 0 ? (
             <GlassCard className="p-4 text-center text-xs text-navy-500">
-              {column.label} 업무가 없습니다
+              {column.label} 프로젝트가 없습니다
             </GlassCard>
           ) : (
             tasks.map((task) => (
@@ -229,7 +229,7 @@ function TaskColumn({
       <div className="space-y-2">
         {tasks.length === 0 ? (
           <GlassCard className="p-4 text-center text-xs text-navy-500">
-            {column.label} 업무가 없습니다
+            {column.label} 프로젝트가 없습니다
           </GlassCard>
         ) : (
           tasks.map((task) => (

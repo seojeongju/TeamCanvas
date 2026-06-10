@@ -23,9 +23,9 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   "events:read": "일정 조회",
   "events:write": "일정 작성",
   "events:delete": "일정 삭제",
-  "tasks:read": "업무 조회",
-  "tasks:write": "업무 작성",
-  "tasks:delete": "업무 삭제",
+  "tasks:read": "프로젝트 조회",
+  "tasks:write": "프로젝트 작성",
+  "tasks:delete": "프로젝트 삭제",
   "billing:read": "구독 조회",
   "billing:manage": "구독 관리",
 };
@@ -75,8 +75,8 @@ export function PermissionsPage() {
             <h2 className="mb-3 text-sm font-semibold text-navy-800">역할 안내</h2>
             <GlassCard className="space-y-2 p-4 text-xs text-navy-600">
               <p><strong className="text-navy-800">소유자·관리자</strong> — 조직·팀·멤버 설정 가능</p>
-              <p><strong className="text-navy-800">멤버</strong> — 소속 팀 조회, 일정·업무 작성</p>
-              <p><strong className="text-navy-800">게스트</strong> — 초대받은 일정·업무만 조회</p>
+              <p><strong className="text-navy-800">멤버</strong> — 소속 팀 조회, 일정·프로젝트 작성</p>
+              <p><strong className="text-navy-800">게스트</strong> — 초대받은 일정·프로젝트만 조회</p>
               <p className="pt-1">팀 리드는 소속 팀의 멤버 추가·제거가 가능합니다.</p>
               <p className="pt-1">
                 캘린더 정책(소속 팀만 / 전체 팀)은 조직 설정에서 변경할 수 있습니다.

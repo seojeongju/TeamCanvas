@@ -6,7 +6,7 @@ import { cn } from "../../lib/cn";
 const tabs = [
   { to: "/", icon: Home, label: "홈" },
   { to: "/calendar", icon: CalendarDays, label: "일정" },
-  { to: "/tasks", icon: CheckSquare, label: "업무" },
+  { to: "/tasks", icon: CheckSquare, label: "프로젝트" },
   { to: "/search", icon: Search, label: "검색" },
   { to: "/notifications", icon: Bell, label: "알림", showBadge: true },
 ] as const;

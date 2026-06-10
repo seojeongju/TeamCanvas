@@ -31,7 +31,7 @@ export const mockTasks = [
 
 export const mockNotifications = [
   { id: "1", title: "회의 리마인더", body: "10분 후 주간 스프린트 회의", time: "5분 전", unread: true },
-  { id: "2", title: "새 업무 배정", body: "PWA 아이콘 제작 업무가 배정되었습니다", time: "1시간 전", unread: true },
+  { id: "2", title: "새 프로젝트 배정", body: "PWA 아이콘 제작 프로젝트가 배정되었습니다", time: "1시간 전", unread: true },
   { id: "3", title: "RSVP 변경", body: "준호님이 디자인 리뷰에 참석합니다", time: "3시간 전", unread: false },
 ];
 

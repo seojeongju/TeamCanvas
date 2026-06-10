@@ -13,7 +13,7 @@ const TYPE_META: Record<
   { label: string; icon: typeof Search; color: string }
 > = {
   event: { label: "일정", icon: CalendarDays, color: "text-violet-600 bg-violet-500/10" },
-  task: { label: "업무", icon: CheckSquare, color: "text-emerald-600 bg-emerald-500/10" },
+  task: { label: "프로젝트", icon: CheckSquare, color: "text-emerald-600 bg-emerald-500/10" },
   member: { label: "멤버", icon: Users, color: "text-primary-600 bg-primary-400/10" },
 };
 
@@ -37,7 +37,7 @@ export function SearchPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="검색" subtitle="일정 · 업무 · 멤버" />
+      <PageHeader title="검색" subtitle="일정 · 프로젝트 · 멤버" />
 
       <form
         onSubmit={(e) => {

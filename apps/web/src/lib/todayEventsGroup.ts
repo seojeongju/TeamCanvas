@@ -11,7 +11,7 @@ export type TodayEventGroup = {
   items: CalendarEvent[];
 };
 
-/** API·클라이언트 양쪽에서 온 동일 업무 마감 중복 제거 */
+/** API·클라이언트 양쪽에서 온 동일 프로젝트 마감 중복 제거 */
 export function dedupeCalendarEvents(
   apiEvents: CalendarEvent[],
   clientTaskEvents: CalendarEvent[],
@@ -41,6 +41,6 @@ export function groupTodayEvents(events: CalendarEvent[]): TodayEventGroup[] {
 }
 
 export function eventListSubtitle(event: CalendarEvent): string {
-  if (event.sourceType === "task") return `업무 마감 · ${event.teamName}`;
+  if (event.sourceType === "task") return `프로젝트 마감 · ${event.teamName}`;
   return `${event.time} · ${event.teamName}`;
 }

@@ -88,7 +88,7 @@ export function TaskLabelsSection({ task }: { task: Task }) {
       )}
 
       {allLabels.length === 0 ? (
-        <p className="text-xs text-navy-500">라벨을 만들어 업무를 분류하세요.</p>
+        <p className="text-xs text-navy-500">라벨을 만들어 프로젝트를 분류하세요.</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {allLabels.map((label) => {

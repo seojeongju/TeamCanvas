@@ -85,7 +85,7 @@ export async function notifyTaskAssigned(
     userId: opts.assigneeId,
     organizationId: opts.organizationId,
     type: "task_assigned",
-    title: "업무가 배정되었습니다",
+    title: "프로젝트가 배정되었습니다",
     body: opts.taskTitle,
     link: `/tasks?task=${opts.taskId}`,
   });
@@ -111,7 +111,7 @@ export async function notifyTaskDueSoon(
     userId: opts.assigneeId,
     organizationId: opts.organizationId,
     type: "task_due_soon",
-    title: "업무 마감이 임박했습니다",
+    title: "프로젝트 마감이 임박했습니다",
     body: `${opts.taskTitle} · ${dueLabel}`,
     link: `/tasks?task=${opts.taskId}`,
   });
@@ -134,7 +134,7 @@ export async function notifyTaskComment(
     userId: opts.recipientId,
     organizationId: opts.organizationId,
     type: "task_comment",
-    title: "업무에 댓글이 달렸습니다",
+    title: "프로젝트에 댓글이 달렸습니다",
     body: `${opts.taskTitle}: ${opts.preview}`,
     link: `/tasks?task=${opts.taskId}`,
   });

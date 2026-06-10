@@ -64,10 +64,10 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="업무 추가">
+    <Modal open={open} onClose={onClose} title="프로젝트 추가">
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="업무 제목"
+          label="프로젝트 제목"
           placeholder="할 일을 입력하세요"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -80,7 +80,7 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
-            placeholder="업무 설명"
+            placeholder="프로젝트 설명"
             className={cn(selectClass, "min-h-[72px] resize-none py-3")}
           />
         </div>
@@ -134,7 +134,7 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
         )}
 
         <Button type="submit" fullWidth disabled={createTask.isPending}>
-          {createTask.isPending ? "저장 중..." : "업무 저장"}
+          {createTask.isPending ? "저장 중..." : "프로젝트 저장"}
         </Button>
       </form>
     </Modal>

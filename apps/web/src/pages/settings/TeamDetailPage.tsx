@@ -155,7 +155,7 @@ export function TeamDetailPage() {
             <p className="mt-1 text-2xl font-bold text-navy-900">{summaryData.eventsThisWeek}</p>
           </GlassCard>
           <GlassCard className="p-4">
-            <p className="text-xs text-navy-600">진행 업무</p>
+            <p className="text-xs text-navy-600">진행 프로젝트</p>
             <p className="mt-1 text-2xl font-bold text-navy-900">{summaryData.tasks.doing}</p>
           </GlassCard>
         </div>
