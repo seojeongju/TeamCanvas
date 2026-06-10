@@ -487,6 +487,26 @@ export const api = {
   revokeIcalFeed: (orgId: string) =>
     request<{ ok: boolean }>(`/api/organizations/${orgId}/ical-feed`, { method: "DELETE" }),
 
+  getEventShareStatus: (eventId: string) =>
+    request<{
+      active: boolean;
+      createdAt: number | null;
+      lastUsedAt: number | null;
+      expiresAt: number | null;
+    }>(`/api/events/${eventId}/share`),
+
+  createEventShare: (eventId: string, expiresInDays?: number) =>
+    request<{ url: string; expiresAt: number | null; createdAt: number }>(
+      `/api/events/${eventId}/share`,
+      { method: "POST", body: JSON.stringify({ expiresInDays }) },
+    ),
+
+  revokeEventShare: (eventId: string) =>
+    request<{ ok: boolean }>(`/api/events/${eventId}/share`, { method: "DELETE" }),
+
+  getSharedEvent: (token: string) =>
+    request<{ event: import("./types").SharedEventView }>(`/api/share/event/${token}`),
+
   getEvent: (eventId: string) =>
     request<{ event: import("./types").CalendarEvent }>(`/api/events/${eventId}`),
 

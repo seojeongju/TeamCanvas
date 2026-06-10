@@ -120,8 +120,8 @@ export function GoogleCalendarPanel() {
           <p className="mt-0.5 text-xs text-navy-600">
             {expanded
               ? connected
-                ? "내 Google 일정만 표시됩니다 (읽기 전용, 팀원 비공개)"
-                : "primary 캘린더 일정을 가져옵니다. 팀원에게는 노출되지 않습니다"
+                ? "Google → TeamCanvas 가져오기 · TeamCanvas 일정은 Google에 자동보내기"
+                : "primary 캘린더 일정을 가져오고, 내가 만든 일정은 Google에도 등록됩니다"
               : collapsedSummary}
           </p>
           {!expanded && connected && status?.updatedAt && (

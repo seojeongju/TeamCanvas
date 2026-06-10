@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckSquare, Copy, ExternalLink, Lock, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import {
+  CheckSquare,
+  Copy,
+  ExternalLink,
+  Link2,
+  Lock,
+  MapPin,
+  MessageSquare,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
+import { EventShareModal } from "./EventShareModal";
 import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { ToastMessage } from "../ui/ToastMessage";
@@ -77,6 +89,7 @@ export function EventDetailSheet({
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
   const [excludedDates, setExcludedDates] = useState<string[]>([]);
   const [excludedDirty, setExcludedDirty] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const displayEvent = isGoogle ? event : (freshEventData?.event ?? event);
 
@@ -392,8 +405,20 @@ export function EventDetailSheet({
               {createTask.isPending ? "변환 중..." : "프로젝트로 변환"}
             </Button>
 
+            {displayEvent.visibility !== "private" && canWrite && teamEventId && (
+              <Button
+                variant="secondary"
+                fullWidth
+                className="mb-3"
+                onClick={() => setShowShare(true)}
+              >
+                <Link2 className="h-4 w-4" />
+                공유 링크
+              </Button>
+            )}
+
             <div className="flex gap-2">
-              {canCopy && (
+              {canCopy && onCopy && (
                 <Button variant="secondary" fullWidth onClick={() => onCopy(displayEvent)}>
                   <Copy className="h-4 w-4" />
                   복사
@@ -418,6 +443,14 @@ export function EventDetailSheet({
           </>
         )}
       </div>
+
+      {showShare && teamEventId && displayEvent && (
+        <EventShareModal
+          eventId={teamEventId}
+          eventTitle={displayEvent.title}
+          onClose={() => setShowShare(false)}
+        />
+      )}
 
       {toast && (
         <ToastMessage message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />

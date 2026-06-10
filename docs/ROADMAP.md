@@ -2,7 +2,7 @@
 
 > **버전:** 2.0  
 > **최종 갱신:** 2026-06-10  
-> **최신 커밋:** `65a09f9` — Sprint A (반복 일정·Cron·활동 피드)  
+> **최신 커밋:** Sprint B 구현 후 갱신 예정  
 > **프로덕션:** https://teamcanvas.pages.dev  
 > **관련 문서:** [PRD](./PRD.md) · [개발 계획서](./DEVELOPMENT_PLAN.md) · [배포](./DEPLOY.md)
 
@@ -73,8 +73,8 @@
 
 | # | 기능 | 우선순위 | 예상 | 상태 |
 |---|------|----------|------|------|
-| 2.1 | 일정 공유 링크 (읽기 전용) | P1 | 1주 | ⬜ |
-| 2.2 | Google Calendar 양방향 (쓰기) | P2 | 2주 | ⬜ |
+| 2.1 | 일정 공유 링크 (읽기 전용) | P1 | 1주 | ✅ |
+| 2.2 | Google Calendar 양방향 (쓰기) | P2 | 2주 | ✅ |
 | 2.3 | 슬랙 / 카카오워크 웹훅 | P2 | 1.5주 | ⬜ |
 | 2.4 | 멀티 조직 지원 (정책 결정 후) | P2 | 2주 | ⬜ |
 
@@ -91,8 +91,8 @@
 
 | # | 기능 | 우선순위 | 예상 | 상태 |
 |---|------|----------|------|------|
-| 4.1 | 공개 마케팅 랜딩 | P1 | 1주 | ⬜ |
-| 4.2 | Vitest 단위 테스트 (날짜·RRULE) | P1 | 1주 | ⬜ |
+| 4.1 | 공개 마케팅 랜딩 | P1 | 1주 | ✅ |
+| 4.2 | Vitest 단위 테스트 (날짜·RRULE) | P1 | 1주 | ✅ (recurrence) |
 | 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ⬜ |
 | 4.4 | IndexedDB 오프라인 + Background Sync | P2 | 2주 | ⬜ |
 | 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | ⬜ |
@@ -229,12 +229,23 @@ apps/web/src/components/dashboard/  ← 신규
 
 ---
 
-## 5. Sprint B 이후 (참고 순서)
+## 5. Sprint B — 협업 확장 ✅ (2026-06-10)
 
-1. 일정 공유 링크 — `event_share_tokens` 테이블 + 공개 API
-2. Google Calendar 쓰기 — `googleCalendar.ts` 확장
-3. 공개 랜딩 — `LandingPage.tsx`, `/` 라우팅 분기
-4. Vitest — `dates.ts`, `recurrence.ts`, `eventExcludedDates.ts`
+| # | 기능 | 상태 |
+|---|------|------|
+| B-1 | 일정 공유 링크 (읽기 전용) | ✅ |
+| B-2 | Google Calendar 쓰기 동기화 | ✅ |
+| B-3 | 공개 랜딩 (`/` 비로그인) | ✅ |
+| B-4 | Vitest — `recurrence.test.ts` | ✅ |
+
+**마이그레이션:** `0016_event_share_google_export.sql` — 배포 전 `npm run db:migrate:remote` 필요
+
+## 6. Sprint C 이후 (참고 순서)
+
+1. 슬랙 / 카카오워크 웹훅
+2. 멀티 조직 지원
+3. 대시보드 리포트
+4. Vitest 확장 — `dates.ts`, `eventExcludedDates.ts`
 
 ---
 
@@ -282,10 +293,10 @@ TeamCanvas 고도화 Sprint A를 이어서 진행해줘.
 참고 문서: docs/ROADMAP.md (섹션 4 — Sprint A)
 최신 커밋: 65a09f9
 
-다음: Sprint B — docs/ROADMAP.md §5 참고
-1. 일정 공유 링크
-2. Google Calendar 양방향
-3. 공개 랜딩 + Vitest
+다음: Sprint C — docs/ROADMAP.md §6 참고
+1. 슬랙/카카오워크 웹훅
+2. 대시보드 리포트
+3. Vitest 확장
 
 각 Task 완료 기준은 ROADMAP.md Acceptance Criteria를 따르고,
 완료 후 npm run build 검증하고 커밋·푸시·배포까지 해줘.

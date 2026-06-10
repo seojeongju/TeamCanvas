@@ -476,6 +476,35 @@ export function useRevokeIcalFeed() {
   });
 }
 
+export function useEventShareStatus(eventId: string | undefined) {
+  return useQuery({
+    queryKey: ["event-share", eventId],
+    queryFn: () => api.getEventShareStatus(eventId!),
+    enabled: !!eventId,
+  });
+}
+
+export function useCreateEventShare() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, expiresInDays }: { eventId: string; expiresInDays?: number }) =>
+      api.createEventShare(eventId, expiresInDays),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["event-share", vars.eventId] });
+    },
+  });
+}
+
+export function useRevokeEventShare() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: string) => api.revokeEventShare(eventId),
+    onSuccess: (_data, eventId) => {
+      qc.invalidateQueries({ queryKey: ["event-share", eventId] });
+    },
+  });
+}
+
 export function useEventComments(eventId: string | undefined) {
   return useQuery({
     queryKey: ["event-comments", eventId],

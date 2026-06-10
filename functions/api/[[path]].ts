@@ -449,10 +449,15 @@ app.post("/organizations/:orgId/events", async (c) => {
     });
   }
 
+  try {
+    const { pushEventToGoogleCalendar } = await import("../utils/googleCalendar");
+    await pushEventToGoogleCalendar(c.env.DB, c.env, user.id, orgId, id);
+  } catch (e) {
+    console.error("google calendar export failed on create", id, e);
+  }
+
   return c.json({ id }, 201);
 });
-
-app.get("/organizations/:orgId/free-busy", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
   const orgId = c.req.param("orgId");
@@ -992,6 +997,13 @@ app.patch("/events/:eventId", async (c) => {
     });
   }
 
+  try {
+    const { pushEventToGoogleCalendar } = await import("../utils/googleCalendar");
+    await pushEventToGoogleCalendar(c.env.DB, c.env, event.creator_id, orgId, eventId);
+  } catch (e) {
+    console.error("google calendar export failed on update", eventId, e);
+  }
+
   return c.json({ ok: true });
 });
 
@@ -1019,6 +1031,19 @@ app.delete("/events/:eventId", async (c) => {
   }
 
   try {
+    try {
+      const { removeEventFromGoogleCalendar } = await import("../utils/googleCalendar");
+      await removeEventFromGoogleCalendar(
+        c.env.DB,
+        c.env,
+        event.creator_id,
+        event.organization_id,
+        eventId,
+      );
+    } catch (e) {
+      console.error("google calendar delete failed", eventId, e);
+    }
+
     const { results: fileRows } = await c.env.DB.prepare(
       "SELECT id, r2_key FROM files WHERE entity_type = 'event' AND entity_id = ?",
     )
@@ -1547,6 +1572,111 @@ app.get("/organizations/:orgId/search", async (c) => {
   const { searchOrganization } = await import("../utils/search");
   const results = await searchOrganization(c.env.DB, orgId, q, limit);
   return c.json({ results });
+});
+
+// ── Event share links (read-only public) ──
+
+app.get("/events/:eventId/share", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare(
+    "SELECT organization_id, creator_id, visibility FROM events WHERE id = ?",
+  )
+    .bind(eventId)
+    .first<{ organization_id: string; creator_id: string; visibility: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+  if (event.visibility === "private" && event.creator_id !== user.id) {
+    return c.json({ error: "비공개 일정은 공유할 수 없습니다." }, 403);
+  }
+
+  const access = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (access instanceof Response) return access;
+
+  const row = await c.env.DB.prepare(
+    "SELECT created_at, last_used_at, expires_at FROM event_share_tokens WHERE event_id = ?",
+  )
+    .bind(eventId)
+    .first<{ created_at: number; last_used_at: number | null; expires_at: number | null }>();
+
+  return c.json({
+    active: !!row,
+    createdAt: row?.created_at ?? null,
+    lastUsedAt: row?.last_used_at ?? null,
+    expiresAt: row?.expires_at ?? null,
+  });
+});
+
+app.post("/events/:eventId/share", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare(
+    "SELECT organization_id, creator_id, visibility FROM events WHERE id = ?",
+  )
+    .bind(eventId)
+    .first<{ organization_id: string; creator_id: string; visibility: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+  if (event.visibility === "private") {
+    return c.json({ error: "비공개 일정은 공유 링크를 만들 수 없습니다." }, 400);
+  }
+
+  const canWrite = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
+  if (canWrite instanceof Response && event.creator_id !== user.id) return canWrite;
+
+  const body = await c.req.json<{ expiresInDays?: number }>().catch(() => ({}));
+  const expiresAt =
+    body.expiresInDays && body.expiresInDays > 0
+      ? now() + body.expiresInDays * 24 * 60 * 60 * 1000
+      : null;
+
+  const { createEventShareToken } = await import("../utils/eventShare");
+  const token = await createEventShareToken(c.env.DB, {
+    eventId,
+    organizationId: event.organization_id,
+    createdBy: user.id,
+    expiresAt,
+  });
+
+  const base = appUrl(c.req.raw, c.env);
+  const shareUrl = `${base}/share/${token}`;
+
+  return c.json({ url: shareUrl, expiresAt, createdAt: now() }, 201);
+});
+
+app.delete("/events/:eventId/share", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const eventId = c.req.param("eventId");
+
+  const event = await c.env.DB.prepare("SELECT organization_id, creator_id FROM events WHERE id = ?")
+    .bind(eventId)
+    .first<{ organization_id: string; creator_id: string }>();
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const canWrite = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
+  if (canWrite instanceof Response && event.creator_id !== user.id) return canWrite;
+
+  await c.env.DB.prepare("DELETE FROM event_share_tokens WHERE event_id = ?").bind(eventId).run();
+  return c.json({ ok: true });
+});
+
+app.get("/share/event/:token", async (c) => {
+  const token = c.req.param("token");
+  const { resolveEventShareToken, fetchSharedEvent, touchEventShareToken } = await import(
+    "../utils/eventShare"
+  );
+
+  const resolved = await resolveEventShareToken(c.env.DB, token);
+  if (!resolved) return c.json({ error: "공유 링크가 유효하지 않거나 만료되었습니다." }, 404);
+
+  const event = await fetchSharedEvent(c.env.DB, resolved.eventId, resolved.organizationId);
+  if (!event) return c.json({ error: "일정을 찾을 수 없습니다." }, 404);
+
+  await touchEventShareToken(c.env.DB, resolved.tokenHash);
+  return c.json({ event });
 });
 
 // ── iCal export & subscription feed ──

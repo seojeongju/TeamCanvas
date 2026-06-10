@@ -118,6 +118,18 @@ export type TeamDetail = {
   canManage: boolean;
 };
 
+export type SharedEventView = {
+  title: string;
+  description: string | null;
+  location: string | null;
+  startAt: number;
+  endAt: number;
+  allDay: boolean;
+  time: string;
+  organizationName: string;
+  teamName: string | null;
+};
+
 export type OrgActivityItem = {
   id: string;
   kind: "audit" | "task";

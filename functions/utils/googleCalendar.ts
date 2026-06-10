@@ -1,7 +1,8 @@
 import type { Env } from "../types";
 import { newId, now } from "./helpers";
 
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+/** 읽기·쓰기 동기화 (재연결 시 동의 필요) */
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
 export function googleCalendarRedirectUri(baseUrl: string): string {
   return `${baseUrl.replace(/\/$/, "")}/api/integrations/google-calendar/callback`;
@@ -277,4 +278,181 @@ export async function fetchGoogleCalendarEventsForRange(
       sourceType: "google" as const,
     };
   });
+}
+
+type TeamCanvasEventRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  start_at: number;
+  end_at: number;
+  all_day: number;
+  recurrence_rule: string | null;
+};
+
+function toGoogleEventBody(event: TeamCanvasEventRow): Record<string, unknown> {
+  const allDay = Boolean(event.all_day);
+  const body: Record<string, unknown> = {
+    summary: event.title,
+    description: event.description ?? undefined,
+    location: event.location ?? undefined,
+  };
+
+  if (allDay) {
+    const startKey = toDateLocal(event.start_at);
+    const endDate = new Date(event.end_at);
+    endDate.setDate(endDate.getDate() + 1);
+    body.start = { date: startKey };
+    body.end = { date: toDateLocal(endDate.getTime()) };
+  } else {
+    body.start = { dateTime: new Date(event.start_at).toISOString(), timeZone: "Asia/Seoul" };
+    body.end = { dateTime: new Date(event.end_at).toISOString(), timeZone: "Asia/Seoul" };
+  }
+
+  if (event.recurrence_rule) {
+    body.recurrence = [`RRULE:${event.recurrence_rule}`];
+  }
+
+  return body;
+}
+
+function toDateLocal(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+async function getGoogleCalendarId(
+  db: D1Database,
+  userId: string,
+  orgId: string,
+): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT calendar_id FROM google_calendar_tokens WHERE user_id = ? AND organization_id = ?")
+    .bind(userId, orgId)
+    .first<{ calendar_id: string }>();
+  return row?.calendar_id ?? null;
+}
+
+/** TeamCanvas 일정을 Google Calendar에보내기 (생성·수정) */
+export async function pushEventToGoogleCalendar(
+  db: D1Database,
+  env: Env,
+  userId: string,
+  orgId: string,
+  eventId: string,
+): Promise<void> {
+  const token = await getValidGoogleAccessToken(db, env, userId, orgId);
+  if (!token) return;
+
+  const event = await db
+    .prepare(
+      `SELECT id, title, description, location, start_at, end_at, all_day, recurrence_rule
+       FROM events WHERE id = ? AND organization_id = ?`,
+    )
+    .bind(eventId, orgId)
+    .first<TeamCanvasEventRow>();
+
+  if (!event) return;
+
+  const calendarId = encodeURIComponent((await getGoogleCalendarId(db, userId, orgId)) ?? "primary");
+  const body = toGoogleEventBody(event);
+
+  const existing = await db
+    .prepare(
+      "SELECT google_event_id FROM event_google_sync WHERE event_id = ? AND user_id = ?",
+    )
+    .bind(eventId, userId)
+    .first<{ google_event_id: string }>();
+
+  const ts = now();
+
+  if (existing?.google_event_id) {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(existing.google_event_id)}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) {
+      const detail = await readGoogleApiError(res);
+      throw new Error(`Google 일정 수정 실패: ${detail}`);
+    }
+    await db
+      .prepare("UPDATE event_google_sync SET updated_at = ? WHERE event_id = ? AND user_id = ?")
+      .bind(ts, eventId, userId)
+      .run();
+    return;
+  }
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!res.ok) {
+    const detail = await readGoogleApiError(res);
+    throw new Error(`Google 일정 생성 실패: ${detail}`);
+  }
+
+  const created = (await res.json()) as { id?: string };
+  if (!created.id) return;
+
+  await db
+    .prepare(
+      `INSERT INTO event_google_sync (event_id, user_id, organization_id, google_event_id, calendar_id, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(event_id, user_id) DO UPDATE SET
+         google_event_id = excluded.google_event_id,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(eventId, userId, orgId, created.id, decodeURIComponent(calendarId), ts)
+    .run();
+}
+
+/** TeamCanvas 일정 삭제 시 Google Calendar에서도 제거 */
+export async function removeEventFromGoogleCalendar(
+  db: D1Database,
+  env: Env,
+  userId: string,
+  orgId: string,
+  eventId: string,
+): Promise<void> {
+  const token = await getValidGoogleAccessToken(db, env, userId, orgId);
+  if (!token) return;
+
+  const sync = await db
+    .prepare(
+      "SELECT google_event_id, calendar_id FROM event_google_sync WHERE event_id = ? AND user_id = ?",
+    )
+    .bind(eventId, userId)
+    .first<{ google_event_id: string; calendar_id: string }>();
+
+  if (!sync) return;
+
+  const calendarId = encodeURIComponent(sync.calendar_id || "primary");
+  await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(sync.google_event_id)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  ).catch(() => undefined);
+
+  await db
+    .prepare("DELETE FROM event_google_sync WHERE event_id = ? AND user_id = ?")
+    .bind(eventId, userId)
+    .run();
 }

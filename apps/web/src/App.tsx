@@ -30,8 +30,31 @@ import { AdminOrgDetailPage } from "./pages/admin/AdminOrgDetailPage";
 import { AdminPlansPage } from "./pages/admin/AdminPlansPage";
 import { AppSettingsPage } from "./pages/settings/AppSettingsPage";
 import { PwaInstallBanner } from "./components/layout/PwaInstallBanner";
+import { LandingPage } from "./pages/LandingPage";
+import { SharedEventPage } from "./pages/SharedEventPage";
+import { useAuthInit } from "./hooks/useAuth";
+import { useAuthStore } from "./stores/authStore";
 
-function ProtectedLayout() {
+function LoadingScreen() {
+  return (
+    <div className="bg-mesh flex min-h-dvh items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-400 border-t-transparent" />
+        <p className="text-sm text-navy-600">로딩 중...</p>
+      </div>
+    </div>
+  );
+}
+
+/** 비로그인 → 랜딩, 로그인 → 앱 셸 */
+function AppRoot() {
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { isFetching } = useAuthInit();
+
+  if (isLoading || isFetching) return <LoadingScreen />;
+  if (!isAuthenticated) return <LandingPage />;
+
   return (
     <AuthGuard>
       <AppShell />
@@ -64,6 +87,7 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/invite/:token" element={<AcceptInvitePage />} />
+        <Route path="/share/:token" element={<SharedEventPage />} />
         <Route
           path="/onboarding"
           element={
@@ -72,7 +96,7 @@ export default function App() {
             </AuthOnly>
           }
         />
-        <Route element={<ProtectedLayout />}>
+        <Route element={<AppRoot />}>
           <Route index element={<DashboardPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="tasks" element={<TasksPage />} />
