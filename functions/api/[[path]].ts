@@ -287,6 +287,7 @@ app.get("/organizations/:orgId/events", async (c) => {
     events.sort((a, b) => (a.startAt as number) - (b.startAt as number));
   }
 
+  // Google 개인 일정: 요청한 사용자 본인만 조회·병합 (팀원 API 응답에 포함되지 않음)
   const googleConn = await c.env.DB.prepare(
     "SELECT 1 FROM google_calendar_tokens WHERE user_id = ? AND organization_id = ?",
   )
@@ -294,14 +295,14 @@ app.get("/organizations/:orgId/events", async (c) => {
     .first();
   if (googleConn) {
     const { fetchGoogleCalendarEventsForRange } = await import("../utils/googleCalendar");
-    const googleEvents = await fetchGoogleCalendarEventsForRange(
+    const personalGoogleEvents = await fetchGoogleCalendarEventsForRange(
       c.env.DB,
       user.id,
       orgId,
       from,
       to,
     );
-    events.push(...googleEvents);
+    events.push(...personalGoogleEvents);
     events.sort((a, b) => (a.startAt as number) - (b.startAt as number));
   }
 
@@ -1381,13 +1382,17 @@ app.delete("/tasks/:taskId", async (c) => {
   if (user instanceof Response) return user;
   const taskId = c.req.param("taskId");
 
-  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+  const task = await c.env.DB.prepare("SELECT organization_id, creator_id FROM tasks WHERE id = ?")
     .bind(taskId)
-    .first<{ organization_id: string }>();
+    .first<{ organization_id: string; creator_id: string }>();
   if (!task) return c.json({ error: "Not found" }, 404);
 
-  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:delete");
-  if (member instanceof Response) return member;
+  const canDeleteAny = await requireOrgPermission(c, user.id, task.organization_id, "tasks:delete");
+  if (canDeleteAny instanceof Response) {
+    if (task.creator_id !== user.id) return canDeleteAny;
+    const canWrite = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+    if (canWrite instanceof Response) return canWrite;
+  }
 
   await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(taskId).run();
 

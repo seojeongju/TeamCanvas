@@ -72,8 +72,8 @@ export function GoogleCalendarPanel() {
           <p className="text-sm font-semibold text-navy-900">Google 캘린더</p>
           <p className="mt-0.5 text-xs text-navy-600">
             {connected
-              ? "연동됨 · 내 Google 일정이 캘린더에 표시됩니다 (읽기 전용)"
-              : "Google 계정을 연결하면 primary 캘린더 일정을 가져올 수 있습니다"}
+              ? "연동됨 · 내 Google 일정만 표시됩니다 (읽기 전용, 팀원 비공개)"
+              : "Google 계정을 연결하면 primary 캘린더 일정을 가져옵니다. 팀원에게는 노출되지 않습니다"}
           </p>
           {status?.updatedAt && (
             <p className="mt-1 text-[10px] text-navy-500">

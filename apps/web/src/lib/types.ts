@@ -141,6 +141,8 @@ export type CalendarEvent = {
   teamName: string;
   time: string;
   sourceType?: "event" | "task" | "google";
+  /** Google 개인 일정 — API에서 본인 요청에만 포함 */
+  isPersonal?: boolean;
   taskId?: string;
 };
 

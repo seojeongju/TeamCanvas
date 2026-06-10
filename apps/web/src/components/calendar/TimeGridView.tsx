@@ -13,6 +13,7 @@ import {
   slotIndexToTimestamp,
   timestampToSlotIndex,
 } from "../../lib/calendarUtils";
+import { isPersonalGoogleEvent, personalGoogleEventClassName } from "../../lib/calendarEventSources";
 import type { CalendarEvent } from "../../lib/types";
 
 const SLOT_HEIGHT = 22;
@@ -142,10 +143,18 @@ export function TimeGridView({
                       className={cn(
                         "absolute inset-x-0.5 z-10 overflow-hidden rounded-md px-1 py-0.5 text-left text-[10px] font-medium text-white shadow-sm",
                         colorClass(event.color),
+                        isPersonalGoogleEvent(event) && personalGoogleEventClassName(),
                       )}
                       style={{ top: style.top, height: style.height, minHeight: SLOT_HEIGHT }}
+                      title={
+                        isPersonalGoogleEvent(event)
+                          ? `${event.title} (내 Google · 비공개)`
+                          : event.title
+                      }
                     >
-                      <span className="line-clamp-2">{event.title}</span>
+                      <span className="line-clamp-2">
+                        {isPersonalGoogleEvent(event) ? `개인 ${event.title}` : event.title}
+                      </span>
                     </button>
                   );
                 })}

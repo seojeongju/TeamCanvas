@@ -1,8 +1,16 @@
+import { isPersonalGoogleEvent } from "./calendarEventSources";
 import type { CalendarEvent } from "./types";
 
 /** 이모지 접두어 제거 후 그룹 키 */
 export function normalizeEventGroupTitle(title: string): string {
   return title.replace(/^📋\s*/, "").replace(/^📅\s*/, "").trim();
+}
+
+/** 개인 Google 일정과 팀 일정은 절대 같은 그룹으로 묶지 않음 */
+function todayGroupKey(event: CalendarEvent): string {
+  const title = normalizeEventGroupTitle(event.title);
+  const bucket = isPersonalGoogleEvent(event) ? "personal" : "team";
+  return `${bucket}:${title}`;
 }
 
 export type TodayEventGroup = {
@@ -27,7 +35,7 @@ export function groupTodayEvents(events: CalendarEvent[]): TodayEventGroup[] {
   const map = new Map<string, CalendarEvent[]>();
 
   for (const event of events) {
-    const key = normalizeEventGroupTitle(event.title);
+    const key = todayGroupKey(event);
     const list = map.get(key) ?? [];
     list.push(event);
     map.set(key, list);
@@ -41,6 +49,7 @@ export function groupTodayEvents(events: CalendarEvent[]): TodayEventGroup[] {
 }
 
 export function eventListSubtitle(event: CalendarEvent): string {
+  if (isPersonalGoogleEvent(event)) return "내 Google 일정 · 팀원에게 비공개";
   if (event.sourceType === "task") return `프로젝트 마감 · ${event.teamName}`;
   return `${event.time} · ${event.teamName}`;
 }

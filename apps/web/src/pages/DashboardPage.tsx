@@ -1,19 +1,26 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronRight, Plus, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
+import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { useAuthStore } from "../stores/authStore";
-import { useOrgDetail, useTodayEvents, useTasks } from "../hooks/useData";
+import { useOrgDetail, useEvents, useTasks } from "../hooks/useData";
 import { useLogout } from "../hooks/useAuth";
-import { colorClass } from "../lib/dates";
+import { eventsForDay } from "../lib/calendarUtils";
+import { endOfDay, startOfDay } from "../lib/dates";
+import { tasksToCalendarEvents } from "../lib/taskUtils";
+import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
+import type { CalendarEvent } from "../lib/types";
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const { data: orgData } = useOrgDetail();
-  const { data: eventsData } = useTodayEvents();
+  const from = startOfDay(Date.now());
+  const to = endOfDay(Date.now());
+  const { data: eventsData } = useEvents(from, to);
   const { data: tasksData } = useTasks();
   const [showCreate, setShowCreate] = useState(false);
   const [createPrefillDate, setCreatePrefillDate] = useState<Date | null>(null);
@@ -22,15 +29,32 @@ export function DashboardPage() {
 
   const org = orgData?.organization;
   const stats = orgData?.stats;
-  const events = eventsData?.events ?? [];
   const tasks = tasksData?.tasks ?? [];
+  const todayEvents = useMemo(() => {
+    const calendarEvents = eventsData?.events ?? [];
+    const taskEvents = tasksToCalendarEvents(tasks, from, to);
+    const merged = dedupeCalendarEvents(calendarEvents, taskEvents);
+    return eventsForDay(merged, new Date(from)).sort((a, b) => a.startAt - b.startAt);
+  }, [eventsData?.events, tasks, from, to]);
   const doingTasks = tasks.filter((t) => t.status === "doing").length;
   const doneTasks = tasks.filter((t) => t.status === "done").length;
   const now = Date.now();
   const nextEvent =
-    [...events]
+    [...todayEvents]
       .sort((a, b) => a.startAt - b.startAt)
       .find((e) => e.endAt > now) ?? null;
+
+  const handleEventClick = (event: CalendarEvent) => {
+    if (event.sourceType === "google") {
+      navigate("/calendar");
+      return;
+    }
+    if (event.sourceType === "task" && event.taskId) {
+      navigate(`/tasks?task=${event.taskId}`);
+      return;
+    }
+    navigate(`/calendar?event=${event.id}`);
+  };
 
   const firstName = user?.name?.replace(/^\S+\s/, "").split(" ")[0] ?? user?.name ?? "팀원";
 
@@ -56,7 +80,7 @@ export function DashboardPage() {
       />
 
       <TeamFlowCard
-        eventsToday={events.length}
+        eventsToday={todayEvents.length}
         doingTasks={doingTasks}
         totalTasks={tasks.length}
         doneTasks={doneTasks}
@@ -76,7 +100,7 @@ export function DashboardPage() {
             전체 보기 <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
-        {events.length === 0 ? (
+        {todayEvents.length === 0 ? (
           <GlassCard className="p-6 text-center">
             <p className="text-sm text-navy-600">오늘 예정된 일정이 없습니다.</p>
             <button
@@ -91,19 +115,7 @@ export function DashboardPage() {
             </button>
           </GlassCard>
         ) : (
-          <div className="space-y-2">
-            {events.map((event) => (
-              <GlassCard key={event.id} className="flex items-center gap-3 p-4">
-                <div className={`h-10 w-1 rounded-full ${colorClass(event.color)}`} />
-                <div className="flex-1">
-                  <p className="font-medium text-navy-900">{event.title}</p>
-                  <p className="text-xs text-navy-600">
-                    {event.time} · {event.teamName}
-                  </p>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
+          <TodayEventsList events={todayEvents} onEventClick={handleEventClick} />
         )}
       </section>
 

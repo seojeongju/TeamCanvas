@@ -235,10 +235,11 @@ export async function fetchGoogleCalendarEventsForRange(
       endAt,
       allDay,
       visibility: "private",
+      isPersonal: true,
       recurrenceRule: null,
       teamId: null,
       color: "#EA4335",
-      teamName: "Google",
+      teamName: "내 Google 일정",
       time: allDay
         ? new Date(startAt).toLocaleDateString("ko-KR")
         : `${new Date(startAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} – ${new Date(endAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`,

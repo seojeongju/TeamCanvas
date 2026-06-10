@@ -1,6 +1,13 @@
+import { Lock } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
 import { AGENDA_DAYS, addDaysToDate, eventsForDay } from "../../lib/calendarUtils";
+import {
+  isPersonalGoogleEvent,
+  personalGoogleEventClassName,
+  splitCalendarEvents,
+} from "../../lib/calendarEventSources";
+import { eventListSubtitle } from "../../lib/todayEventsGroup";
 import { cn } from "../../lib/cn";
 import type { CalendarEvent } from "../../lib/types";
 
@@ -18,6 +25,77 @@ function formatAgendaDayLabel(d: Date): string {
     day: "numeric",
     weekday: "short",
   });
+}
+
+function AgendaEventRow({
+  event,
+  onClick,
+}: {
+  event: CalendarEvent;
+  onClick: () => void;
+}) {
+  const personal = isPersonalGoogleEvent(event);
+  return (
+    <button type="button" onClick={onClick} className="w-full text-left">
+      <GlassCard
+        className={cn(
+          "flex items-center gap-3 p-3 transition hover:bg-sky-50/50",
+          personal && "border border-red-200/80 bg-red-50/30",
+        )}
+      >
+        <div
+          className={cn(
+            "h-10 w-1 shrink-0 rounded-full",
+            colorClass(event.color),
+            personal && personalGoogleEventClassName(),
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-navy-900">{event.title}</p>
+          <p className="text-xs text-navy-600">{eventListSubtitle(event)}</p>
+          {event.recurrenceRule && (
+            <p className="mt-0.5 text-[10px] text-primary-600">
+              {formatRecurrenceRule(event.recurrenceRule)}
+            </p>
+          )}
+        </div>
+        {personal && <Lock className="h-4 w-4 shrink-0 text-red-500/80" aria-hidden />}
+      </GlassCard>
+    </button>
+  );
+}
+
+function AgendaDayEvents({
+  dayEvents,
+  onEventClick,
+}: {
+  dayEvents: CalendarEvent[];
+  onEventClick: (event: CalendarEvent) => void;
+}) {
+  const { teamEvents, personalGoogleEvents } = splitCalendarEvents(dayEvents);
+
+  return (
+    <div className="space-y-3">
+      {teamEvents.length > 0 && (
+        <div className="space-y-2">
+          {teamEvents.map((event) => (
+            <AgendaEventRow key={event.id} event={event} onClick={() => onEventClick(event)} />
+          ))}
+        </div>
+      )}
+      {personalGoogleEvents.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="flex items-center gap-1 px-1 text-[10px] font-medium text-red-700">
+            <Lock className="h-3 w-3" aria-hidden />
+            내 Google 일정 · 비공개
+          </p>
+          {personalGoogleEvents.map((event) => (
+            <AgendaEventRow key={event.id} event={event} onClick={() => onEventClick(event)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function AgendaView({
@@ -57,31 +135,7 @@ export function AgendaView({
             {dayEvents.length === 0 ? (
               <p className="rounded-xl bg-sky-50/50 px-3 py-2 text-xs text-navy-500">일정 없음</p>
             ) : (
-              <div className="space-y-2">
-                {dayEvents.map((event) => (
-                  <button
-                    key={event.id}
-                    type="button"
-                    onClick={() => onEventClick(event, day)}
-                    className="w-full text-left"
-                  >
-                    <GlassCard className="flex items-center gap-3 p-3 transition hover:bg-sky-50/50">
-                      <div className={cn("h-10 w-1 shrink-0 rounded-full", colorClass(event.color))} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-navy-900">{event.title}</p>
-                        <p className="text-xs text-navy-600">
-                          {event.time} · {event.teamName}
-                        </p>
-                        {event.recurrenceRule && (
-                          <p className="mt-0.5 text-[10px] text-primary-600">
-                            {formatRecurrenceRule(event.recurrenceRule)}
-                          </p>
-                        )}
-                      </div>
-                    </GlassCard>
-                  </button>
-                ))}
-              </div>
+              <AgendaDayEvents dayEvents={dayEvents} onEventClick={(event) => onEventClick(event, day)} />
             )}
           </section>
         );

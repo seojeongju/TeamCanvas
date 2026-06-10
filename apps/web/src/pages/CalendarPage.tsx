@@ -13,7 +13,8 @@ import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { EventDetailSheet } from "../components/modals/EventDetailSheet";
 import { IcalFeedModal } from "../components/modals/IcalFeedModal";
 import { GoogleCalendarPanel } from "../components/calendar/GoogleCalendarPanel";
-import { TodayEventsList } from "../components/calendar/TodayEventsList";
+import { CalendarSourceLegend, TodayEventsList } from "../components/calendar/TodayEventsList";
+import { splitCalendarEvents } from "../lib/calendarEventSources";
 import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
@@ -88,6 +89,10 @@ export function CalendarPage() {
   }, [viewMode, focusDate]);
 
   const todayEvents = eventsForDay(events, today).sort((a, b) => a.startAt - b.startAt);
+  const hasPersonalGoogle = useMemo(
+    () => splitCalendarEvents(events).personalGoogleEvents.length > 0,
+    [events],
+  );
 
   const navigate = (delta: number) => {
     setFocusDate((d) => {
@@ -131,7 +136,7 @@ export function CalendarPage() {
 
   const handleEventClick = (event: CalendarEvent, day?: Date) => {
     if (event.sourceType === "google") {
-      setGoogleToast("Google 캘린더 일정은 읽기 전용입니다.");
+      setGoogleToast("내 Google 일정입니다. 읽기 전용이며 팀원에게 노출되지 않습니다.");
       return;
     }
     if (event.sourceType === "task" && event.taskId) {
@@ -249,6 +254,8 @@ export function CalendarPage() {
       <CalendarViewSwitcher value={viewMode} onChange={setViewMode} />
 
       <GoogleCalendarPanel />
+
+      <CalendarSourceLegend hasPersonalGoogle={hasPersonalGoogle} />
 
       {googleToast && (
         <GlassCard className="border border-primary-200 bg-primary-50/80 p-3 text-sm text-primary-800">

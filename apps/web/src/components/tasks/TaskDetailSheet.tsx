@@ -11,6 +11,7 @@ import {
 } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { useOrgMembers } from "../../hooks/useAdmin";
+import { useAuthStore } from "../../stores/authStore";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { TaskChecklistSection } from "./TaskChecklistSection";
@@ -28,7 +29,11 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createComment = useCreateTaskComment();
-  const canDelete = useHasPermission("tasks:delete");
+  const user = useAuthStore((s) => s.user);
+  const canDeleteAny = useHasPermission("tasks:delete");
+  const canWrite = useHasPermission("tasks:write");
+  const canDelete =
+    canDeleteAny || (canWrite && !!task?.creatorId && task.creatorId === user?.id);
   const { data: membersData } = useOrgMembers();
   const { data: teamsData } = useTeams();
   const { data: commentsData } = useTaskComments(task?.id);
@@ -75,7 +80,8 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
       <button className="absolute inset-0 bg-navy-900/30 backdrop-blur-sm" onClick={onClose} aria-label="닫기" />
-      <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-y-auto overscroll-contain rounded-t-3xl p-6 shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
+      <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-4">
         <div className="mb-4 flex items-start justify-between gap-3">
           <h2 className="text-lg font-bold text-navy-900">프로젝트 상세</h2>
           <button
@@ -246,9 +252,10 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
             </Button>
           </form>
         </div>
+        </div>
 
         {canDelete && (
-          <div className="mt-4 flex gap-2">
+          <div className="shrink-0 border-t border-sky-100/80 bg-white/95 px-6 py-4 backdrop-blur-sm">
             <Button
               variant="ghost"
               className="w-full text-red-600 hover:bg-red-50"
@@ -256,7 +263,7 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
               disabled={deleteTask.isPending}
             >
               <Trash2 className="h-4 w-4" />
-              삭제
+              {deleteTask.isPending ? "삭제 중..." : "프로젝트 삭제"}
             </Button>
           </div>
         )}

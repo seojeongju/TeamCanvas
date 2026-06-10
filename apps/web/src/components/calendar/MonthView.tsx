@@ -7,6 +7,7 @@ import {
   singleDayChipEvents,
   type MonthBarSegment,
 } from "../../lib/calendarUtils";
+import { isPersonalGoogleEvent, personalGoogleEventClassName } from "../../lib/calendarEventSources";
 import { holidaysForDay } from "../../lib/holidays";
 import type { CalendarEvent, OrgHoliday } from "../../lib/types";
 
@@ -137,13 +138,20 @@ export function MonthView({
                         !seg.roundLeft && "rounded-l-none",
                         !seg.roundRight && "rounded-r-none",
                         seg.event.sourceType === "task" && "ring-1 ring-white/30",
+                        isPersonalGoogleEvent(seg.event) && personalGoogleEventClassName(),
                       )}
-                      title={seg.event.title}
+                      title={
+                        isPersonalGoogleEvent(seg.event)
+                          ? `${seg.event.title} (내 Google · 비공개)`
+                          : seg.event.title
+                      }
                     >
                       {seg.showTitle
                         ? seg.event.sourceType === "task"
                           ? `마감 ${seg.event.title}`
-                          : seg.event.title
+                          : isPersonalGoogleEvent(seg.event)
+                            ? `개인 ${seg.event.title}`
+                            : seg.event.title
                         : "\u00a0"}
                     </button>
                   ))}
@@ -183,9 +191,13 @@ export function MonthView({
                             isToday
                               ? "bg-primary-400/15 text-primary-700"
                               : `${colorClass(e.color)} text-white`,
+                            isPersonalGoogleEvent(e) && personalGoogleEventClassName(),
                           )}
+                          title={
+                            isPersonalGoogleEvent(e) ? `${e.title} (내 Google · 비공개)` : e.title
+                          }
                         >
-                          {e.title}
+                          {isPersonalGoogleEvent(e) ? `개인 ${e.title}` : e.title}
                         </span>
                       ))}
                       {dayChips.length > 2 && (
