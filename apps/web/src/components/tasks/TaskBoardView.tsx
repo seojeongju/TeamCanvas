@@ -16,6 +16,7 @@ import { SortableTaskCard } from "./SortableTaskCard";
 import { TaskCard } from "./TaskCard";
 import { TaskEmptyState } from "./TaskEmptyState";
 import { TaskPaginatedColumn } from "./TaskPaginatedColumn";
+import { TaskStatusTabs, taskCountsByStatus } from "./TaskStatusTabs";
 import { TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { Task, TaskStatus } from "../../lib/types";
@@ -55,6 +56,8 @@ export function TaskBoardView({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
+
+  const counts = useMemo(() => taskCountsByStatus(tasks), [tasks]);
 
   const tasksByColumn = useMemo(
     () =>
@@ -108,34 +111,12 @@ export function TaskBoardView({
 
   return (
     <>
-      <div className="flex gap-1.5 rounded-2xl bg-sky-100/50 p-1 md:hidden">
-        {TASK_COLUMNS.map((col) => {
-          const count = tasksByColumn[col.id].length;
-          const active = activeColumn === col.id;
-          return (
-            <button
-              key={col.id}
-              type="button"
-              onClick={() => setActiveColumn(col.id)}
-              className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-xs font-semibold transition",
-                active ? "bg-white text-navy-900 shadow-sm" : "text-navy-600",
-              )}
-            >
-              <span className={cn("h-0.5 w-6 rounded-full", active ? col.color.replace("border-", "bg-") : "bg-transparent")} />
-              <span>{col.label}</span>
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-px text-[10px] font-medium tabular-nums",
-                  active ? "bg-sky-100 text-navy-700" : "text-navy-500",
-                )}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <TaskStatusTabs
+        className="md:hidden"
+        active={activeColumn}
+        onChange={setActiveColumn}
+        counts={counts}
+      />
 
       <div className="md:hidden">
         <TaskColumn

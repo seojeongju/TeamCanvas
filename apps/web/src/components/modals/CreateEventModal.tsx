@@ -23,7 +23,6 @@ import type { CalendarEvent, EventSuggestion } from "../../lib/types";
 import {
   addDays,
   formatDateChipLabel,
-  formatDurationMinutes,
   fromDatetimeLocal,
   getSmartDefaultRange,
   isSameCalendarDay,
@@ -40,6 +39,7 @@ import {
 import { findLabelIdByColor, LabelPillPicker } from "../ui/LabelPillPicker";
 import { useAuthStore } from "../../stores/authStore";
 import { cn } from "../../lib/cn";
+import { EventDateTimePicker } from "../calendar/EventDateTimePicker";
 import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
 import { parseExcludedDates, pruneExcludedDates } from "../../lib/eventExcludedDates";
 
@@ -436,10 +436,6 @@ export function CreateEventModal({
       : [];
 
   const isPending = createEvent.isPending || updateEvent.isPending;
-  const durationLabel =
-    !allDay && start && end && !timeError
-      ? formatDurationMinutes(fromDatetimeLocal(start), fromDatetimeLocal(end))
-      : null;
 
   const labelBlockReason =
     labels.length > 0 && !selectedLabelId ? "라벨을 선택해 주세요." : null;
@@ -560,25 +556,13 @@ export function CreateEventModal({
               />
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="시작"
-                  type="datetime-local"
-                  value={start}
-                  onChange={(e) => handleStartChange(e.target.value)}
-                />
-                <Input
-                  label="종료"
-                  type="datetime-local"
-                  value={end}
-                  onChange={(e) => handleEndChange(e.target.value)}
-                />
-              </div>
-              {durationLabel && (
-                <p className="text-xs text-primary-600">소요 시간: {durationLabel}</p>
-              )}
-            </div>
+            <EventDateTimePicker
+              start={start}
+              end={end}
+              onStartChange={handleStartChange}
+              onEndChange={handleEndChange}
+              onValidationChange={setTimeError}
+            />
           )}
 
           {timeError && (

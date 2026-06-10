@@ -98,6 +98,62 @@ export function formatDurationMinutes(start: number, end: number): string {
   return m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
 }
 
+const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+export function formatEventDateLabel(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAY_KO[d.getDay()]})`;
+}
+
+export function formatEventTimePill(ts: number): string {
+  const d = new Date(ts);
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const period = h < 12 ? "오전" : "오후";
+  const hour12 = h % 12 || 12;
+  return `${period} ${hour12}:${String(m).padStart(2, "0")}`;
+}
+
+export type TimeWheelParts = {
+  period: "오전" | "오후";
+  hour12: number;
+  minute: number;
+};
+
+export function timePartsFromTimestamp(ts: number): TimeWheelParts {
+  const d = new Date(ts);
+  const h = d.getHours();
+  return {
+    period: h < 12 ? "오전" : "오후",
+    hour12: h % 12 || 12,
+    minute: d.getMinutes(),
+  };
+}
+
+export function timestampFromTimeParts(
+  dateTs: number,
+  { period, hour12, minute }: TimeWheelParts,
+): number {
+  const d = new Date(dateTs);
+  let hour24 = hour12 % 12;
+  if (period === "오후") hour24 += 12;
+  d.setHours(hour24, minute, 0, 0);
+  return d.getTime();
+}
+
+export function snapMinuteToStep(minute: number, step = 5): number {
+  const snapped = Math.round(minute / step) * step;
+  return snapped === 60 ? 0 : snapped;
+}
+
+export function nearestMinuteStep(minute: number, step = 5): number {
+  const options = Array.from({ length: 60 / step }, (_, i) => i * step);
+  return options.reduce(
+    (best, m) => (Math.abs(m - minute) < Math.abs(best - minute) ? m : best),
+    0,
+  );
+}
+
 export function formatDateChipLabel(date: Date): string {
   const today = new Date();
   const tomorrow = addDays(today, 1);
