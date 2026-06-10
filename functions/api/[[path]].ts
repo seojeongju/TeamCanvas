@@ -613,10 +613,16 @@ app.post("/events/:eventId/comments", async (c) => {
   const eventId = c.req.param("eventId");
 
   const event = await c.env.DB.prepare(
-    "SELECT organization_id, creator_id, title FROM events WHERE id = ?",
+    "SELECT organization_id, creator_id, title, visibility, team_id FROM events WHERE id = ?",
   )
     .bind(eventId)
-    .first<{ organization_id: string; creator_id: string; title: string }>();
+    .first<{
+      organization_id: string;
+      creator_id: string;
+      title: string;
+      visibility: string;
+      team_id: string | null;
+    }>();
   if (!event) return c.json({ error: "Not found" }, 404);
 
   const member = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
@@ -635,7 +641,9 @@ app.post("/events/:eventId/comments", async (c) => {
 
   const { notifyEventComment, notifyEventMention } = await import("../utils/notifications");
   const { parseMentionedUserIds } = await import("../utils/mentions");
+  const { resolveEventCommentRecipients } = await import("../utils/eventCommentRecipients");
   const preview = body.body.trim().slice(0, 80);
+  const actorName = user.name?.trim() || "팀원";
 
   const { results: memberRows } = await c.env.DB.prepare(
     `SELECT u.id, u.name FROM memberships m JOIN users u ON u.id = m.user_id
@@ -654,6 +662,7 @@ app.post("/events/:eventId/comments", async (c) => {
     await notifyEventMention(c.env.DB, c.env, {
       mentionedUserId: mentionedId,
       actorId: user.id,
+      actorName,
       organizationId: event.organization_id,
       eventId,
       eventTitle: event.title,
@@ -661,22 +670,14 @@ app.post("/events/:eventId/comments", async (c) => {
     });
   }
 
-  const recipients = new Set<string>();
-  recipients.add(event.creator_id);
-  const { results: attendeeRows } = await c.env.DB.prepare(
-    "SELECT user_id FROM event_attendees WHERE event_id = ?",
-  )
-    .bind(eventId)
-    .all();
-  for (const row of attendeeRows ?? []) {
-    recipients.add((row as { user_id: string }).user_id);
-  }
+  const recipients = await resolveEventCommentRecipients(c.env.DB, eventId, event);
 
   for (const recipientId of recipients) {
     if (mentionedIds.includes(recipientId)) continue;
     await notifyEventComment(c.env.DB, c.env, {
       recipientId,
       actorId: user.id,
+      actorName,
       organizationId: event.organization_id,
       eventId,
       eventTitle: event.title,

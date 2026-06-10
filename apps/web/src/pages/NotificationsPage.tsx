@@ -16,6 +16,8 @@ const TYPE_LABELS: Record<string, string> = {
   task_due_soon: "마감 임박",
   task_comment: "업무 댓글",
   task_mention: "멘션",
+  event_comment: "일정 댓글",
+  event_mention: "일정 멘션",
 };
 
 function typeLabel(type?: string) {

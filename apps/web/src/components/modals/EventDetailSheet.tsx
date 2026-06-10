@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckSquare, MapPin, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
+import { ToastMessage } from "../ui/ToastMessage";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
 import {
@@ -14,6 +15,7 @@ import {
   useUpdateEventRsvp,
 } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
+import { useTeamDetail } from "../../hooks/useOrgSettings";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -44,6 +46,28 @@ export function EventDetailSheet({
   const comments = commentsData?.comments ?? [];
   const members = membersData?.members ?? [];
   const [commentBody, setCommentBody] = useState("");
+  const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
+
+  const { data: teamData } = useTeamDetail(
+    event?.visibility === "team" && event?.teamId ? event.teamId : undefined,
+  );
+
+  const mentionMembers = useMemo(() => {
+    const orgMembers = members.map((m) => ({ id: m.user_id, name: m.name }));
+    if (event?.visibility !== "team" || !event?.teamId || !teamData?.members?.length) {
+      return orgMembers;
+    }
+    const teamIds = new Set(teamData.members.map((m) => m.userId));
+    const teamFirst = orgMembers.filter((m) => teamIds.has(m.id));
+    const rest = orgMembers.filter((m) => !teamIds.has(m.id));
+    return [...teamFirst, ...rest];
+  }, [members, event?.visibility, event?.teamId, teamData?.members]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   if (!event) return null;
 
@@ -165,14 +189,25 @@ export function EventDetailSheet({
             onSubmit={async (e) => {
               e.preventDefault();
               if (!commentBody.trim()) return;
-              await createComment.mutateAsync({ eventId: event.id, body: commentBody.trim() });
-              setCommentBody("");
+              try {
+                await createComment.mutateAsync({ eventId: event.id, body: commentBody.trim() });
+                setCommentBody("");
+                setToast({
+                  tone: "info",
+                  message: "댓글이 등록되었습니다. 관련 팀원에게 알림이 전송됩니다.",
+                });
+              } catch (err) {
+                setToast({
+                  tone: "error",
+                  message: err instanceof Error ? err.message : "댓글 등록에 실패했습니다.",
+                });
+              }
             }}
           >
             <MentionTextarea
               value={commentBody}
               onChange={setCommentBody}
-              members={members.map((m) => ({ id: m.user_id, name: m.name }))}
+              members={mentionMembers}
               placeholder="댓글 입력... (@이름 멘션)"
               rows={2}
             />
@@ -208,6 +243,10 @@ export function EventDetailSheet({
           </Button>
         </div>
       </div>
+
+      {toast && (
+        <ToastMessage message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

@@ -169,6 +169,7 @@ export async function notifyEventComment(
   opts: {
     recipientId: string;
     actorId: string;
+    actorName: string;
     organizationId: string;
     eventId: string;
     eventTitle: string;
@@ -181,7 +182,7 @@ export async function notifyEventComment(
     organizationId: opts.organizationId,
     type: "event_comment",
     title: "일정에 댓글이 달렸습니다",
-    body: `${opts.eventTitle}: ${opts.preview}`,
+    body: `${opts.actorName}님이 「${opts.eventTitle}」: ${opts.preview}`,
     link: `/calendar?event=${opts.eventId}`,
   });
 }
@@ -192,6 +193,7 @@ export async function notifyEventMention(
   opts: {
     mentionedUserId: string;
     actorId: string;
+    actorName: string;
     organizationId: string;
     eventId: string;
     eventTitle: string;
@@ -204,7 +206,7 @@ export async function notifyEventMention(
     organizationId: opts.organizationId,
     type: "event_mention",
     title: "일정 댓글에서 멘션되었습니다",
-    body: `${opts.eventTitle}: ${opts.preview}`,
+    body: `${opts.actorName}님이 「${opts.eventTitle}」에서 멘션: ${opts.preview}`,
     link: `/calendar?event=${opts.eventId}`,
   });
 }
