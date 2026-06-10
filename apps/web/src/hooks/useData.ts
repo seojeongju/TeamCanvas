@@ -59,6 +59,15 @@ export function useOrgActivity(limit = 20) {
   });
 }
 
+export function useDashboardInsights() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["dashboard-insights", orgId],
+    queryFn: () => api.getDashboardInsights(orgId!),
+    enabled: !!orgId,
+  });
+}
+
 export function useEventParticipants() {
   const orgId = useCurrentOrgId();
   return useQuery({

@@ -1565,3 +1565,194 @@ orgAdminRoutes.get("/organizations/:orgId/audit-logs", async (c) => {
 
   return c.json({ logs });
 });
+
+// ── Webhooks ──
+
+const WEBHOOK_EVENTS = ["event.created", "task.assigned", "task.completed"] as const;
+
+orgAdminRoutes.get("/organizations/:orgId/webhooks", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, name, url, provider, events_json, enabled, created_at, updated_at
+     FROM org_webhooks WHERE organization_id = ? ORDER BY created_at DESC`,
+  )
+    .bind(orgId)
+    .all();
+
+  return c.json({
+    webhooks: (results ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      let events: string[] = [];
+      try {
+        events = JSON.parse(row.events_json as string);
+      } catch {
+        events = [];
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        url: row.url,
+        provider: row.provider,
+        events,
+        enabled: Boolean(row.enabled),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    }),
+    availableEvents: WEBHOOK_EVENTS,
+  });
+});
+
+orgAdminRoutes.post("/organizations/:orgId/webhooks", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{
+    name: string;
+    url: string;
+    provider?: "slack" | "generic";
+    events?: string[];
+  }>();
+
+  if (!body.name?.trim() || !body.url?.trim()) {
+    return c.json({ error: "name, url required" }, 400);
+  }
+  if (!/^https:\/\//i.test(body.url.trim())) {
+    return c.json({ error: "https URL만 허용됩니다." }, 400);
+  }
+
+  const events = (body.events ?? []).filter((e) =>
+    (WEBHOOK_EVENTS as readonly string[]).includes(e),
+  );
+  const ts = now();
+  const id = newId();
+
+  await c.env.DB.prepare(
+    `INSERT INTO org_webhooks (id, organization_id, name, url, provider, events_json, enabled, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+  )
+    .bind(
+      id,
+      orgId,
+      body.name.trim(),
+      body.url.trim(),
+      body.provider === "slack" ? "slack" : "generic",
+      JSON.stringify(events.length ? events : ["event.created"]),
+      ts,
+      ts,
+    )
+    .run();
+
+  return c.json({ id }, 201);
+});
+
+orgAdminRoutes.patch("/organizations/:orgId/webhooks/:webhookId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const webhookId = c.req.param("webhookId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{
+    name?: string;
+    url?: string;
+    provider?: "slack" | "generic";
+    events?: string[];
+    enabled?: boolean;
+  }>();
+
+  const existing = await c.env.DB.prepare(
+    "SELECT id FROM org_webhooks WHERE id = ? AND organization_id = ?",
+  )
+    .bind(webhookId, orgId)
+    .first();
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const ts = now();
+  const row = await c.env.DB.prepare(
+    "SELECT name, url, provider, events_json, enabled FROM org_webhooks WHERE id = ?",
+  )
+    .bind(webhookId)
+    .first<Record<string, unknown>>();
+
+  const name = body.name?.trim() || (row?.name as string);
+  const url = body.url?.trim() || (row?.url as string);
+  if (!/^https:\/\//i.test(url)) {
+    return c.json({ error: "https URL만 허용됩니다." }, 400);
+  }
+  const provider = body.provider ?? (row?.provider as string);
+  let eventsJson = row?.events_json as string;
+  if (body.events) {
+    const events = body.events.filter((e) => (WEBHOOK_EVENTS as readonly string[]).includes(e));
+    eventsJson = JSON.stringify(events);
+  }
+  const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : (row?.enabled as number);
+
+  await c.env.DB.prepare(
+    `UPDATE org_webhooks SET name = ?, url = ?, provider = ?, events_json = ?, enabled = ?, updated_at = ?
+     WHERE id = ? AND organization_id = ?`,
+  )
+    .bind(name, url, provider, eventsJson, enabled, ts, webhookId, orgId)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+orgAdminRoutes.delete("/organizations/:orgId/webhooks/:webhookId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const webhookId = c.req.param("webhookId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  await c.env.DB.prepare("DELETE FROM org_webhooks WHERE id = ? AND organization_id = ?")
+    .bind(webhookId, orgId)
+    .run();
+  return c.json({ ok: true });
+});
+
+// ── Dashboard insights & reports ──
+
+orgAdminRoutes.get("/organizations/:orgId/dashboard/insights", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (access instanceof Response) return access;
+
+  const { getDashboardInsights } = await import("../utils/dashboardInsights");
+  const insights = await getDashboardInsights(c.env.DB, orgId);
+  return c.json(insights);
+});
+
+orgAdminRoutes.get("/organizations/:orgId/reports/weekly.csv", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (access instanceof Response) return access;
+
+  const ts = now();
+  const from = Number(c.req.query("from") ?? ts - 7 * 24 * 60 * 60 * 1000);
+  const to = Number(c.req.query("to") ?? ts);
+
+  const { buildWeeklyReportCsv } = await import("../utils/dashboardInsights");
+  const csv = await buildWeeklyReportCsv(c.env.DB, orgId, from, to);
+
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="teamcanvas-weekly-${new Date(from).toISOString().slice(0, 10)}.csv"`,
+    },
+  });
+});

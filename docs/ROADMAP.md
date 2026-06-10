@@ -240,16 +240,27 @@ apps/web/src/components/dashboard/  ← 신규
 
 **마이그레이션:** `0016_event_share_google_export.sql` — 배포 전 `npm run db:migrate:remote` 필요
 
-## 6. Sprint C 이후 (참고 순서)
+## 6. Sprint C — 운영·인사이트 ✅ (2026-06-09)
 
-1. 슬랙 / 카카오워크 웹훅
-2. 멀티 조직 지원
-3. 대시보드 리포트
-4. Vitest 확장 — `dates.ts`, `eventExcludedDates.ts`
+| # | 기능 | 상태 |
+|---|------|------|
+| C-1 | 조직 웹훅 (Slack / generic, `event.created` · `task.assigned` · `task.completed`) | ✅ |
+| C-2 | 대시보드 인사이트 (업무 상태·마감 임박·팀별 업무량) | ✅ |
+| C-3 | 주간 CSV 리포트 다운로드 | ✅ |
+| C-4 | Vitest 확장 — `dates.test.ts`, `eventExcludedDates.test.ts` | ✅ |
+
+**마이그레이션:** `0017_org_webhooks.sql` — 배포 전 `npm run db:migrate:remote` 필요
+
+## 7. Sprint D 이후 (참고 순서)
+
+1. 멀티 조직 지원 (보류 — PRD vs API 정합 필요)
+2. 일정 ↔ 업무 양방향 연결
+3. Playwright E2E
+4. 카카오워크 웹훅 (Slack 외)
 
 ---
 
-## 6. 기술 결정 메모
+## 8. 기술 결정 메모
 
 | 주제 | 결정 | 근거 |
 |------|------|------|
@@ -261,7 +272,7 @@ apps/web/src/components/dashboard/  ← 신규
 
 ---
 
-## 7. 로컬 개발 & 배포 (빠른 참조)
+## 9. 로컬 개발 & 배포 (빠른 참조)
 
 ```bash
 # 개발
@@ -283,23 +294,20 @@ git -c safe.directory=D:/Program_DEV/TeamCanvas push origin main
 
 ---
 
-## 8. 다음 세션 이어하기 프롬프트
-
-아래를 복사해 새 채팅에 붙여넣으면 바로 Sprint A를 이어갈 수 있습니다.
+## 10. 다음 세션 이어하기 프롬프트
 
 ```
-TeamCanvas 고도화 Sprint A를 이어서 진행해줘.
+TeamCanvas 고도화 Sprint D를 진행해줘.
 
-참고 문서: docs/ROADMAP.md (섹션 4 — Sprint A)
-최신 커밋: 65a09f9
+참고 문서: docs/ROADMAP.md (섹션 7 — Sprint D 이후)
+최신 커밋: (git log -1)
 
-다음: Sprint C — docs/ROADMAP.md §6 참고
-1. 슬랙/카카오워크 웹훅
-2. 대시보드 리포트
-3. Vitest 확장
+다음 후보:
+1. 일정 ↔ 업무 양방향 연결
+2. Playwright E2E
+3. 카카오워크 웹훅
 
-각 Task 완료 기준은 ROADMAP.md Acceptance Criteria를 따르고,
-완료 후 npm run build 검증하고 커밋·푸시·배포까지 해줘.
+완료 후 npm run test && npm run build 검증, 커밋·푸시·배포까지 해줘.
 ```
 
 **한 기능만 먼저:**

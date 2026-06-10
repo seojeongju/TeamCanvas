@@ -118,6 +118,36 @@ export type TeamDetail = {
   canManage: boolean;
 };
 
+export type DashboardInsights = {
+  tasksByStatus: { todo: number; doing: number; done: number };
+  dueSoonTasks: {
+    id: string;
+    title: string;
+    dueAt: number;
+    status: string;
+    assigneeName: string;
+  }[];
+  weekEventCount: number;
+  teamWorkload: {
+    teamId: string;
+    teamName: string;
+    todo: number;
+    doing: number;
+    done: number;
+  }[];
+};
+
+export type OrgWebhook = {
+  id: string;
+  name: string;
+  url: string;
+  provider: "slack" | "generic";
+  events: string[];
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type SharedEventView = {
   title: string;
   description: string | null;

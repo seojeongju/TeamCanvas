@@ -22,6 +22,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useCurrentOrgId } from "../../stores/orgStore";
 import { api } from "../../lib/api";
 import { cn } from "../../lib/cn";
+import { WebhooksSection } from "../../components/settings/WebhooksSection";
 
 const TIMEZONES = [
   { value: "Asia/Seoul", label: "서울 (Asia/Seoul)" },
@@ -344,6 +345,8 @@ export function OrgSettingsPage() {
               <ChevronRight className="h-5 w-5 text-navy-600/40" />
             </GlassCard>
           </button>
+
+          <WebhooksSection />
 
           {role === "owner" && data?.organization.status !== "pending_deletion" && (
             <GlassCard className="border border-red-100 p-5">

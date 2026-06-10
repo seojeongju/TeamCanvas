@@ -344,3 +344,54 @@ export function useDeleteHoliday() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["holidays", orgId] }),
   });
 }
+
+export function useOrgWebhooks() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["org-webhooks", orgId],
+    queryFn: () => api.getOrgWebhooks(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateOrgWebhook() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      url: string;
+      provider?: "slack" | "generic";
+      events?: string[];
+    }) => api.createOrgWebhook(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-webhooks", orgId] }),
+  });
+}
+
+export function useUpdateOrgWebhook() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({
+      webhookId,
+      ...data
+    }: {
+      webhookId: string;
+      name?: string;
+      url?: string;
+      provider?: "slack" | "generic";
+      events?: string[];
+      enabled?: boolean;
+    }) => api.updateOrgWebhook(orgId!, webhookId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-webhooks", orgId] }),
+  });
+}
+
+export function useDeleteOrgWebhook() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (webhookId: string) => api.deleteOrgWebhook(orgId!, webhookId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-webhooks", orgId] }),
+  });
+}

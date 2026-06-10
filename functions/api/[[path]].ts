@@ -456,6 +456,26 @@ app.post("/organizations/:orgId/events", async (c) => {
     console.error("google calendar export failed on create", id, e);
   }
 
+  try {
+    const { dispatchOrgWebhooks } = await import("../utils/webhooks");
+    const when = formatEventTime(body.startAt, body.endAt, Boolean(body.allDay));
+    await dispatchOrgWebhooks(
+      c.env.DB,
+      orgId,
+      "event.created",
+      {
+        title: `새 일정: ${body.title.trim()}`,
+        body: when,
+        link: `/calendar?event=${id}`,
+        actorName: user.name,
+      },
+      c.req.raw.url,
+      c.env,
+    );
+  } catch {
+    /* webhook optional */
+  }
+
   return c.json({ id }, 201);
 });
   const user = await requireAuth(c);
@@ -1241,6 +1261,26 @@ app.post("/organizations/:orgId/tasks", async (c) => {
   const { logTaskCreated } = await import("../utils/taskActivities");
   await logTaskCreated(c.env.DB, orgId, id, user.id, body.title.trim());
 
+  if (assigneeId && assigneeId !== user.id) {
+    try {
+      const { dispatchOrgWebhooks } = await import("../utils/webhooks");
+      await dispatchOrgWebhooks(
+        c.env.DB,
+        orgId,
+        "task.assigned",
+        {
+          title: `프로젝트 배정: ${body.title.trim()}`,
+          link: `/tasks?task=${id}`,
+          actorName: user.name,
+        },
+        c.req.raw.url,
+        c.env,
+      );
+    } catch {
+      /* optional */
+    }
+  }
+
   if (body.labelIds?.length) {
     const { syncTaskLabels } = await import("../utils/taskExtras");
     await syncTaskLabels(c.env.DB, id, body.labelIds, orgId);
@@ -1367,6 +1407,43 @@ app.patch("/tasks/:taskId", async (c) => {
       taskId,
       taskTitle: nextTitle,
     });
+    try {
+      const { dispatchOrgWebhooks } = await import("../utils/webhooks");
+      await dispatchOrgWebhooks(
+        c.env.DB,
+        existing.organization_id,
+        "task.assigned",
+        {
+          title: `프로젝트 배정: ${nextTitle}`,
+          link: `/tasks?task=${taskId}`,
+          actorName: user.name,
+        },
+        c.req.raw.url,
+        c.env,
+      );
+    } catch {
+      /* optional */
+    }
+  }
+
+  if (body.status === "done" && existing.status !== "done") {
+    try {
+      const { dispatchOrgWebhooks } = await import("../utils/webhooks");
+      await dispatchOrgWebhooks(
+        c.env.DB,
+        existing.organization_id,
+        "task.completed",
+        {
+          title: `프로젝트 완료: ${nextTitle}`,
+          link: `/tasks?task=${taskId}`,
+          actorName: user.name,
+        },
+        c.req.raw.url,
+        c.env,
+      );
+    } catch {
+      /* optional */
+    }
   }
 
   if (

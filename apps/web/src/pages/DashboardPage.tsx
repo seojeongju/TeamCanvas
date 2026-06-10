@@ -4,11 +4,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { ActivityFeed } from "../components/dashboard/ActivityFeed";
+import { DashboardInsightsPanel } from "../components/dashboard/DashboardInsights";
 import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
 import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { useAuthStore } from "../stores/authStore";
-import { useOrgDetail, useEvents, useOrgActivity, useTasks } from "../hooks/useData";
+import {
+  useDashboardInsights,
+  useOrgDetail,
+  useEvents,
+  useOrgActivity,
+  useTasks,
+} from "../hooks/useData";
 import { useLogout } from "../hooks/useAuth";
 import { eventsForDay } from "../lib/calendarUtils";
 import { endOfDay, startOfDay } from "../lib/dates";
@@ -29,6 +36,7 @@ export function DashboardPage() {
     isLoading: activityLoading,
     isError: activityError,
   } = useOrgActivity(20);
+  const { data: insightsData, isLoading: insightsLoading } = useDashboardInsights();
   const [showCreate, setShowCreate] = useState(false);
   const [createPrefillDate, setCreatePrefillDate] = useState<Date | null>(null);
   const logout = useLogout();
@@ -126,6 +134,8 @@ export function DashboardPage() {
           <TodayEventsList events={todayEvents} onEventClick={handleEventClick} />
         )}
       </section>
+
+      <DashboardInsightsPanel insights={insightsData} isLoading={insightsLoading} />
 
       <section>
         <div className="mb-3">

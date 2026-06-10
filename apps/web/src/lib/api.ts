@@ -120,6 +120,56 @@ export const api = {
 
   orgLogoUrl: (orgId: string) => `/api/organizations/${orgId}/logo`,
 
+  getDashboardInsights: (orgId: string) =>
+    request<import("./types").DashboardInsights>(
+      `/api/organizations/${orgId}/dashboard/insights`,
+    ),
+
+  downloadWeeklyReport: (orgId: string, from?: number, to?: number) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", String(from));
+    if (to) params.set("to", String(to));
+    const qs = params.toString();
+    return fetch(`/api/organizations/${orgId}/reports/weekly.csv${qs ? `?${qs}` : ""}`, {
+      credentials: "include",
+    });
+  },
+
+  getOrgWebhooks: (orgId: string) =>
+    request<{ webhooks: import("./types").OrgWebhook[]; availableEvents: string[] }>(
+      `/api/organizations/${orgId}/webhooks`,
+    ),
+
+  createOrgWebhook: (
+    orgId: string,
+    data: { name: string; url: string; provider?: "slack" | "generic"; events?: string[] },
+  ) =>
+    request<{ id: string }>(`/api/organizations/${orgId}/webhooks`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateOrgWebhook: (
+    orgId: string,
+    webhookId: string,
+    data: Partial<{
+      name: string;
+      url: string;
+      provider: "slack" | "generic";
+      events: string[];
+      enabled: boolean;
+    }>,
+  ) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/webhooks/${webhookId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteOrgWebhook: (orgId: string, webhookId: string) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/webhooks/${webhookId}`, {
+      method: "DELETE",
+    }),
+
   getDepartments: (orgId: string) =>
     request<{ departments: import("./types").Department[] }>(`/api/organizations/${orgId}/departments`),
 
