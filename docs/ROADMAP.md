@@ -84,7 +84,7 @@
 |---|------|----------|------|------|
 | 3.1 | 대시보드 위젯 (업무량·마감·휴가) | P2 | 1.5주 | ⬜ |
 | 3.2 | 주간/월간 리포트 (CSV/PDF) | P3 | 2주 | ⬜ |
-| 3.3 | AI 일정 제안 고도화 | P2 | 1.5주 | ⬜ |
+| 3.3 | AI 일정 제안 고도화 | P2 | 1.5주 | 🟡 (규칙 기반) |
 | 3.4 | 감사 로그 검색·보존 (Enterprise) | P3 | 1주 | ⬜ |
 
 ### Phase 4 — 성장 & 품질 (병행 권장)
@@ -95,7 +95,7 @@
 | 4.2 | Vitest 단위 테스트 (날짜·RRULE) | P1 | 1주 | ✅ (recurrence) |
 | 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ✅ |
 | 4.4 | IndexedDB 오프라인 + Background Sync | P2 | 2주 | ✅ (캐시·생성 큐) |
-| 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | ⬜ |
+| 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | 🟡 (rate limit·CSP) |
 | 4.6 | 다국어 (ko/en) | P3 | 2주 | ⬜ |
 
 ---
@@ -267,16 +267,24 @@ apps/web/src/components/dashboard/  ← 신규
 | E-2 | IndexedDB 오프라인 캐시 (tasks/events) | ✅ |
 | E-3 | 오프라인 생성 큐 + 온라인 자동 동기화 | ✅ |
 
-## 9. Sprint F 이후 (참고 순서)
+## 9. Sprint F — E2E·AI·보안 ✅ (2026-06-09)
+
+| # | 기능 | 상태 |
+|---|------|------|
+| F-1 | Playwright E2E — PWA manifest, 초대 링크, AI 제안 | ✅ |
+| F-2 | AI 일정 제안 고도화 (규칙 기반 제목·시간 선호) | ✅ |
+| F-3 | 보안 — auth rate limit, CSP `_headers` | ✅ |
+
+## 10. Sprint G 이후 (참고 순서)
 
 1. 멀티 조직 지원 (보류 — PRD vs API 정합 필요)
-2. Playwright E2E 확장 (PWA·초대 링크)
-3. AI 일정 제안 고도화
-4. 보안 하드닝 (rate limit, CSP)
+2. Playwright E2E 확장 (OAuth 실제 플로우)
+3. KV 기반 분산 rate limit
+4. AI Workers AI 프로덕션 튜닝
 
 ---
 
-## 10. 기술 결정 메모
+## 11. 기술 결정 메모
 
 | 주제 | 결정 | 근거 |
 |------|------|------|
@@ -288,7 +296,7 @@ apps/web/src/components/dashboard/  ← 신규
 
 ---
 
-## 11. 로컬 개발 & 배포 (빠른 참조)
+## 12. 로컬 개발 & 배포 (빠른 참조)
 
 ```bash
 # 개발
@@ -310,17 +318,17 @@ git -c safe.directory=D:/Program_DEV/TeamCanvas push origin main
 
 ---
 
-## 12. 다음 세션 이어하기 프롬프트
+## 13. 다음 세션 이어하기 프롬프트
 
 ```
-TeamCanvas 고도화 Sprint F를 진행해줘.
+TeamCanvas 고도화 Sprint G를 진행해줘.
 
-참고 문서: docs/ROADMAP.md (섹션 9 — Sprint F 이후)
+참고 문서: docs/ROADMAP.md (섹션 10 — Sprint G 이후)
 최신 커밋: (git log -1)
 
 다음 후보:
-1. Playwright E2E 확장 (PWA·초대 링크)
-2. AI 일정 제안 고도화
+1. KV 분산 rate limit
+2. Playwright OAuth E2E
 3. 멀티 조직 (정책 결정 후)
 
 완료 후 npm run test && npm run build && npm run test:e2e 검증, 커밋·푸시·배포까지 해줘.

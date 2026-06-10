@@ -1,4 +1,5 @@
 import type { BusyBlock } from "./freeBusy";
+import { enhanceSlotsWithoutAi } from "../shared/eventSuggestionRules";
 
 export type SuggestedSlot = {
   startAt: number;
@@ -117,12 +118,18 @@ export async function enhanceWithAi(
   prompt: string,
   slots: SuggestedSlot[],
 ): Promise<{ slots: SuggestedSlot[]; aiUsed: boolean; suggestedTitle?: string }> {
+  const ruleEnhanced = enhanceSlotsWithoutAi(prompt, slots);
+
   if (!ai || slots.length === 0) {
-    return { slots, aiUsed: false, suggestedTitle: prompt.trim() || undefined };
+    return {
+      slots: ruleEnhanced.slots,
+      aiUsed: false,
+      suggestedTitle: ruleEnhanced.suggestedTitle ?? (prompt.trim() || undefined),
+    };
   }
 
   try {
-    const slotList = slots
+    const slotList = ruleEnhanced.slots
       .map(
         (s, i) =>
           `${i + 1}. ${new Date(s.startAt).toLocaleString("ko-KR")} ~ ${new Date(s.endAt).toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`,
@@ -146,15 +153,17 @@ export async function enhanceWithAi(
 
     const text = typeof result === "object" && result && "response" in result ? result.response : "";
     const jsonMatch = text?.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return { slots, aiUsed: false };
+    if (!jsonMatch) {
+      return { slots: ruleEnhanced.slots, aiUsed: false, suggestedTitle: ruleEnhanced.suggestedTitle };
+    }
 
     const parsed = JSON.parse(jsonMatch[0]) as {
       title?: string;
       pickIndex?: number;
       reason?: string;
     };
-    const idx = Math.max(0, Math.min(slots.length - 1, (parsed.pickIndex ?? 1) - 1));
-    const ranked = [...slots];
+    const idx = Math.max(0, Math.min(ruleEnhanced.slots.length - 1, (parsed.pickIndex ?? 1) - 1));
+    const ranked = [...ruleEnhanced.slots];
     const [picked] = ranked.splice(idx, 1);
     picked.reason = parsed.reason ?? picked.reason;
     picked.suggestedTitle = parsed.title;
@@ -165,6 +174,6 @@ export async function enhanceWithAi(
       suggestedTitle: parsed.title,
     };
   } catch {
-    return { slots, aiUsed: false };
+    return { slots: ruleEnhanced.slots, aiUsed: false, suggestedTitle: ruleEnhanced.suggestedTitle };
   }
 }

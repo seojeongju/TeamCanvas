@@ -3,6 +3,7 @@ import { Building2, CheckCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuthStore } from "../stores/authStore";
+import { useAuthInit } from "../hooks/useAuth";
 import { useOrgStore } from "../stores/orgStore";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
@@ -11,6 +12,7 @@ export function AcceptInvitePage() {
   const { token = "" } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { isFetching: authLoading } = useAuthInit();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const setAuth = useAuthStore((s) => s.setAuth);
   const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
@@ -36,7 +38,7 @@ export function AcceptInvitePage() {
     },
   });
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return (
       <div className="bg-mesh flex min-h-dvh items-center justify-center p-6">
         <p className="text-sm text-navy-600">초대 확인 중...</p>

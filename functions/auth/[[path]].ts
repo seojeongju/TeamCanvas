@@ -24,8 +24,16 @@ import {
 } from "../utils/authTokens";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email";
 import { hashPassword } from "../utils/password";
+import { checkRateLimit, clientIp, rateLimitResponse } from "../utils/rateLimit";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/auth");
+
+function enforceAuthRateLimit(c: Context<{ Bindings: Env }>, action: string): Response | null {
+  const key = `${action}:${clientIp(c.req.raw)}`;
+  const { allowed, retryAfterSec } = checkRateLimit(key, 20, 60_000);
+  if (!allowed) return rateLimitResponse(retryAfterSec ?? 60);
+  return null;
+}
 
 app.get("/providers", (c) => {
   return c.json({
@@ -164,6 +172,9 @@ app.get("/callback/google", handleGoogleCallback);
 app.get("/callback/kakao", handleKakaoCallback);
 
 app.post("/register", async (c) => {
+  const limited = enforceAuthRateLimit(c, "register");
+  if (limited) return limited;
+
   const body = await c.req.json<{ email?: string; password?: string; name?: string }>();
 
   const emailErr = validateEmail(body.email ?? "");
@@ -196,6 +207,9 @@ app.post("/register", async (c) => {
 });
 
 app.post("/login", async (c) => {
+  const limited = enforceAuthRateLimit(c, "login");
+  if (limited) return limited;
+
   const body = await c.req.json<{ email?: string; password?: string }>();
 
   const emailErr = validateEmail(body.email ?? "");
@@ -258,6 +272,9 @@ app.post("/resend-verification", async (c) => {
 });
 
 app.post("/forgot-password", async (c) => {
+  const limited = enforceAuthRateLimit(c, "forgot-password");
+  if (limited) return limited;
+
   const body = await c.req.json<{ email?: string }>();
   const emailErr = validateEmail(body.email ?? "");
   if (emailErr) return c.json({ error: emailErr }, 400);
@@ -306,6 +323,9 @@ app.post("/reset-password", async (c) => {
 });
 
 app.post("/dev", async (c) => {
+  const limited = enforceAuthRateLimit(c, "dev");
+  if (limited) return limited;
+
   const allowed =
     c.env.ALLOW_DEV_AUTH === "true" ||
     (!c.env.GOOGLE_CLIENT_ID && !c.env.KAKAO_CLIENT_ID);
