@@ -216,12 +216,11 @@ export function WheelPicker<T extends string | number>({
               inputRef.current?.blur();
             }
           }}
-          onDoubleClick={(e) => e.stopPropagation()}
           className={cn(
             "absolute left-1/2 top-1/2 z-20 h-10 w-full max-w-[52px] -translate-x-1/2 -translate-y-1/2",
             "bg-transparent text-center text-lg font-semibold text-navy-900 outline-none",
             "rounded-lg ring-0 focus:bg-white/90 focus:ring-2 focus:ring-primary-400/30",
-            editing ? "pointer-events-auto" : "pointer-events-none opacity-0",
+            editing ? "pointer-events-auto cursor-text" : "pointer-events-none opacity-0",
           )}
         />
       )}
@@ -243,16 +242,16 @@ export function WheelPicker<T extends string | number>({
               aria-selected={isCenter}
               onClick={() => {
                 if (editing || suppressClick.current) return;
+                if (editable && isCenter) {
+                  startEditing();
+                  return;
+                }
                 selectIndex(index, true);
-              }}
-              onDoubleClick={(e) => {
-                if (!editable || !isCenter) return;
-                e.preventDefault();
-                startEditing();
               }}
               className={cn(
                 "flex h-10 w-full items-center justify-center transition-all duration-150 select-none",
-                "cursor-pointer touch-manipulation active:bg-navy-900/5",
+                "touch-manipulation active:bg-navy-900/5",
+                editable && isCenter ? "cursor-text" : "cursor-pointer",
                 isCenter && editable && editing
                   ? "text-transparent"
                   : distance === 0
