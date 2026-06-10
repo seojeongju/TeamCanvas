@@ -2,7 +2,7 @@
 
 > **버전:** 2.0  
 > **최종 갱신:** 2026-06-10  
-> **최신 커밋:** Sprint B 구현 후 갱신 예정  
+> **최신 커밋:** Sprint G — D1 rate limit·OAuth E2E·AI 튜닝  
 > **프로덕션:** https://teamcanvas.pages.dev  
 > **관련 문서:** [PRD](./PRD.md) · [개발 계획서](./DEVELOPMENT_PLAN.md) · [배포](./DEPLOY.md)
 
@@ -52,7 +52,7 @@
 | **테스트** | Vitest/Playwright 계획만, 0 파일 | 회귀 위험 |
 | **공개 랜딩** | `/` → 로그인 리다이렉트 | 성장 채널 없음 |
 | **i18n** | 한국어 하드코딩 | 해외 확장 불가 |
-| **KV 바인딩** | wrangler 미설정 | rate limit·OAuth state 미비 |
+| **KV 바인딩** | 선택 (D1 rate limit 기본) | OAuth state는 JWT state 사용 |
 
 ---
 
@@ -95,7 +95,7 @@
 | 4.2 | Vitest 단위 테스트 (날짜·RRULE) | P1 | 1주 | ✅ (recurrence) |
 | 4.3 | Playwright E2E (핵심 플로우) | P2 | 1.5주 | ✅ |
 | 4.4 | IndexedDB 오프라인 + Background Sync | P2 | 2주 | ✅ (캐시·생성 큐) |
-| 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | 🟡 (rate limit·CSP) |
+| 4.5 | 보안 하드닝 (rate limit, CSP, PKCE) | P2 | 1주 | 🟡 (D1/KV rate limit·CSP) |
 | 4.6 | 다국어 (ko/en) | P3 | 2주 | ⬜ |
 
 ---
@@ -275,16 +275,26 @@ apps/web/src/components/dashboard/  ← 신규
 | F-2 | AI 일정 제안 고도화 (규칙 기반 제목·시간 선호) | ✅ |
 | F-3 | 보안 — auth rate limit, CSP `_headers` | ✅ |
 
-## 10. Sprint G 이후 (참고 순서)
+## 10. Sprint G — 분산 보안·OAuth E2E ✅ (2026-06-09)
+
+| # | 기능 | 상태 |
+|---|------|------|
+| G-1 | D1 분산 rate limit (+ KV 바인딩 시 우선) | ✅ |
+| G-2 | Playwright OAuth E2E (로그인 UI·providers·dev 시뮬) | ✅ |
+| G-3 | AI 제안 파싱·프롬프트 튜닝 | ✅ |
+
+**마이그레이션:** `0018_rate_limit_buckets.sql`
+
+## 11. Sprint H 이후 (참고 순서)
 
 1. 멀티 조직 지원 (보류 — PRD vs API 정합 필요)
-2. Playwright E2E 확장 (OAuth 실제 플로우)
-3. KV 기반 분산 rate limit
-4. AI Workers AI 프로덕션 튜닝
+2. 실제 Google/Kakao OAuth E2E (시크릿 필요)
+3. KV namespace 프로비저닝 후 RATE_LIMIT_KV 바인딩
+4. PKCE·HSTS 추가
 
 ---
 
-## 11. 기술 결정 메모
+## 12. 기술 결정 메모
 
 | 주제 | 결정 | 근거 |
 |------|------|------|
@@ -296,7 +306,7 @@ apps/web/src/components/dashboard/  ← 신규
 
 ---
 
-## 12. 로컬 개발 & 배포 (빠른 참조)
+## 13. 로컬 개발 & 배포 (빠른 참조)
 
 ```bash
 # 개발
@@ -318,17 +328,17 @@ git -c safe.directory=D:/Program_DEV/TeamCanvas push origin main
 
 ---
 
-## 13. 다음 세션 이어하기 프롬프트
+## 14. 다음 세션 이어하기 프롬프트
 
 ```
-TeamCanvas 고도화 Sprint G를 진행해줘.
+TeamCanvas 고도화 Sprint H를 진행해줘.
 
-참고 문서: docs/ROADMAP.md (섹션 10 — Sprint G 이후)
+참고 문서: docs/ROADMAP.md (섹션 11 — Sprint H 이후)
 최신 커밋: (git log -1)
 
 다음 후보:
-1. KV 분산 rate limit
-2. Playwright OAuth E2E
+1. PKCE·HSTS 보안 강화
+2. 실제 OAuth E2E (CI 시크릿)
 3. 멀티 조직 (정책 결정 후)
 
 완료 후 npm run test && npm run build && npm run test:e2e 검증, 커밋·푸시·배포까지 해줘.

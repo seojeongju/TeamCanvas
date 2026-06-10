@@ -1,6 +1,8 @@
 export interface Env {
   DB: D1Database;
   FILES: R2Bucket;
+  RATE_LIMIT_KV?: KVNamespace;
+  ALLOW_DEV_AUTH?: string;
   AI?: {
     run: (model: string, input: Record<string, unknown>) => Promise<unknown>;
   };

@@ -28,9 +28,9 @@ import { checkRateLimit, clientIp, rateLimitResponse } from "../utils/rateLimit"
 
 const app = new Hono<{ Bindings: Env }>().basePath("/auth");
 
-function enforceAuthRateLimit(c: Context<{ Bindings: Env }>, action: string): Response | null {
+async function enforceAuthRateLimit(c: Context<{ Bindings: Env }>, action: string): Promise<Response | null> {
   const key = `${action}:${clientIp(c.req.raw)}`;
-  const { allowed, retryAfterSec } = checkRateLimit(key, 20, 60_000);
+  const { allowed, retryAfterSec } = await checkRateLimit(c.env, key, 20, 60_000);
   if (!allowed) return rateLimitResponse(retryAfterSec ?? 60);
   return null;
 }
@@ -172,7 +172,7 @@ app.get("/callback/google", handleGoogleCallback);
 app.get("/callback/kakao", handleKakaoCallback);
 
 app.post("/register", async (c) => {
-  const limited = enforceAuthRateLimit(c, "register");
+  const limited = await enforceAuthRateLimit(c, "register");
   if (limited) return limited;
 
   const body = await c.req.json<{ email?: string; password?: string; name?: string }>();
@@ -207,7 +207,7 @@ app.post("/register", async (c) => {
 });
 
 app.post("/login", async (c) => {
-  const limited = enforceAuthRateLimit(c, "login");
+  const limited = await enforceAuthRateLimit(c, "login");
   if (limited) return limited;
 
   const body = await c.req.json<{ email?: string; password?: string }>();
@@ -272,7 +272,7 @@ app.post("/resend-verification", async (c) => {
 });
 
 app.post("/forgot-password", async (c) => {
-  const limited = enforceAuthRateLimit(c, "forgot-password");
+  const limited = await enforceAuthRateLimit(c, "forgot-password");
   if (limited) return limited;
 
   const body = await c.req.json<{ email?: string }>();
@@ -323,7 +323,7 @@ app.post("/reset-password", async (c) => {
 });
 
 app.post("/dev", async (c) => {
-  const limited = enforceAuthRateLimit(c, "dev");
+  const limited = await enforceAuthRateLimit(c, "dev");
   if (limited) return limited;
 
   const allowed =

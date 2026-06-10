@@ -1,5 +1,6 @@
 import type { BusyBlock } from "./freeBusy";
 import { enhanceSlotsWithoutAi } from "../shared/eventSuggestionRules";
+import { extractAiResponseText, parseAiSuggestJson } from "../shared/aiSuggestParse";
 
 export type SuggestedSlot = {
   startAt: number;
@@ -136,32 +137,27 @@ export async function enhanceWithAi(
       )
       .join("\n");
 
-    const result = (await ai.run("@cf/meta/llama-3.1-8b-instruct", {
+    const result = await ai.run("@cf/meta/llama-3.1-8b-instruct", {
       messages: [
         {
           role: "system",
           content:
-            "You help schedule meetings. Reply ONLY with valid JSON: {\"title\":\"string\",\"pickIndex\":1,\"reason\":\"한국어 한 문장\"}. pickIndex is 1-based slot number.",
+            '팀 일정 도우미입니다. 반드시 JSON만 출력하세요: {"title":"일정 제목","pickIndex":1,"reason":"한국어 한 문장"}. pickIndex는 후보 번호(1부터).',
         },
         {
           role: "user",
           content: `요청: ${prompt}\n후보 시간:\n${slotList}`,
         },
       ],
-      max_tokens: 200,
-    })) as { response?: string };
+      max_tokens: 256,
+      temperature: 0.2,
+    });
 
-    const text = typeof result === "object" && result && "response" in result ? result.response : "";
-    const jsonMatch = text?.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const text = extractAiResponseText(result);
+    const parsed = parseAiSuggestJson(text);
+    if (!parsed) {
       return { slots: ruleEnhanced.slots, aiUsed: false, suggestedTitle: ruleEnhanced.suggestedTitle };
     }
-
-    const parsed = JSON.parse(jsonMatch[0]) as {
-      title?: string;
-      pickIndex?: number;
-      reason?: string;
-    };
     const idx = Math.max(0, Math.min(ruleEnhanced.slots.length - 1, (parsed.pickIndex ?? 1) - 1));
     const ranked = [...ruleEnhanced.slots];
     const [picked] = ranked.splice(idx, 1);
