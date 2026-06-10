@@ -1,15 +1,16 @@
 import { useMemo } from "react";
 import { cn } from "../../lib/cn";
-import { colorClass } from "../../lib/dates";
+import { monthGridEventLabel } from "../../lib/calendarEventUi";
 import {
   getMonthWeeks,
   layoutMonthBarSegments,
   singleDayChipEvents,
   type MonthBarSegment,
 } from "../../lib/calendarUtils";
-import { isPersonalGoogleEvent, personalGoogleEventClassName } from "../../lib/calendarEventSources";
+import { isPersonalGoogleEvent } from "../../lib/calendarEventSources";
 import { holidaysForDay } from "../../lib/holidays";
 import type { CalendarEvent, OrgHoliday } from "../../lib/types";
+import { CalendarEventTrigger } from "./CalendarEventTrigger";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const MAX_BAR_LANES = 3;
@@ -122,38 +123,19 @@ export function MonthView({
                   style={{ gridTemplateRows: `repeat(${barRows}, ${BAR_ROW_HEIGHT}px)` }}
                 >
                   {visibleBars.map((seg) => (
-                    <button
+                    <CalendarEventTrigger
                       key={`${seg.event.id}-w${weekIndex}-c${seg.startCol}-l${seg.lane}`}
-                      type="button"
+                      event={seg.event}
+                      day={week[seg.startCol]}
+                      variant="bar"
+                      barShape={{ roundLeft: seg.roundLeft, roundRight: seg.roundRight }}
+                      label={monthGridEventLabel(seg.event, seg.showTitle)}
+                      onClick={() => onEventClick(seg.event, week[seg.startCol])}
                       style={{
                         gridColumn: `${seg.startCol + 1} / span ${seg.span}`,
                         gridRow: seg.lane + 1,
                       }}
-                      onClick={() => onEventClick(seg.event, week[seg.startCol])}
-                      className={cn(
-                        "min-h-0 truncate px-1 text-left text-[9px] font-medium leading-[14px] text-white",
-                        colorClass(seg.event.color),
-                        seg.roundLeft && "rounded-l-md",
-                        seg.roundRight && "rounded-r-md",
-                        !seg.roundLeft && "rounded-l-none",
-                        !seg.roundRight && "rounded-r-none",
-                        seg.event.sourceType === "task" && "ring-1 ring-white/30",
-                        isPersonalGoogleEvent(seg.event) && personalGoogleEventClassName(),
-                      )}
-                      title={
-                        isPersonalGoogleEvent(seg.event)
-                          ? `${seg.event.title} (내 Google · 비공개)`
-                          : seg.event.title
-                      }
-                    >
-                      {seg.showTitle
-                        ? seg.event.sourceType === "task"
-                          ? `마감 ${seg.event.title}`
-                          : isPersonalGoogleEvent(seg.event)
-                            ? `개인 ${seg.event.title}`
-                            : seg.event.title
-                        : "\u00a0"}
-                    </button>
+                    />
                   ))}
                 </div>
               )}
@@ -178,27 +160,20 @@ export function MonthView({
                       )}
                     >
                       {dayChips.slice(0, 2).map((e) => (
-                        <span
+                        <CalendarEventTrigger
                           key={e.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => onEventClick(e, day)}
-                          onKeyDown={(ev) => {
-                            if (ev.key === "Enter") onEventClick(e, day);
-                          }}
-                          className={cn(
-                            "truncate rounded px-0.5 text-[9px] font-medium",
-                            isToday
-                              ? "bg-primary-400/15 text-primary-700"
-                              : `${colorClass(e.color)} text-white`,
-                            isPersonalGoogleEvent(e) && personalGoogleEventClassName(),
-                          )}
-                          title={
-                            isPersonalGoogleEvent(e) ? `${e.title} (내 Google · 비공개)` : e.title
+                          event={e}
+                          day={day}
+                          variant="chip"
+                          label={
+                            isPersonalGoogleEvent(e) ? `개인 ${e.title}` : e.title
                           }
-                        >
-                          {isPersonalGoogleEvent(e) ? `개인 ${e.title}` : e.title}
-                        </span>
+                          onClick={() => onEventClick(e, day)}
+                          className={cn(
+                            isToday &&
+                              "!bg-primary-400/15 !text-primary-700 hover:!brightness-100 hover:ring-2 hover:ring-primary-300/40",
+                          )}
+                        />
                       ))}
                       {dayChips.length > 2 && (
                         <span className="text-[8px] text-navy-500">+{dayChips.length - 2}</span>

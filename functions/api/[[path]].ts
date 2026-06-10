@@ -945,6 +945,10 @@ app.delete("/events/:eventId", async (c) => {
   if (user instanceof Response) return user;
   const eventId = c.req.param("eventId");
 
+  if (eventId.startsWith("google:") || eventId.startsWith("task-due:")) {
+    return c.json({ error: "이 일정은 앱에서 삭제할 수 없습니다." }, 400);
+  }
+
   const event = await c.env.DB.prepare(
     "SELECT organization_id, creator_id FROM events WHERE id = ?",
   )
@@ -959,8 +963,30 @@ app.delete("/events/:eventId", async (c) => {
     if (canWrite instanceof Response) return canWrite;
   }
 
-  await c.env.DB.prepare("DELETE FROM events WHERE id = ?").bind(eventId).run();
-  return c.json({ ok: true });
+  try {
+    const { results: fileRows } = await c.env.DB.prepare(
+      "SELECT id, r2_key FROM files WHERE entity_type = 'event' AND entity_id = ?",
+    )
+      .bind(eventId)
+      .all();
+    for (const row of fileRows ?? []) {
+      const r = row as { id: string; r2_key: string };
+      await c.env.FILES.delete(r.r2_key).catch(() => undefined);
+      await c.env.DB.prepare("DELETE FROM files WHERE id = ?").bind(r.id).run();
+    }
+
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE tasks SET event_id = NULL WHERE event_id = ?").bind(eventId),
+      c.env.DB.prepare("DELETE FROM events WHERE id = ?").bind(eventId),
+    ]);
+    return c.json({ ok: true });
+  } catch (e) {
+    console.error("delete event failed", eventId, e);
+    return c.json(
+      { error: e instanceof Error ? e.message : "일정 삭제에 실패했습니다." },
+      500,
+    );
+  }
 });
 
 // ── Tasks ──

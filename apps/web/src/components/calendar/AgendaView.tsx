@@ -9,7 +9,9 @@ import {
 } from "../../lib/calendarEventSources";
 import { eventListSubtitle } from "../../lib/todayEventsGroup";
 import { cn } from "../../lib/cn";
+import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
 import type { CalendarEvent } from "../../lib/types";
+import { useEventPreviewTooltip } from "./EventPreviewTooltip";
 
 function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -35,14 +37,37 @@ function AgendaEventRow({
   onClick: () => void;
 }) {
   const personal = isPersonalGoogleEvent(event);
+  const {
+    triggerRef,
+    tooltipId,
+    tooltipVisible,
+    tooltipPortal,
+    onMouseEnter,
+    onMouseLeave,
+    onFocus,
+    onBlur,
+  } = useEventPreviewTooltip(event);
+
   return (
-    <button type="button" onClick={onClick} className="w-full text-left">
-      <GlassCard
-        className={cn(
-          "flex items-center gap-3 p-3 transition hover:bg-sky-50/50",
-          personal && "border border-red-200/80 bg-red-50/30",
-        )}
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={onClick}
+        aria-label={calendarEventAriaLabel(event)}
+        aria-describedby={tooltipVisible ? tooltipId : undefined}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        className="w-full cursor-pointer text-left transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/80"
       >
+        <GlassCard
+          className={cn(
+            "flex items-center gap-3 p-3 transition hover:bg-sky-50/60 hover:shadow-md",
+            personal && "border border-red-200/80 bg-red-50/30",
+          )}
+        >
         <div
           className={cn(
             "h-10 w-1 shrink-0 rounded-full",
@@ -60,8 +85,10 @@ function AgendaEventRow({
           )}
         </div>
         {personal && <Lock className="h-4 w-4 shrink-0 text-red-500/80" aria-hidden />}
-      </GlassCard>
-    </button>
+        </GlassCard>
+      </button>
+      {tooltipPortal}
+    </>
   );
 }
 

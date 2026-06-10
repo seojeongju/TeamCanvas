@@ -3,6 +3,7 @@ import { ChevronDown, Folder, Lock } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { colorClass, formatRecurrenceRule } from "../../lib/dates";
 import {
+  CALENDAR_LEGEND_COLORS,
   isPersonalGoogleEvent,
   personalGoogleEventClassName,
   splitCalendarEvents,
@@ -14,6 +15,8 @@ import {
 } from "../../lib/todayEventsGroup";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
+import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
+import { useEventPreviewTooltip } from "./EventPreviewTooltip";
 
 function TodayEventRow({
   event,
@@ -26,15 +29,38 @@ function TodayEventRow({
   compact?: boolean;
   personal?: boolean;
 }) {
+  const {
+    triggerRef,
+    tooltipId,
+    tooltipVisible,
+    tooltipPortal,
+    onMouseEnter,
+    onMouseLeave,
+    onFocus,
+    onBlur,
+  } = useEventPreviewTooltip(event);
+
   return (
-    <button type="button" onClick={onClick} className="w-full text-left">
-      <GlassCard
-        className={cn(
-          "flex items-center gap-3 transition hover:bg-sky-50/50",
-          compact ? "p-3" : "p-4",
-          personal && "border border-red-200/80 bg-red-50/30",
-        )}
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={onClick}
+        aria-label={calendarEventAriaLabel(event)}
+        aria-describedby={tooltipVisible ? tooltipId : undefined}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        className="w-full cursor-pointer text-left transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/80"
       >
+        <GlassCard
+          className={cn(
+            "flex items-center gap-3 transition hover:bg-sky-50/60 hover:shadow-md",
+            compact ? "p-3" : "p-4",
+            personal && "border border-red-200/80 bg-red-50/30",
+          )}
+        >
         <div
           className={cn(
             "w-1 shrink-0 rounded-full",
@@ -53,8 +79,10 @@ function TodayEventRow({
           )}
         </div>
         {personal && <Lock className="h-4 w-4 shrink-0 text-red-500/80" aria-hidden />}
-      </GlassCard>
-    </button>
+        </GlassCard>
+      </button>
+      {tooltipPortal}
+    </>
   );
 }
 
@@ -240,17 +268,38 @@ export function TodayEventsList({
 
 /** 캘린더 뷰 범례용 */
 export function CalendarSourceLegend({ hasPersonalGoogle }: { hasPersonalGoogle: boolean }) {
-  if (!hasPersonalGoogle) return null;
   return (
-    <div className="flex flex-wrap items-center gap-3 text-[10px] text-navy-600">
-      <span className="inline-flex items-center gap-1">
-        <span className="h-2.5 w-6 rounded bg-primary-400" />
-        팀 · 앱 일정
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-navy-600">
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className={cn("h-2.5 w-6 rounded", colorClass(CALENDAR_LEGEND_COLORS.teamApp))}
+          aria-hidden
+        />
+        <span>
+          팀 · 앱 일정
+          <span className="ml-0.5 text-navy-400">(유형별 색상)</span>
+        </span>
       </span>
-      <span className="inline-flex items-center gap-1">
-        <span className="h-2.5 w-6 rounded border-2 border-dashed border-red-400 bg-red-500" />
-        내 Google (비공개)
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className={cn("h-2.5 w-6 rounded ring-1 ring-white/30", colorClass(CALENDAR_LEGEND_COLORS.taskDue))}
+          aria-hidden
+        />
+        프로젝트 마감
       </span>
+      {hasPersonalGoogle && (
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className={cn(
+              "h-2.5 w-6 rounded",
+              colorClass(CALENDAR_LEGEND_COLORS.google),
+              personalGoogleEventClassName(),
+            )}
+            aria-hidden
+          />
+          내 Google (비공개)
+        </span>
+      )}
     </div>
   );
 }

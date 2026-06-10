@@ -136,6 +136,7 @@ export function colorClass(hex: string): string {
     "#F97316": "bg-orange-400",
     "#EF4444": "bg-red-400",
     "#EC4899": "bg-pink-400",
+    "#EA4335": "bg-red-500",
   };
   return map[hex] ?? "bg-primary-400";
 }

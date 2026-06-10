@@ -9,9 +9,11 @@ import { FreeBusyPanel } from "../calendar/FreeBusyPanel";
 import { AttendeePicker } from "./AttendeePicker";
 import {
   useCreateEvent,
+  useCreateTaskLabel,
   useEventAttendees,
   useEventParticipants,
   useOrgDetail,
+  useTaskLabels,
   useTeams,
   useUpdateEvent,
 } from "../../hooks/useData";
@@ -29,13 +31,13 @@ import {
   toDatetimeLocal,
 } from "../../lib/dates";
 import {
-  EVENT_TYPES,
   REMINDER_OPTIONS,
   getEventType,
   getEventTypeByColor,
   recurrenceFromRule,
   type EventTypeId,
 } from "../../lib/eventTypes";
+import { findLabelIdByColor, LabelPillPicker } from "../ui/LabelPillPicker";
 import { useAuthStore } from "../../stores/authStore";
 import { cn } from "../../lib/cn";
 import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
@@ -96,12 +98,15 @@ export function CreateEventModal({
 }: CreateEventModalProps) {
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
+  const { data: labelsData } = useTaskLabels();
+  const createLabel = useCreateTaskLabel();
   const { data: participantsData } = useEventParticipants();
   const { data: teamsData } = useTeams();
   const { data: editAttendeesData } = useEventAttendees(editEvent?.id);
   const isEdit = !!editEvent;
 
   const [eventType, setEventType] = useState<EventTypeId>("meeting");
+  const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -126,7 +131,10 @@ export function CreateEventModal({
   const { data: orgData } = useOrgDetail();
   const workHours = orgData?.organization.settings?.workHours;
   const teams = teamsData?.teams ?? [];
+  const labels = labelsData?.labels ?? [];
+  const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const typeConfig = getEventType(eventType);
+  const eventColor = selectedLabel?.color ?? typeConfig.color;
   const createInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -199,6 +207,25 @@ export function CreateEventModal({
   }, [open, editEvent, editAttendeesData]);
 
   useEffect(() => {
+    if (!open || labels.length === 0) return;
+
+    if (editEvent) {
+      setSelectedLabelId(findLabelIdByColor(labels, editEvent.color) ?? labels[0].id);
+      return;
+    }
+
+    setSelectedLabelId((prev) => {
+      if (prev && labels.some((l) => l.id === prev)) return prev;
+      const template = templateId ? getEventTemplate(templateId) : null;
+      if (template) {
+        const matched = findLabelIdByColor(labels, getEventType(template.eventType).color);
+        if (matched) return matched;
+      }
+      return labels[0].id;
+    });
+  }, [open, editEvent, labels, templateId]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 4500);
     return () => window.clearTimeout(timer);
@@ -252,21 +279,6 @@ export function CreateEventModal({
       : []),
   ];
 
-  const applyEventType = (typeId: EventTypeId) => {
-    const config = getEventType(typeId);
-    setEventType(typeId);
-
-    if (config.allDay) {
-      setAllDay(true);
-      return;
-    }
-
-    if (!allDay && config.defaultDurationMinutes > 0 && start) {
-      const startTs = fromDatetimeLocal(start);
-      setEnd(toDatetimeLocal(startTs + config.defaultDurationMinutes * 60 * 1000));
-    }
-  };
-
   const applyDateChip = (target: Date) => {
     if (allDay) {
       const dateStr = toDatetimeLocal(target.getTime()).slice(0, 10);
@@ -312,6 +324,8 @@ export function CreateEventModal({
   const applyTemplate = (id: EventTemplateId) => {
     const t = getEventTemplate(id);
     setEventType(t.eventType);
+    const matchedLabel = findLabelIdByColor(labels, getEventType(t.eventType).color);
+    if (matchedLabel) setSelectedLabelId(matchedLabel);
     setTitle(t.title);
     setVisibility(t.visibility);
     setRecurrence(t.recurrence);
@@ -367,7 +381,7 @@ export function CreateEventModal({
       startAt,
       endAt,
       allDay,
-      color: typeConfig.color,
+      color: eventColor,
       visibility,
       teamId: visibility === "team" ? teamId : null,
       attendeeUserIds,
@@ -427,12 +441,16 @@ export function CreateEventModal({
       ? formatDurationMinutes(fromDatetimeLocal(start), fromDatetimeLocal(end))
       : null;
 
+  const labelBlockReason =
+    labels.length > 0 && !selectedLabelId ? "라벨을 선택해 주세요." : null;
   const saveBlockReason = !title.trim()
     ? "제목을 입력하면 저장할 수 있습니다."
-    : timeError
-      ? timeError
-      : null;
-  const canSave = !isPending && !timeError && !!title.trim();
+    : labelBlockReason
+      ? labelBlockReason
+      : timeError
+        ? timeError
+        : null;
+  const canSave = !isPending && !timeError && !!title.trim() && !labelBlockReason;
 
   return (
     <>
@@ -457,33 +475,20 @@ export function CreateEventModal({
             </div>
           )}
 
-          <div>
-            <p className="mb-2 text-sm font-medium text-navy-700">유형</p>
-            <div className="flex flex-wrap gap-2">
-              {EVENT_TYPES.map((type) => (
-                <button
-                  key={type.id}
-                  type="button"
-                  onClick={() => applyEventType(type.id)}
-                  className={cn(
-                    "rounded-xl px-3 py-1.5 text-sm font-medium transition",
-                    eventType === type.id
-                      ? "text-white shadow-glow"
-                      : "bg-sky-100/60 text-navy-700 hover:bg-sky-100",
-                  )}
-                  style={
-                    eventType === type.id ? { backgroundColor: type.color } : undefined
-                  }
-                >
-                  {type.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <LabelPillPicker
+            title="라벨"
+            labels={labels}
+            selectedIds={selectedLabelId ? [selectedLabelId] : []}
+            onChange={(ids) => setSelectedLabelId(ids[0] ?? null)}
+            mode="single"
+            onCreateLabel={(data) => createLabel.mutateAsync(data)}
+            isCreating={createLabel.isPending}
+            emptyMessage="새 라벨을 만들어 일정을 분류하세요."
+          />
 
           <Input
             label="제목"
-            placeholder={typeConfig.placeholder}
+            placeholder={selectedLabel ? `${selectedLabel.name} 일정 제목` : typeConfig.placeholder}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required

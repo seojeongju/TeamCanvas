@@ -36,7 +36,13 @@ export function CalendarPage() {
   const [exporting, setExporting] = useState(false);
   const [showIcalFeed, setShowIcalFeed] = useState(false);
   const deepLinkEventId = searchParams.get("event");
-  const { data: deepLinkData } = useEvent(deepLinkEventId && !deepLinkEventId.startsWith("task-due:") ? deepLinkEventId : undefined);
+  const { data: deepLinkData } = useEvent(
+    deepLinkEventId &&
+      !deepLinkEventId.startsWith("task-due:") &&
+      !deepLinkEventId.startsWith("google:")
+      ? deepLinkEventId
+      : undefined,
+  );
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [focusDate, setFocusDate] = useState(today);
   const [showCreate, setShowCreate] = useState(false);
@@ -139,10 +145,6 @@ export function CalendarPage() {
   };
 
   const handleEventClick = (event: CalendarEvent, day?: Date) => {
-    if (event.sourceType === "google") {
-      setGoogleToast("내 Google 일정입니다. 읽기 전용이며 팀원에게 노출되지 않습니다.");
-      return;
-    }
     if (event.sourceType === "task" && event.taskId) {
       routerNavigate(`/tasks?task=${event.taskId}`);
       return;
@@ -257,15 +259,7 @@ export function CalendarPage() {
 
       <CalendarViewSwitcher value={viewMode} onChange={setViewMode} />
 
-      <GoogleCalendarPanel />
-
       <CalendarSourceLegend hasPersonalGoogle={hasPersonalGoogle} />
-
-      {googleToast && (
-        <GlassCard className="border border-primary-200 bg-primary-50/80 p-3 text-sm text-primary-800">
-          {googleToast}
-        </GlassCard>
-      )}
 
       <GlassCard className="p-4">
         <div className="flex items-center justify-between">
@@ -381,6 +375,15 @@ export function CalendarPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section>
+        {googleToast && (
+          <GlassCard className="mb-3 border border-primary-200 bg-primary-50/80 p-3 text-sm text-primary-800">
+            {googleToast}
+          </GlassCard>
+        )}
+        <GoogleCalendarPanel />
       </section>
 
       <button

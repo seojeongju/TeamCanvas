@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { cn } from "../../lib/cn";
-import { colorClass } from "../../lib/dates";
 import {
   HOUR_END,
   HOUR_START,
@@ -13,8 +12,9 @@ import {
   slotIndexToTimestamp,
   timestampToSlotIndex,
 } from "../../lib/calendarUtils";
-import { isPersonalGoogleEvent, personalGoogleEventClassName } from "../../lib/calendarEventSources";
+import { isPersonalGoogleEvent } from "../../lib/calendarEventSources";
 import type { CalendarEvent } from "../../lib/types";
+import { CalendarEventTrigger } from "./CalendarEventTrigger";
 
 const SLOT_HEIGHT = 22;
 
@@ -133,29 +133,15 @@ export function TimeGridView({
                 {dayEvents.map((event) => {
                   const style = eventBlockStyle(event.startAt, event.endAt, day, SLOT_HEIGHT);
                   return (
-                    <button
+                    <CalendarEventTrigger
                       key={event.id}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEventClick(event, day);
-                      }}
-                      className={cn(
-                        "absolute inset-x-0.5 z-10 overflow-hidden rounded-md px-1 py-0.5 text-left text-[10px] font-medium text-white shadow-sm",
-                        colorClass(event.color),
-                        isPersonalGoogleEvent(event) && personalGoogleEventClassName(),
-                      )}
+                      event={event}
+                      day={day}
+                      variant="block"
+                      label={isPersonalGoogleEvent(event) ? `개인 ${event.title}` : event.title}
+                      onClick={() => onEventClick(event, day)}
                       style={{ top: style.top, height: style.height, minHeight: SLOT_HEIGHT }}
-                      title={
-                        isPersonalGoogleEvent(event)
-                          ? `${event.title} (내 Google · 비공개)`
-                          : event.title
-                      }
-                    >
-                      <span className="line-clamp-2">
-                        {isPersonalGoogleEvent(event) ? `개인 ${event.title}` : event.title}
-                      </span>
-                    </button>
+                    />
                   );
                 })}
               </div>

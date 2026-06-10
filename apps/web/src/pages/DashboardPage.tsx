@@ -46,7 +46,7 @@ export function DashboardPage() {
 
   const handleEventClick = (event: CalendarEvent) => {
     if (event.sourceType === "google") {
-      navigate("/calendar");
+      navigate(`/calendar?event=${encodeURIComponent(event.id)}`);
       return;
     }
     if (event.sourceType === "task" && event.taskId) {
