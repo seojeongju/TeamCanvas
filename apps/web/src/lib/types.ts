@@ -25,6 +25,42 @@ export type OrgSubscriptionSummary = {
   features: PlanFeature[];
 };
 
+export type OrgSubscriptionDetail = {
+  id: string;
+  organizationId: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  status: string;
+  billingCycle: string;
+  currentPeriodStart: number;
+  currentPeriodEnd: number;
+  trialEndsAt: number | null;
+  maxMembers: number;
+  maxTeams: number;
+  maxStorageMb: number;
+  features: PlanFeature[];
+  priceMonthly: number;
+  priceYearly: number;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+};
+
+export type SubscriptionPlanOption = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  price_monthly: number;
+  price_yearly: number;
+  max_members: number;
+  max_teams: number;
+  max_storage_mb: number;
+  features_json: string;
+  stripe_price_monthly_id: string | null;
+  stripe_price_yearly_id: string | null;
+};
+
 export type Organization = {
   id: string;
   name: string;

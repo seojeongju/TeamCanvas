@@ -163,6 +163,37 @@ export function useStartCheckout() {
   });
 }
 
+async function refreshBillingState(
+  qc: ReturnType<typeof useQueryClient>,
+  orgId: string,
+  setAuth: ReturnType<typeof useAuthStore.getState>["setAuth"],
+) {
+  try {
+    const me = await api.me();
+    setAuth(me.user, me.organizations, {
+      isPlatformAdmin: me.isPlatformAdmin,
+      platformRole: me.platformRole,
+      sessionExpiresAt: me.sessionExpiresAt ?? null,
+    });
+  } catch {
+    // keep local auth state on transient me fetch failure
+  }
+  await Promise.all([
+    qc.invalidateQueries({ queryKey: ["subscription", orgId] }),
+    qc.invalidateQueries({ queryKey: ["permissions", orgId] }),
+    qc.invalidateQueries({ queryKey: ["org", orgId] }),
+    qc.invalidateQueries({ queryKey: ["billing-history", orgId] }),
+    qc.invalidateQueries({ queryKey: ["auth"] }),
+  ]);
+}
+
+export function useRefreshBillingState() {
+  const qc = useQueryClient();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const orgId = useCurrentOrgId();
+  return () => (orgId ? refreshBillingState(qc, orgId, setAuth) : Promise.resolve());
+}
+
 export function useCompleteMockCheckout() {
   const qc = useQueryClient();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -170,21 +201,7 @@ export function useCompleteMockCheckout() {
     mutationFn: ({ orgId, planId }: { orgId: string; planId: string }) =>
       api.completeMockCheckout(orgId, { planId }),
     onSuccess: async (_, vars) => {
-      try {
-        const me = await api.me();
-        setAuth(me.user, me.organizations, {
-          isPlatformAdmin: me.isPlatformAdmin,
-          platformRole: me.platformRole,
-          sessionExpiresAt: me.sessionExpiresAt ?? null,
-        });
-      } catch {
-        // keep local auth state on transient me fetch failure
-      }
-      qc.invalidateQueries({ queryKey: ["subscription", vars.orgId] });
-      qc.invalidateQueries({ queryKey: ["permissions", vars.orgId] });
-      qc.invalidateQueries({ queryKey: ["org", vars.orgId] });
-      qc.invalidateQueries({ queryKey: ["billing-history", vars.orgId] });
-      qc.invalidateQueries({ queryKey: ["auth"] });
+      await refreshBillingState(qc, vars.orgId, setAuth);
     },
   });
 }

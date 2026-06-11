@@ -91,12 +91,41 @@ const SUBSCRIPTION_SELECT = `
   JOIN subscription_plans p ON p.id = s.plan_id
 `;
 
+const BASE_PLAN_FEATURES: PlanFeature[] = ["calendar", "tasks"];
+
+async function syncSubscriptionLifecycle(db: D1Database, orgId: string): Promise<void> {
+  const row = await db
+    .prepare(`${SUBSCRIPTION_SELECT} WHERE s.organization_id = ?`)
+    .bind(orgId)
+    .first<Record<string, unknown>>();
+  if (!row) return;
+
+  const status = row.status as SubscriptionStatus;
+  const trialEndsAt = (row.trial_ends_at as number | null) ?? null;
+  const ts = now();
+
+  if (status === "trialing" && trialEndsAt != null && trialEndsAt <= ts) {
+    await assignOrgPlan(db, orgId, "plan_free", "active");
+    await writeAuditLog(db, orgId, null, "billing.trial_expired", "subscription", orgId, {
+      previousPlanId: row.plan_id,
+      trialEndsAt,
+    });
+  }
+}
+
 export async function getOrgSubscription(db: D1Database, orgId: string): Promise<OrgSubscription | null> {
+  await syncSubscriptionLifecycle(db, orgId);
   const row = await db
     .prepare(`${SUBSCRIPTION_SELECT} WHERE s.organization_id = ?`)
     .bind(orgId)
     .first<Record<string, unknown>>();
   return row ? mapSubscriptionRow(row) : null;
+}
+
+function isFeatureAllowed(sub: OrgSubscription, feature: PlanFeature): boolean {
+  if (sub.status === "canceled" || sub.status === "suspended") return false;
+  if (sub.status === "past_due") return BASE_PLAN_FEATURES.includes(feature);
+  return sub.features.includes(feature);
 }
 
 export async function orgHasFeature(
@@ -106,8 +135,7 @@ export async function orgHasFeature(
 ): Promise<boolean> {
   const sub = await getOrgSubscription(db, orgId);
   if (!sub) return false;
-  if (sub.status === "canceled" || sub.status === "suspended") return false;
-  return sub.features.includes(feature);
+  return isFeatureAllowed(sub, feature);
 }
 
 export async function requireOrgFeature(
@@ -120,8 +148,19 @@ export async function requireOrgFeature(
   if (sub.status === "canceled" || sub.status === "suspended") {
     return c.json({ error: "Subscription inactive", code: "SUBSCRIPTION_INACTIVE" }, 402);
   }
-  if (!sub.features.includes(feature)) {
-    return c.json({ error: "Feature not available on current plan", code: "FEATURE_LOCKED", feature }, 402);
+  if (!isFeatureAllowed(sub, feature)) {
+    const code = sub.status === "past_due" ? "PAYMENT_PAST_DUE" : "FEATURE_LOCKED";
+    return c.json(
+      {
+        error:
+          sub.status === "past_due"
+            ? "결제가 지연되어 이 기능을 사용할 수 없습니다"
+            : "Feature not available on current plan",
+        code,
+        feature,
+      },
+      402,
+    );
   }
   return sub;
 }

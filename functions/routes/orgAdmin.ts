@@ -395,7 +395,8 @@ orgAdminRoutes.get("/organizations/:orgId/subscription", async (c) => {
 
   const subscription = await getOrgSubscription(c.env.DB, orgId);
   const { results: plans } = await c.env.DB.prepare(
-    `SELECT id, code, name, description, price_monthly, price_yearly, max_members, features_json,
+    `SELECT id, code, name, description, price_monthly, price_yearly,
+            max_members, max_teams, max_storage_mb, features_json,
             stripe_price_monthly_id, stripe_price_yearly_id
      FROM subscription_plans WHERE is_active = 1 ORDER BY sort_order`,
   ).all();

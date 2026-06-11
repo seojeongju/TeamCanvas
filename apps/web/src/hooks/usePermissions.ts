@@ -18,9 +18,15 @@ export function useHasPermission(permission: Permission) {
   return data?.permissions.includes(permission) ?? false;
 }
 
+const BASE_PLAN_FEATURES: PlanFeature[] = ["calendar", "tasks"];
+
 export function useHasFeature(feature: PlanFeature) {
   const { data } = useOrgPermissions();
-  return data?.subscription?.features.includes(feature) ?? false;
+  const sub = data?.subscription;
+  if (!sub) return false;
+  if (sub.status === "canceled" || sub.status === "suspended") return false;
+  if (sub.status === "past_due") return BASE_PLAN_FEATURES.includes(feature);
+  return sub.features.includes(feature);
 }
 
 export function useCurrentOrgRole() {

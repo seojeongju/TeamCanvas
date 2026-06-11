@@ -146,6 +146,18 @@ billingRoutes.post("/webhooks/stripe", async (c) => {
 
         await syncStripeSubscriptionSnapshot(c.env.DB, orgId, sub, nextStatus);
 
+        const stripePriceId = extractStripePriceId(sub);
+        if (stripePriceId) {
+          const planId = await findPlanIdByStripePrice(c.env.DB, stripePriceId);
+          if (planId) {
+            await c.env.DB.prepare(
+              `UPDATE organization_subscriptions SET plan_id = ?, updated_at = ? WHERE organization_id = ?`,
+            )
+              .bind(planId, now(), orgId)
+              .run();
+          }
+        }
+
         if (event.type === "customer.subscription.deleted") {
           await assignOrgPlan(c.env.DB, orgId, "plan_free", "canceled");
           await writeAuditLog(c.env.DB, orgId, null, "billing.subscription_canceled", "subscription", subId, {
@@ -208,6 +220,25 @@ function mapStripeStatus(status: string): SubscriptionStatus {
     default:
       return "active";
   }
+}
+
+function extractStripePriceId(subscription: Record<string, unknown>): string | null {
+  const items = subscription.items as { data?: Array<Record<string, unknown>> } | undefined;
+  const firstItem = items?.data?.[0];
+  const price = firstItem?.price as { id?: string } | undefined;
+  return price?.id ?? null;
+}
+
+async function findPlanIdByStripePrice(db: D1Database, stripePriceId: string): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT id FROM subscription_plans
+       WHERE stripe_price_monthly_id = ? OR stripe_price_yearly_id = ?
+       LIMIT 1`,
+    )
+    .bind(stripePriceId, stripePriceId)
+    .first<{ id: string }>();
+  return row?.id ?? null;
 }
 
 async function findOrgIdByStripeSubscription(db: D1Database, stripeSubscriptionId: string): Promise<string | null> {

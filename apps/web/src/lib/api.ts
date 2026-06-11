@@ -776,9 +776,11 @@ export const api = {
     ),
 
   getOrgSubscription: (orgId: string) =>
-    request<{ subscription: unknown; plans: Record<string, unknown>[]; billingProvider?: "stripe" | "mock" }>(
-      `/api/organizations/${orgId}/subscription`,
-    ),
+    request<{
+      subscription: import("./types").OrgSubscriptionDetail | null;
+      plans: import("./types").SubscriptionPlanOption[];
+      billingProvider?: "stripe" | "mock";
+    }>(`/api/organizations/${orgId}/subscription`),
 
   getBillingHistory: (orgId: string) =>
     request<{

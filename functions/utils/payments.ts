@@ -33,7 +33,7 @@ export function resolveBillingProvider(env: Env): BillingProvider {
 export async function createCheckoutSession(input: CreateCheckoutInput): Promise<CheckoutSessionResult> {
   if (input.provider === "mock") {
     const sessionId = `mock_cs_${crypto.randomUUID().replace(/-/g, "")}`;
-    const url = `${input.successUrl}&mock=1&session_id=${encodeURIComponent(sessionId)}`;
+    const url = `${input.successUrl}&mock=1&plan_id=${encodeURIComponent(input.planId)}&session_id=${encodeURIComponent(sessionId)}`;
     return { provider: "mock", sessionId, url };
   }
 
