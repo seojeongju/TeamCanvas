@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { requireAuth } from "../utils/auth";
-import { permissionsForRole, requireOrgPermission } from "../utils/permissions";
+import { ORG_ROLES, permissionsForRole, requireOrgPermission } from "../utils/permissions";
 import {
   requireOrgFeature,
   getOrgSubscription,
@@ -285,7 +285,7 @@ orgAdminRoutes.patch("/organizations/:orgId/members/:memberUserId", async (c) =>
   const access = await requireOrgPermission(c, user.id, orgId, "members:manage");
   if (access instanceof Response) return access;
 
-  const body = await c.req.json<{ role?: string; status?: string }>();
+  const body = await c.req.json<{ role?: string; status?: string; name?: string }>();
   const target = await c.env.DB.prepare(
     "SELECT id, role FROM memberships WHERE organization_id = ? AND user_id = ?",
   )
@@ -300,24 +300,51 @@ orgAdminRoutes.patch("/organizations/:orgId/members/:memberUserId", async (c) =>
     return c.json({ error: "Cannot change own role" }, 400);
   }
 
-  const updates: string[] = [];
-  const values: unknown[] = [];
+  const membershipUpdates: string[] = [];
+  const membershipValues: unknown[] = [];
   if (body.role) {
-    updates.push("role = ?");
-    values.push(body.role);
+    if (!ORG_ROLES.includes(body.role as (typeof ORG_ROLES)[number])) {
+      return c.json({ error: "Invalid role" }, 400);
+    }
+    if (body.role === "owner" && access.role !== "owner") {
+      return c.json({ error: "Only owner can assign owner role" }, 403);
+    }
+    membershipUpdates.push("role = ?");
+    membershipValues.push(body.role);
   }
   if (body.status) {
-    updates.push("status = ?");
-    values.push(body.status);
+    const allowedStatus = ["active", "suspended", "invited"];
+    if (!allowedStatus.includes(body.status)) {
+      return c.json({ error: "Invalid status" }, 400);
+    }
+    membershipUpdates.push("status = ?");
+    membershipValues.push(body.status);
   }
-  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
 
-  values.push(orgId, memberUserId);
-  await c.env.DB.prepare(
-    `UPDATE memberships SET ${updates.join(", ")} WHERE organization_id = ? AND user_id = ?`,
-  )
-    .bind(...values)
-    .run();
+  let nameUpdated = false;
+  if (body.name !== undefined) {
+    const name = body.name.trim();
+    if (!name || name.length > 80) {
+      return c.json({ error: "이름은 1~80자여야 합니다" }, 400);
+    }
+    await c.env.DB.prepare("UPDATE users SET name = ?, updated_at = ? WHERE id = ?")
+      .bind(name, now(), memberUserId)
+      .run();
+    nameUpdated = true;
+  }
+
+  if (membershipUpdates.length) {
+    membershipValues.push(orgId, memberUserId);
+    await c.env.DB.prepare(
+      `UPDATE memberships SET ${membershipUpdates.join(", ")} WHERE organization_id = ? AND user_id = ?`,
+    )
+      .bind(...membershipValues)
+      .run();
+  }
+
+  if (!membershipUpdates.length && !nameUpdated) {
+    return c.json({ error: "Nothing to update" }, 400);
+  }
 
   await writeAuditLog(c.env.DB, orgId, user.id, "member.updated", "membership", memberUserId, body);
   return c.json({ ok: true });
@@ -481,7 +508,7 @@ orgAdminRoutes.get("/organizations/:orgId/invites", async (c) => {
   if (access instanceof Response) return access;
 
   const { listOrgInvites } = await import("../utils/invites");
-  const invites = await listOrgInvites(c.env.DB, orgId);
+  const invites = await listOrgInvites(c.env.DB, orgId, frontendUrl(c.req.raw, c.env));
   return c.json({ invites });
 });
 

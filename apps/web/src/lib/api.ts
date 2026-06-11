@@ -24,6 +24,12 @@ export const api = {
 
   me: () => request<import("./types").AuthMeResponse>("/auth/me"),
 
+  updateProfile: (data: { name: string }) =>
+    request<{ ok: boolean; user: import("./types").User }>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   authProviders: () =>
     request<{ google: boolean; kakao: boolean }>("/auth/providers"),
 
@@ -677,7 +683,11 @@ export const api = {
       `/api/organizations/${orgId}/members`,
     ),
 
-  updateOrgMember: (orgId: string, userId: string, data: { role?: string; status?: string }) =>
+  updateOrgMember: (
+    orgId: string,
+    userId: string,
+    data: { role?: string; status?: string; name?: string },
+  ) =>
     request<{ ok: boolean }>(`/api/organizations/${orgId}/members/${userId}`, {
       method: "PATCH",
       body: JSON.stringify(data),

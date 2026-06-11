@@ -60,9 +60,9 @@ export async function createOrgInvite(
   await db
     .prepare(
       `INSERT INTO org_invites (
-        id, organization_id, email, email_domain, role, token_hash, invited_by,
+        id, organization_id, email, email_domain, role, token_hash, token, invited_by,
         expires_at, created_at, invite_type, max_uses, use_count, label
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     )
     .bind(
       id,
@@ -71,6 +71,7 @@ export async function createOrgInvite(
       normalizeEmailDomain(options.emailDomain),
       role,
       tokenHash,
+      raw,
       invitedBy,
       expiresAt,
       ts,
@@ -265,11 +266,12 @@ export async function acceptOrgInvite(
   return { organizationId: invite.organization_id };
 }
 
-export async function listOrgInvites(db: D1Database, orgId: string) {
+export async function listOrgInvites(db: D1Database, orgId: string, frontendBase?: string) {
   const { results } = await db
     .prepare(
       `SELECT i.id, i.email, i.email_domain, i.role, i.expires_at, i.created_at,
-              i.invite_type, i.max_uses, i.use_count, i.label, u.name as invited_by_name
+              i.invite_type, i.max_uses, i.use_count, i.label, i.token,
+              u.name as invited_by_name
        FROM org_invites i
        JOIN users u ON u.id = i.invited_by
        WHERE i.organization_id = ?
@@ -280,8 +282,29 @@ export async function listOrgInvites(db: D1Database, orgId: string) {
        ORDER BY i.created_at DESC`,
     )
     .bind(orgId, now())
-    .all();
-  return results ?? [];
+    .all<{
+      id: string;
+      email: string | null;
+      email_domain: string | null;
+      role: string;
+      expires_at: number;
+      created_at: number;
+      invite_type: string;
+      max_uses: number | null;
+      use_count: number;
+      label: string | null;
+      token: string | null;
+      invited_by_name: string;
+    }>();
+
+  const base = frontendBase?.replace(/\/$/, "") ?? "";
+  return (results ?? []).map((row) => {
+    const { token, ...rest } = row;
+    return {
+      ...rest,
+      invite_url: token && base ? `${base}/invite/${token}` : null,
+    };
+  });
 }
 
 export async function revokeOrgInvite(

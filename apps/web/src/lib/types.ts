@@ -412,6 +412,7 @@ export type OrgInvite = {
   use_count: number;
   label: string | null;
   invited_by_name: string;
+  invite_url: string | null;
 };
 
 export type AuthMeResponse = {

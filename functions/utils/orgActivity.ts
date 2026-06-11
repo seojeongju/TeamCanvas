@@ -2,7 +2,7 @@ const AUDIT_LABELS: Record<string, string> = {
   "org.updated": "조직 정보를 수정했습니다",
   "org.settings_updated": "조직 설정을 변경했습니다",
   "member.invited": "새 멤버를 초대했습니다",
-  "member.updated": "멤버 역할을 변경했습니다",
+  "member.updated": "멤버 정보를 변경했습니다",
   "member.removed": "멤버를 제거했습니다",
   "team.created": "팀을 만들었습니다",
   "team.updated": "팀 정보를 수정했습니다",

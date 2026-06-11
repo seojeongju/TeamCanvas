@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, CreditCard, Link2, Copy, ScrollText, X } from "lucide-react";
+import { Users, Shield, CreditCard, Link2, Copy, ScrollText, X, ChevronRight, Pencil } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
@@ -12,14 +12,18 @@ import {
   useCreateInviteLink,
   useOrgInvites,
   useRevokeOrgInvite,
+  useUpdateOrgMember,
+  useRemoveOrgMember,
+  useUpdateProfile,
   useBillingHistory,
   useOrgSubscriptionDetail,
   useStartCheckout,
   useCompleteMockCheckout,
 } from "../../hooks/useAdmin";
+import { MemberEditModal } from "../../components/settings/MemberEditModal";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { useAuthStore } from "../../stores/authStore";
-import type { OrgInvite } from "../../lib/types";
+import type { OrgInvite, OrgMember } from "../../lib/types";
 import { cn } from "../../lib/cn";
 import { useCurrentOrgId } from "../../stores/orgStore";
 
@@ -30,10 +34,23 @@ const roleLabels: Record<string, string> = {
   guest: "게스트",
 };
 
+const statusLabels: Record<string, string> = {
+  active: "활성",
+  suspended: "정지",
+  invited: "초대됨",
+};
+
 export function MembersPage() {
   const navigate = useNavigate();
+  const currentUser = useAuthStore((s) => s.user);
+  const orgId = useCurrentOrgId();
+  const actorRole =
+    useAuthStore((s) => s.organizations.find((o) => o.id === orgId)?.role) ?? "member";
   const canManage = useHasPermission("members:manage");
   const { data, isLoading } = useOrgMembers();
+  const updateMember = useUpdateOrgMember();
+  const removeMember = useRemoveOrgMember();
+  const updateProfile = useUpdateProfile();
   const { data: invitesData } = useOrgInvites();
   const invite = useInviteOrgMember();
   const createLink = useCreateInviteLink();
@@ -48,6 +65,7 @@ export function MembersPage() {
   const [expiryDays, setExpiryDays] = useState("7");
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
+  const [editingMember, setEditingMember] = useState<OrgMember | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -89,10 +107,18 @@ export function MembersPage() {
     }
   };
 
+  const copyToClipboard = async (url: string, message = "초대 링크를 복사했습니다.") => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast({ tone: "info", message });
+    } catch {
+      setToast({ tone: "error", message: "링크 복사에 실패했습니다." });
+    }
+  };
+
   const copyLink = () => {
     if (!lastLink) return;
-    navigator.clipboard.writeText(lastLink);
-    setToast({ tone: "info", message: "초대 링크를 복사했습니다." });
+    void copyToClipboard(lastLink);
   };
 
   const formatRemaining = (expiresAt: number) => {
@@ -117,6 +143,36 @@ export function MembersPage() {
     if (inv.email) return inv.email;
     if (inv.email_domain) return `${inv.email_domain} 도메인`;
     return "제한 없음";
+  };
+
+  const canOpenMember = (member: OrgMember) => canManage || member.user_id === currentUser?.id;
+
+  const handleSaveMember = async (payload: { name: string; role?: string; status?: string }) => {
+    if (!editingMember) return;
+    const isSelf = editingMember.user_id === currentUser?.id;
+    try {
+      if (isSelf && !canManage) {
+        await updateProfile.mutateAsync({ name: payload.name });
+      } else {
+        await updateMember.mutateAsync({ userId: editingMember.user_id, ...payload });
+      }
+      setEditingMember(null);
+      setToast({ tone: "info", message: "멤버 정보를 저장했습니다." });
+    } catch (err) {
+      setToast({ tone: "error", message: err instanceof Error ? err.message : "저장 실패" });
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!editingMember) return;
+    if (!window.confirm(`${editingMember.name}님을 조직에서 제거할까요?`)) return;
+    try {
+      await removeMember.mutateAsync(editingMember.user_id);
+      setEditingMember(null);
+      setToast({ tone: "info", message: "멤버를 조직에서 제거했습니다." });
+    } catch (err) {
+      setToast({ tone: "error", message: err instanceof Error ? err.message : "제거 실패" });
+    }
   };
 
   const handleRevoke = async (inviteId: string) => {
@@ -290,17 +346,29 @@ export function MembersPage() {
                     {inviteRestrictionLabel(inv)} · {formatRemaining(inv.expires_at)}
                   </p>
                 </div>
-                {canManage && (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded-md p-1.5 text-red-500 hover:bg-red-50"
-                    aria-label="링크 비활성화"
-                    onClick={() => handleRevoke(inv.id)}
-                    disabled={revokeInvite.isPending}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+                <div className="flex shrink-0 items-center gap-1">
+                  {inv.invite_url && (
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-primary-600 hover:bg-primary-50"
+                      aria-label="링크 복사"
+                      onClick={() => void copyToClipboard(inv.invite_url!)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  )}
+                  {canManage && (
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-red-500 hover:bg-red-50"
+                      aria-label="링크 비활성화"
+                      onClick={() => handleRevoke(inv.id)}
+                      disabled={revokeInvite.isPending}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -311,35 +379,71 @@ export function MembersPage() {
         <p className="text-sm text-navy-600">로딩 중...</p>
       ) : (
         <div className="space-y-2">
-          {(data?.members ?? []).map((m) => (
-            <GlassCard key={m.user_id} className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-400/10">
-                <Users className="h-5 w-5 text-primary-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-navy-900">{m.name}</p>
-                <p className="truncate text-xs text-navy-600">{m.email}</p>
-                {(m.teams?.length ?? 0) > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {m.teams!.map((t) => (
-                      <span
-                        key={t.id}
-                        className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
-                        style={{ backgroundColor: t.color }}
-                      >
-                        {t.name}
-                      </span>
-                    ))}
-                  </div>
+          {(data?.members ?? []).map((m) => {
+            const editable = canOpenMember(m);
+            return (
+              <GlassCard
+                key={m.user_id}
+                className={cn(
+                  "flex items-center gap-4 p-4",
+                  editable && "cursor-pointer transition hover:bg-white/90",
                 )}
-              </div>
-              <span className="rounded-full bg-navy-800/5 px-2 py-1 text-xs font-medium text-navy-700">
-                {roleLabels[m.role] ?? m.role}
-              </span>
-            </GlassCard>
-          ))}
+                onClick={editable ? () => setEditingMember(m) : undefined}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-400/10 text-sm font-semibold text-primary-600">
+                  {m.name?.[0] ?? <Users className="h-5 w-5 text-primary-500" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-navy-900">{m.name}</p>
+                  <p className="truncate text-xs text-navy-600">{m.email}</p>
+                  {(m.teams?.length ?? 0) > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {m.teams!.map((t) => (
+                        <span
+                          key={t.id}
+                          className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
+                          style={{ backgroundColor: t.color }}
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {m.status !== "active" && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-medium text-amber-700">
+                      {statusLabels[m.status] ?? m.status}
+                    </span>
+                  )}
+                  <span className="rounded-full bg-navy-800/5 px-2 py-1 text-xs font-medium text-navy-700">
+                    {roleLabels[m.role] ?? m.role}
+                  </span>
+                  {editable &&
+                    (canManage ? (
+                      <Pencil className="h-4 w-4 text-navy-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-navy-400" />
+                    ))}
+                </div>
+              </GlassCard>
+            );
+          })}
         </div>
       )}
+
+      <MemberEditModal
+        member={editingMember}
+        open={!!editingMember}
+        onClose={() => setEditingMember(null)}
+        canManage={canManage}
+        isSelf={editingMember?.user_id === currentUser?.id}
+        actorRole={actorRole}
+        onSave={handleSaveMember}
+        onRemove={canManage ? handleRemoveMember : undefined}
+        saving={updateMember.isPending || updateProfile.isPending}
+        removing={removeMember.isPending}
+      />
 
       <button
         type="button"

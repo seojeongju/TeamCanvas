@@ -15,10 +15,63 @@ export function useOrgMembers() {
 export function useUpdateOrgMember() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const user = useAuthStore((s) => s.user);
+  const organizations = useAuthStore((s) => s.organizations);
+  const isPlatformAdmin = useAuthStore((s) => s.isPlatformAdmin);
+  const platformRole = useAuthStore((s) => s.platformRole);
+  const sessionExpiresAt = useAuthStore((s) => s.sessionExpiresAt);
   return useMutation({
-    mutationFn: ({ userId, ...data }: { userId: string; role?: string; status?: string }) =>
+    mutationFn: ({ userId, ...data }: { userId: string; role?: string; status?: string; name?: string }) =>
       api.updateOrgMember(orgId!, userId, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["members", orgId] }),
+    onSuccess: async (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["members", orgId] });
+      qc.invalidateQueries({ queryKey: ["org-activity", orgId] });
+      if (vars.name && user?.id === vars.userId) {
+        setAuth(
+          { ...user, name: vars.name },
+          organizations,
+          { isPlatformAdmin, platformRole, sessionExpiresAt },
+        );
+      }
+    },
+  });
+}
+
+export function useRemoveOrgMember() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (userId: string) => api.removeOrgMember(orgId!, userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["members", orgId] });
+      qc.invalidateQueries({ queryKey: ["org", orgId] });
+      qc.invalidateQueries({ queryKey: ["org-activity", orgId] });
+    },
+  });
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const user = useAuthStore((s) => s.user);
+  const organizations = useAuthStore((s) => s.organizations);
+  const isPlatformAdmin = useAuthStore((s) => s.isPlatformAdmin);
+  const platformRole = useAuthStore((s) => s.platformRole);
+  const sessionExpiresAt = useAuthStore((s) => s.sessionExpiresAt);
+  return useMutation({
+    mutationFn: (data: { name: string }) => api.updateProfile(data),
+    onSuccess: (res) => {
+      if (user) {
+        setAuth(
+          { ...user, name: res.user.name },
+          organizations,
+          { isPlatformAdmin, platformRole, sessionExpiresAt },
+        );
+      }
+      qc.invalidateQueries({ queryKey: ["members"] });
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
   });
 }
 

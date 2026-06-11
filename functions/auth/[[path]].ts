@@ -353,6 +353,24 @@ app.get("/me", async (c) => {
   return c.json({ user, organizations, ...platform, sessionExpiresAt });
 });
 
+app.patch("/me", async (c) => {
+  const user = await getAuthUser(c);
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  const body = await c.req.json<{ name?: string }>();
+  const name = body.name?.trim();
+  if (!name || name.length > 80) {
+    return c.json({ error: "이름은 1~80자여야 합니다" }, 400);
+  }
+  const ts = Date.now();
+  await c.env.DB.prepare("UPDATE users SET name = ?, updated_at = ? WHERE id = ?")
+    .bind(name, ts, user.id)
+    .run();
+  return c.json({
+    ok: true,
+    user: { ...user, name, updated_at: ts },
+  });
+});
+
 app.post("/refresh", async (c) => {
   const refreshed = await refreshAuthSession(c);
   if (!refreshed) return c.json({ error: "Unauthorized" }, 401);
