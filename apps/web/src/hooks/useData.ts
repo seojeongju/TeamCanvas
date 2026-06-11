@@ -833,7 +833,7 @@ function entityFilesKey(entityType: string, entityId: string) {
   return ["entity-files", entityType, entityId] as const;
 }
 
-export function useEntityFiles(entityType: "task" | "event", entityId: string | undefined) {
+export function useEntityFiles(entityType: "task" | "event" | "project", entityId: string | undefined) {
   return useQuery({
     queryKey: entityFilesKey(entityType, entityId ?? ""),
     queryFn: () => api.getEntityFiles(entityType, entityId!),
@@ -850,7 +850,7 @@ export function useUploadEntityFile() {
       entityId,
       file,
     }: {
-      entityType: "task" | "event";
+      entityType: "task" | "event" | "project";
       entityId: string;
       file: File;
     }) => api.uploadEntityFile(orgId!, entityType, entityId, file),
@@ -863,7 +863,7 @@ export function useUploadEntityFile() {
 export function useDeleteEntityFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ fileId }: { fileId: string; entityType: "task" | "event"; entityId: string }) =>
+    mutationFn: ({ fileId }: { fileId: string; entityType: "task" | "event" | "project"; entityId: string }) =>
       api.deleteFile(fileId),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: entityFilesKey(vars.entityType, vars.entityId) });

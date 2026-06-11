@@ -4,8 +4,25 @@ import { requireAuth } from "../utils/auth";
 import { requireOrgPermission } from "../utils/permissions";
 import { requireOrgFeature } from "../utils/subscriptions";
 import { newId, now } from "../utils/helpers";
+import {
+  assertProjectAccess,
+  orgRoleSeesAllProjects,
+  PROJECT_MEMBER_ACCESS_SQL,
+} from "../utils/projectAccess";
 
 export const projectRoutes = new Hono<{ Bindings: Env }>();
+
+async function requireProjectAccess(
+  c: { env: Env; json: (data: unknown, status?: number) => Response },
+  userId: string,
+  orgRole: string,
+  projectId: string,
+  orgId: string,
+): Promise<Response | null> {
+  const ok = await assertProjectAccess(c.env.DB, userId, orgRole, projectId, orgId);
+  if (!ok) return c.json({ error: "not found" }, 404);
+  return null;
+}
 
 const PROJECT_STATUSES = ["planning", "active", "on_hold", "done"] as const;
 const MILESTONE_STATUSES = ["pending", "done"] as const;
@@ -90,6 +107,11 @@ projectRoutes.get("/organizations/:orgId/projects", async (c) => {
 
   let sql = `${PROJECT_SELECT} WHERE p.organization_id = ?`;
   const binds: unknown[] = [orgId];
+
+  if (!orgRoleSeesAllProjects(member.role)) {
+    sql += PROJECT_MEMBER_ACCESS_SQL;
+    binds.push(user.id, user.id);
+  }
 
   if (status && PROJECT_STATUSES.includes(status as (typeof PROJECT_STATUSES)[number])) {
     sql += " AND p.status = ?";
@@ -183,6 +205,9 @@ projectRoutes.get("/projects/:projectId", async (c) => {
   const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
 
@@ -200,6 +225,9 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
   const orgId = existing.organization_id as string;
   const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
   if (member instanceof Response) return member;
+
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
 
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
@@ -289,6 +317,9 @@ projectRoutes.delete("/projects/:projectId", async (c) => {
   const member = await requireOrgPermission(c, user.id, orgId, "projects:delete");
   if (member instanceof Response) return member;
 
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
 
@@ -311,6 +342,9 @@ projectRoutes.get("/projects/:projectId/milestones", async (c) => {
   const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order, due_at, created_at`,
   )
@@ -332,6 +366,9 @@ projectRoutes.post("/projects/:projectId/milestones", async (c) => {
   const orgId = project.organization_id as string;
   const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
   if (member instanceof Response) return member;
+
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
 
   const body = await c.req.json<{
     title: string;
@@ -392,8 +429,12 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
   if (!existing) return c.json({ error: "not found" }, 404);
 
   const orgId = existing.organization_id as string;
+  const projectId = existing.project_id as string;
   const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
   if (member instanceof Response) return member;
+
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
 
   const body = await c.req.json<{
     title?: string;
@@ -441,7 +482,6 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
     .run();
 
   const { insertProjectActivity } = await import("../utils/projectActivities");
-  const projectId = existing.project_id as string;
   const title = (body.title?.trim() ?? existing.title) as string;
   if (body.status === "done" && existing.status !== "done") {
     await insertProjectActivity(c.env.DB, {
@@ -480,6 +520,15 @@ projectRoutes.delete("/milestones/:milestoneId", async (c) => {
   const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:write");
   if (member instanceof Response) return member;
 
+  const access = await requireProjectAccess(
+    c,
+    user.id,
+    member.role,
+    existing.project_id,
+    existing.organization_id,
+  );
+  if (access) return access;
+
   await c.env.DB.prepare("DELETE FROM project_milestones WHERE id = ?").bind(milestoneId).run();
 
   const { insertProjectActivity } = await import("../utils/projectActivities");
@@ -508,6 +557,9 @@ projectRoutes.get("/projects/:projectId/members", async (c) => {
   const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
   const { results } = await c.env.DB.prepare(
     `SELECT pm.user_id, pm.role, pm.joined_at, u.name, u.email, u.avatar_url
      FROM project_members pm
@@ -531,8 +583,11 @@ projectRoutes.post("/projects/:projectId/members", async (c) => {
   if (!project) return c.json({ error: "not found" }, 404);
 
   const orgId = project.organization_id as string;
-  const access = await requireOrgPermission(c, user.id, orgId, "projects:write");
-  if (access instanceof Response) return access;
+  const perm = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (perm instanceof Response) return perm;
+
+  const access = await requireProjectAccess(c, user.id, perm.role, projectId, orgId);
+  if (access) return access;
 
   const body = await c.req.json<{ userId: string; role?: string }>();
   if (!body.userId) return c.json({ error: "userId required" }, 400);
@@ -583,8 +638,11 @@ projectRoutes.delete("/projects/:projectId/members/:userId", async (c) => {
   if (!project) return c.json({ error: "not found" }, 404);
 
   const orgId = project.organization_id as string;
-  const access = await requireOrgPermission(c, user.id, orgId, "projects:write");
-  if (access instanceof Response) return access;
+  const perm = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (perm instanceof Response) return perm;
+
+  const access = await requireProjectAccess(c, user.id, perm.role, projectId, orgId);
+  if (access) return access;
 
   const target = await c.env.DB.prepare(
     `SELECT pm.role, u.name FROM project_members pm
@@ -626,9 +684,51 @@ projectRoutes.get("/projects/:projectId/activities", async (c) => {
   const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
   const { fetchProjectActivities } = await import("../utils/projectActivities");
   const activities = await fetchProjectActivities(c.env.DB, projectId);
   return c.json({ activities });
+});
+
+// ── Files ──
+
+projectRoutes.get("/projects/:projectId/files", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, filename, mime_type, size_bytes, created_at
+     FROM files WHERE organization_id = ? AND entity_type = 'project' AND entity_id = ?
+     ORDER BY created_at DESC`,
+  )
+    .bind(orgId, projectId)
+    .all();
+
+  const files = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: r.id,
+      filename: r.filename,
+      mimeType: r.mime_type,
+      sizeBytes: r.size_bytes,
+      createdAt: r.created_at,
+    };
+  });
+
+  return c.json({ files });
 });
 
 // ── Org project templates ──

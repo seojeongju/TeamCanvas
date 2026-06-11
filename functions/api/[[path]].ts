@@ -1746,7 +1746,10 @@ app.get("/organizations/:orgId/search", async (c) => {
 
   const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
   const { searchOrganization } = await import("../utils/search");
-  const results = await searchOrganization(c.env.DB, orgId, q, limit);
+  const results = await searchOrganization(c.env.DB, orgId, q, limit, {
+    userId: user.id,
+    orgRole: member.role,
+  });
   return c.json({ results });
 });
 
@@ -2026,6 +2029,20 @@ async function assertEntityFileAccess(
     const member = await requireOrgPermission(c, userId, orgId, mode === "read" ? "events:read" : "events:write");
     return member instanceof Response ? member : null;
   }
+  if (entityType === "project") {
+    const project = await c.env.DB.prepare(
+      "SELECT organization_id FROM projects WHERE id = ? AND organization_id = ?",
+    )
+      .bind(entityId, orgId)
+      .first();
+    if (!project) return c.json({ error: "Project not found" }, 404);
+    const member = await requireOrgPermission(c, userId, orgId, mode === "read" ? "projects:read" : "projects:write");
+    if (member instanceof Response) return member;
+    const { assertProjectAccess } = await import("../utils/projectAccess");
+    const ok = await assertProjectAccess(c.env.DB, userId, member.role, entityId, orgId);
+    if (!ok) return c.json({ error: "Project not found" }, 404);
+    return null;
+  }
   return c.json({ error: "Unsupported entity type" }, 400);
 }
 
@@ -2114,7 +2131,7 @@ app.post("/organizations/:orgId/files", async (c) => {
 
   if (!(file instanceof File)) return c.json({ error: "file required" }, 400);
   if (!entityType || !entityId) return c.json({ error: "entityType and entityId required" }, 400);
-  if (entityType !== "task" && entityType !== "event") {
+  if (entityType !== "task" && entityType !== "event" && entityType !== "project") {
     return c.json({ error: "Unsupported entity type" }, 400);
   }
 

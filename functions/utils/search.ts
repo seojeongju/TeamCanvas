@@ -11,6 +11,7 @@ export async function searchOrganization(
   orgId: string,
   query: string,
   limit = 20,
+  opts?: { userId?: string; orgRole?: string },
 ): Promise<SearchResultItem[]> {
   const q = query.trim();
   if (!q) return [];
@@ -82,6 +83,19 @@ export async function searchOrganization(
     done: "완료",
   };
 
+  const projectAccessSql =
+    opts?.userId &&
+    opts.orgRole &&
+    opts.orgRole !== "owner" &&
+    opts.orgRole !== "admin"
+      ? ` AND (p.owner_id = ? OR EXISTS (
+           SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = ?
+         ))`
+      : "";
+  const projectBinds: unknown[] = [orgId, pattern, pattern];
+  if (projectAccessSql) projectBinds.push(opts!.userId!, opts!.userId!);
+  projectBinds.push(perType);
+
   const { results: projects } = await db
     .prepare(
       `SELECT p.id, p.name, p.status, u.name as owner_name
@@ -89,10 +103,11 @@ export async function searchOrganization(
        LEFT JOIN users u ON u.id = p.owner_id
        WHERE p.organization_id = ?
          AND (p.name LIKE ? OR COALESCE(p.description, '') LIKE ?)
+         ${projectAccessSql}
        ORDER BY p.updated_at DESC
        LIMIT ?`,
     )
-    .bind(orgId, pattern, pattern, perType)
+    .bind(...projectBinds)
     .all();
 
   for (const row of projects ?? []) {

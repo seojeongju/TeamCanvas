@@ -10,6 +10,7 @@ import {
 } from "../components/dashboard/ActivityFeed";
 import { DashboardInsightsPanel } from "../components/dashboard/DashboardInsights";
 import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
+import { ProjectsOverviewCard } from "../components/dashboard/ProjectsOverviewCard";
 import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { useAuthStore } from "../stores/authStore";
@@ -19,6 +20,7 @@ import {
   useEvents,
   useOrgActivity,
   useTasks,
+  useProjects,
 } from "../hooks/useData";
 import { useOrgMembers } from "../hooks/useAdmin";
 import { useLogout } from "../hooks/useAuth";
@@ -36,6 +38,7 @@ export function DashboardPage() {
   const to = endOfDay(Date.now());
   const { data: eventsData } = useEvents(from, to);
   const { data: tasksData } = useTasks();
+  const { data: projectsData } = useProjects();
   const { data: membersData } = useOrgMembers();
   const [activityFilters, setActivityFilters] = useState<ActivityFeedFilters>({
     actorId: "",
@@ -80,6 +83,9 @@ export function DashboardPage() {
   }, [eventsData?.events, tasks, from, to]);
   const doingTasks = tasks.filter((t) => t.status === "doing").length;
   const doneTasks = tasks.filter((t) => t.status === "done").length;
+  const activeProjects = (projectsData?.projects ?? []).filter(
+    (p) => p.status === "active" || p.status === "planning",
+  ).length;
   const now = Date.now();
   const nextEvent =
     [...todayEvents]
@@ -126,6 +132,7 @@ export function DashboardPage() {
         doingTasks={doingTasks}
         totalTasks={tasks.length}
         doneTasks={doneTasks}
+        activeProjects={activeProjects}
         members={stats?.members ?? 1}
         teams={stats?.teams ?? 1}
         nextEvent={nextEvent}
@@ -134,6 +141,16 @@ export function DashboardPage() {
           setShowCreate(true);
         }}
       />
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-navy-900">프로젝트</h2>
+          <Link to="/projects" className="flex items-center gap-0.5 text-sm text-primary-500">
+            전체 보기 <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <ProjectsOverviewCard />
+      </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">

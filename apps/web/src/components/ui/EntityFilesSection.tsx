@@ -17,7 +17,7 @@ export function EntityFilesSection({
   entityType,
   entityId,
 }: {
-  entityType: "task" | "event";
+  entityType: "task" | "event" | "project";
   entityId: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);

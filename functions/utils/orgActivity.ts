@@ -18,6 +18,7 @@ function activityLink(entityType: string | null, entityId: string | null): strin
   if (entityType === "task") return `/tasks?task=${encodeURIComponent(entityId)}`;
   if (entityType === "event") return `/calendar?event=${encodeURIComponent(entityId)}`;
   if (entityType === "team") return `/settings/teams`;
+  if (entityType === "project") return `/projects/${encodeURIComponent(entityId)}`;
   return null;
 }
 

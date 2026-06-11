@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, FolderKanban, Trash2 } from "lucide-react";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
+import { EntityFilesSection } from "../components/ui/EntityFilesSection";
 import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
 import { ProjectMilestonesSection } from "../components/projects/ProjectMilestonesSection";
 import { ProjectMembersSection } from "../components/projects/ProjectMembersSection";
@@ -232,6 +233,8 @@ export function ProjectDetailPage() {
               )}
             </div>
           )}
+
+          <EntityFilesSection entityType="project" entityId={project.id} />
 
           <div className="mt-5">
             <ProjectActivityFolder projectId={project.id} />

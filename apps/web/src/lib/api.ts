@@ -619,12 +619,16 @@ export const api = {
       `/api/organizations/${orgId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
 
-  getEntityFiles: (entityType: "task" | "event", entityId: string) =>
+  getEntityFiles: (entityType: "task" | "event" | "project", entityId: string) =>
     request<{ files: import("./types").TaskFile[] }>(
-      entityType === "task" ? `/api/tasks/${entityId}/files` : `/api/events/${entityId}/files`,
+      entityType === "task"
+        ? `/api/tasks/${entityId}/files`
+        : entityType === "event"
+          ? `/api/events/${entityId}/files`
+          : `/api/projects/${entityId}/files`,
     ),
 
-  uploadEntityFile: (orgId: string, entityType: "task" | "event", entityId: string, file: File) => {
+  uploadEntityFile: (orgId: string, entityType: "task" | "event" | "project", entityId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
     form.append("entityType", entityType);

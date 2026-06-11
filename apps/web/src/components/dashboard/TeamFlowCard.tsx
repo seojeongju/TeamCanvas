@@ -4,6 +4,7 @@ import {
   CheckSquare,
   ChevronRight,
   CircleDot,
+  FolderKanban,
   Users,
   Users2,
 } from "lucide-react";
@@ -16,6 +17,7 @@ interface TeamFlowCardProps {
   doingTasks: number;
   totalTasks: number;
   doneTasks: number;
+  activeProjects: number;
   members: number;
   teams: number;
   nextEvent?: CalendarEvent | null;
@@ -40,6 +42,15 @@ const metrics = [
     accent: "from-emerald-500/15 to-emerald-500/5 text-emerald-600",
     iconBg: "bg-emerald-500/15 text-emerald-600",
     to: "/tasks",
+  },
+  {
+    key: "projects",
+    label: "프로젝트",
+    unit: "개",
+    icon: FolderKanban,
+    accent: "from-sky-500/15 to-sky-500/5 text-sky-600",
+    iconBg: "bg-sky-500/15 text-sky-600",
+    to: "/projects",
   },
   {
     key: "members",
@@ -74,6 +85,7 @@ export function TeamFlowCard({
   doingTasks,
   totalTasks,
   doneTasks,
+  activeProjects,
   members,
   teams,
   nextEvent,
@@ -82,6 +94,7 @@ export function TeamFlowCard({
   const values: Record<(typeof metrics)[number]["key"], number> = {
     events: eventsToday,
     tasks: doingTasks,
+    projects: activeProjects,
     members,
     teams,
   };
@@ -110,7 +123,7 @@ export function TeamFlowCard({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {metrics.map(({ key, label, unit, icon: Icon, iconBg, to }) => (
             <Link
               key={key}
