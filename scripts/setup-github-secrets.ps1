@@ -10,9 +10,19 @@ $Repo = "seojeongju/TeamCanvas"
 Write-Host "`n=== TeamCanvas GitHub Actions Secrets ===" -ForegroundColor Cyan
 Write-Host "개발: (주)와우쓰리디`n"
 
-# gh CLI 확인
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+# gh CLI 확인 (winget 설치 직후 PATH 미반영 터미널 대비)
+$ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+if (-not $ghCmd) {
+    $ghDefault = "${env:ProgramFiles}\GitHub CLI\gh.exe"
+    if (Test-Path $ghDefault) {
+        $env:Path = "$(Split-Path $ghDefault -Parent);$env:Path"
+        $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
+    }
+}
+if (-not $ghCmd) {
     Write-Host "GitHub CLI(gh)가 필요합니다. 설치: winget install GitHub.cli" -ForegroundColor Red
+    Write-Host "설치 후에도 인식되지 않으면 터미널을 닫았다가 다시 열거나 아래를 실행하세요:" -ForegroundColor Yellow
+    Write-Host '  $env:Path += ";C:\Program Files\GitHub CLI"' -ForegroundColor Gray
     exit 1
 }
 
