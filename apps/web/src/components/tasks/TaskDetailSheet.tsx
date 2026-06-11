@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { FolderKanban, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 import { TaskActivityFolder } from "./TaskActivityFolder";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -7,6 +8,7 @@ import {
   useCreateTaskComment,
   useDeleteTask,
   useTaskComments,
+  useProjects,
   useTeams,
   useUpdateTask,
 } from "../../hooks/useData";
@@ -39,6 +41,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
     canDeleteAny || (canWrite && !!task?.creatorId && task.creatorId === user?.id);
   const { data: membersData } = useOrgMembers();
   const { data: teamsData } = useTeams();
+  const { data: projectsData } = useProjects();
   const { data: commentsData } = useTaskComments(task?.id);
 
   const [title, setTitle] = useState("");
@@ -47,11 +50,13 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const [assigneeId, setAssigneeId] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [teamId, setTeamId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [commentBody, setCommentBody] = useState("");
 
   const members = membersData?.members ?? [];
   const teams = teamsData?.teams ?? [];
+  const projects = projectsData?.projects ?? [];
   const comments = commentsData?.comments ?? [];
 
   useEffect(() => {
@@ -62,6 +67,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
     setAssigneeId(task.assigneeId ?? "");
     setPriority((task.priority as TaskPriority) || "medium");
     setTeamId(task.teamId ?? "");
+    setProjectId(task.projectId ?? "");
     setStatus(task.status);
   }, [task]);
 
@@ -218,6 +224,37 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {projects.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-navy-700">프로젝트</label>
+              <select
+                value={projectId}
+                onChange={(e) => {
+                  setProjectId(e.target.value);
+                  save({ projectId: e.target.value || null });
+                }}
+                className={selectClass}
+                disabled={!canWrite}
+              >
+                <option value="">프로젝트 없음</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              {task.projectId && (
+                <Link
+                  to={`/projects/${task.projectId}`}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline"
+                >
+                  <FolderKanban className="h-3.5 w-3.5" />
+                  {task.projectName ?? "프로젝트 보기"}
+                </Link>
+              )}
             </div>
           )}
         </div>

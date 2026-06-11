@@ -24,6 +24,18 @@ export function projectStatusTone(status: ProjectStatus | string): string {
   }
 }
 
+export const MILESTONE_STATUS_OPTIONS: { value: import("./types").MilestoneStatus; label: string }[] = [
+  { value: "pending", label: "예정" },
+  { value: "done", label: "완료" },
+];
+
+export const PROJECT_MEMBER_ROLE_LABELS: Record<string, string> = {
+  owner: "소유자",
+  manager: "매니저",
+  member: "멤버",
+  viewer: "뷰어",
+};
+
 export function formatProjectDateRange(startAt: number | null, endAt: number | null): string {
   if (!startAt && !endAt) return "기간 미정";
   const fmt = (ts: number) => {
@@ -33,4 +45,10 @@ export function formatProjectDateRange(startAt: number | null, endAt: number | n
   if (startAt && endAt) return `${fmt(startAt)} – ${fmt(endAt)}`;
   if (startAt) return `${fmt(startAt)}부터`;
   return `${fmt(endAt!)}까지`;
+}
+
+export function formatMilestoneDue(dueAt: number | null): string {
+  if (!dueAt) return "기한 없음";
+  const d = new Date(dueAt);
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }

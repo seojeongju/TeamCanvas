@@ -8,6 +8,33 @@ import { newId, now } from "../utils/helpers";
 export const projectRoutes = new Hono<{ Bindings: Env }>();
 
 const PROJECT_STATUSES = ["planning", "active", "on_hold", "done"] as const;
+const MILESTONE_STATUSES = ["pending", "done"] as const;
+const MEMBER_ROLES = ["owner", "manager", "member", "viewer"] as const;
+
+function mapMilestoneRow(row: Record<string, unknown>) {
+  return {
+    id: row.id as string,
+    projectId: row.project_id as string,
+    title: row.title as string,
+    description: (row.description as string | null) ?? null,
+    dueAt: (row.due_at as number | null) ?? null,
+    status: row.status as string,
+    sortOrder: Number(row.sort_order ?? 0),
+    createdAt: row.created_at as number,
+    updatedAt: row.updated_at as number,
+  };
+}
+
+function mapProjectMemberRow(row: Record<string, unknown>) {
+  return {
+    userId: row.user_id as string,
+    name: row.name as string,
+    email: (row.email as string | null) ?? null,
+    avatarUrl: (row.avatar_url as string | null) ?? null,
+    role: row.role as string,
+    joinedAt: row.joined_at as number,
+  };
+}
 
 function mapProjectRow(row: Record<string, unknown>) {
   return {
@@ -249,6 +276,257 @@ projectRoutes.delete("/projects/:projectId", async (c) => {
   if (feature instanceof Response) return feature;
 
   await c.env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(projectId).run();
+
+  return c.json({ ok: true });
+});
+
+// ── Milestones ──
+
+projectRoutes.get("/projects/:projectId/milestones", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM project_milestones WHERE project_id = ? ORDER BY sort_order, due_at, created_at`,
+  )
+    .bind(projectId)
+    .all();
+
+  const milestones = (results ?? []).map((row) => mapMilestoneRow(row as Record<string, unknown>));
+  return c.json({ milestones });
+});
+
+projectRoutes.post("/projects/:projectId/milestones", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{
+    title: string;
+    description?: string;
+    dueAt?: number | null;
+    sortOrder?: number;
+  }>();
+
+  if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
+
+  const id = newId();
+  const ts = now();
+  const maxOrder = await c.env.DB.prepare(
+    "SELECT COALESCE(MAX(sort_order), -1) as m FROM project_milestones WHERE project_id = ?",
+  )
+    .bind(projectId)
+    .first<{ m: number }>();
+
+  await c.env.DB.prepare(
+    `INSERT INTO project_milestones (id, project_id, title, description, due_at, status, sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      projectId,
+      body.title.trim(),
+      body.description?.trim() || null,
+      body.dueAt ?? null,
+      body.sortOrder ?? (maxOrder?.m ?? -1) + 1,
+      ts,
+      ts,
+    )
+    .run();
+
+  return c.json({ id }, 201);
+});
+
+projectRoutes.patch("/milestones/:milestoneId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const milestoneId = c.req.param("milestoneId");
+
+  const existing = await c.env.DB.prepare(
+    `SELECT m.*, p.organization_id FROM project_milestones m
+     JOIN projects p ON p.id = m.project_id WHERE m.id = ?`,
+  )
+    .bind(milestoneId)
+    .first<Record<string, unknown>>();
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const orgId = existing.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{
+    title?: string;
+    description?: string | null;
+    dueAt?: number | null;
+    status?: string;
+    sortOrder?: number;
+  }>();
+
+  const updates: string[] = [];
+  const binds: unknown[] = [];
+
+  if (body.title !== undefined) {
+    if (!body.title.trim()) return c.json({ error: "title required" }, 400);
+    updates.push("title = ?");
+    binds.push(body.title.trim());
+  }
+  if (body.description !== undefined) {
+    updates.push("description = ?");
+    binds.push(body.description?.trim() || null);
+  }
+  if (body.dueAt !== undefined) {
+    updates.push("due_at = ?");
+    binds.push(body.dueAt);
+  }
+  if (body.status !== undefined) {
+    if (!MILESTONE_STATUSES.includes(body.status as (typeof MILESTONE_STATUSES)[number])) {
+      return c.json({ error: "invalid status" }, 400);
+    }
+    updates.push("status = ?");
+    binds.push(body.status);
+  }
+  if (body.sortOrder !== undefined) {
+    updates.push("sort_order = ?");
+    binds.push(body.sortOrder);
+  }
+
+  if (updates.length === 0) return c.json({ ok: true });
+
+  updates.push("updated_at = ?");
+  binds.push(now(), milestoneId);
+
+  await c.env.DB.prepare(`UPDATE project_milestones SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+projectRoutes.delete("/milestones/:milestoneId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const milestoneId = c.req.param("milestoneId");
+
+  const existing = await c.env.DB.prepare(
+    `SELECT m.id, p.organization_id FROM project_milestones m
+     JOIN projects p ON p.id = m.project_id WHERE m.id = ?`,
+  )
+    .bind(milestoneId)
+    .first<{ id: string; organization_id: string }>();
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:write");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM project_milestones WHERE id = ?").bind(milestoneId).run();
+  return c.json({ ok: true });
+});
+
+// ── Members ──
+
+projectRoutes.get("/projects/:projectId/members", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT pm.user_id, pm.role, pm.joined_at, u.name, u.email, u.avatar_url
+     FROM project_members pm
+     JOIN users u ON u.id = pm.user_id
+     WHERE pm.project_id = ?
+     ORDER BY CASE pm.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, u.name`,
+  )
+    .bind(projectId)
+    .all();
+
+  const members = (results ?? []).map((row) => mapProjectMemberRow(row as Record<string, unknown>));
+  return c.json({ members });
+});
+
+projectRoutes.post("/projects/:projectId/members", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const access = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ userId: string; role?: string }>();
+  if (!body.userId) return c.json({ error: "userId required" }, 400);
+
+  const orgMember = await c.env.DB.prepare(
+    "SELECT 1 FROM memberships WHERE organization_id = ? AND user_id = ? AND status = 'active'",
+  )
+    .bind(orgId, body.userId)
+    .first();
+  if (!orgMember) return c.json({ error: "User not in organization" }, 400);
+
+  const role = MEMBER_ROLES.includes(body.role as (typeof MEMBER_ROLES)[number])
+    ? body.role
+    : "member";
+  if (role === "owner") return c.json({ error: "Cannot assign owner role" }, 400);
+
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO project_members (project_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role`,
+  )
+    .bind(projectId, body.userId, role, ts)
+    .run();
+
+  return c.json({ ok: true }, 201);
+});
+
+projectRoutes.delete("/projects/:projectId/members/:userId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+  const targetUserId = c.req.param("userId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const access = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (access instanceof Response) return access;
+
+  const target = await c.env.DB.prepare(
+    "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?",
+  )
+    .bind(projectId, targetUserId)
+    .first<{ role: string }>();
+  if (!target) return c.json({ error: "not found" }, 404);
+  if (target.role === "owner") return c.json({ error: "Cannot remove project owner" }, 400);
+
+  await c.env.DB.prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ?")
+    .bind(projectId, targetUserId)
+    .run();
 
   return c.json({ ok: true });
 });

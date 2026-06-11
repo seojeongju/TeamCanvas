@@ -2,8 +2,12 @@ import { useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import { useCreateProject, useTeams } from "../../hooks/useData";
+import { useCreateProject, useCreateProjectMilestone, useTeams } from "../../hooks/useData";
 import { PROJECT_STATUS_OPTIONS } from "../../lib/projectUtils";
+import {
+  milestoneDueDatesFromTemplate,
+  PROJECT_TEMPLATES,
+} from "../../lib/projectTemplates";
 import { cn } from "../../lib/cn";
 import type { ProjectStatus } from "../../lib/types";
 
@@ -20,6 +24,7 @@ type Props = {
 
 export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const createProject = useCreateProject();
+  const createMilestone = useCreateProjectMilestone();
   const { data: teamsData } = useTeams();
   const teams = teamsData?.teams ?? [];
 
@@ -30,6 +35,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const [teamId, setTeamId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [templateId, setTemplateId] = useState("blank");
 
   const reset = () => {
     setName("");
@@ -39,6 +45,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
     setTeamId("");
     setStartDate("");
     setEndDate("");
+    setTemplateId("blank");
   };
 
   const handleClose = () => {
@@ -62,6 +69,20 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
       startAt,
       endAt,
     });
+
+    const template = PROJECT_TEMPLATES.find((t) => t.id === templateId) ?? PROJECT_TEMPLATES[0];
+    if (template.milestones.length > 0) {
+      const dueDates = milestoneDueDatesFromTemplate(template, startAt);
+      for (let i = 0; i < template.milestones.length; i++) {
+        const m = template.milestones[i];
+        await createMilestone.mutateAsync({
+          projectId: result.id,
+          title: m.title,
+          dueAt: dueDates[i],
+          sortOrder: i,
+        });
+      }
+    }
 
     handleClose();
     onCreated?.(result.id);
@@ -88,6 +109,17 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
             placeholder="프로젝트 목표·범위"
             className={cn(selectClass, "min-h-[72px] resize-none py-3")}
           />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-navy-700">템플릿</label>
+          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={selectClass}>
+            {PROJECT_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} — {t.description}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -139,8 +171,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
           <Input label="종료일 (선택)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
 
-        <Button type="submit" fullWidth disabled={createProject.isPending}>
-          {createProject.isPending ? "저장 중..." : "프로젝트 저장"}
+        <Button type="submit" fullWidth disabled={createProject.isPending || createMilestone.isPending}>
+          {createProject.isPending || createMilestone.isPending ? "저장 중..." : "프로젝트 저장"}
         </Button>
       </form>
     </Modal>

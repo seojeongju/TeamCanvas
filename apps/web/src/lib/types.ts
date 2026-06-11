@@ -419,6 +419,29 @@ export type UpdateProjectPayload = {
   endAt?: number | null;
 };
 
+export type MilestoneStatus = "pending" | "done";
+
+export type ProjectMilestone = {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  dueAt: number | null;
+  status: MilestoneStatus;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type ProjectMember = {
+  userId: string;
+  name: string;
+  email: string | null;
+  avatarUrl: string | null;
+  role: string;
+  joinedAt: number;
+};
+
 export type TaskActivity = {
   id: string;
   taskId: string;
@@ -468,7 +491,7 @@ export type Notification = {
 
 export type SearchResult = {
   id: string;
-  type: "event" | "task" | "member";
+  type: "event" | "task" | "project" | "member";
   title: string;
   subtitle: string;
   link: string;

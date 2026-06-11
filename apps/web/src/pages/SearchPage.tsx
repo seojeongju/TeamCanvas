@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, CheckSquare, ChevronRight, Search, Users } from "lucide-react";
+import { CalendarDays, CheckSquare, ChevronRight, FolderKanban, Search, Users } from "lucide-react";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Input } from "../components/ui/Input";
@@ -14,6 +14,7 @@ const TYPE_META: Record<
 > = {
   event: { label: "일정", icon: CalendarDays, color: "text-violet-600 bg-violet-500/10" },
   task: { label: "업무", icon: CheckSquare, color: "text-emerald-600 bg-emerald-500/10" },
+  project: { label: "프로젝트", icon: FolderKanban, color: "text-sky-600 bg-sky-500/10" },
   member: { label: "멤버", icon: Users, color: "text-primary-600 bg-primary-400/10" },
 };
 
@@ -32,6 +33,7 @@ export function SearchPage() {
   const grouped = {
     event: results.filter((r) => r.type === "event"),
     task: results.filter((r) => r.type === "task"),
+    project: results.filter((r) => r.type === "project"),
     member: results.filter((r) => r.type === "member"),
   };
 
@@ -68,7 +70,7 @@ export function SearchPage() {
         </GlassCard>
       ) : (
         <div className="space-y-5">
-          {(["event", "task", "member"] as const).map((type) => {
+          {(["event", "task", "project", "member"] as const).map((type) => {
             const items = grouped[type];
             if (items.length === 0) return null;
             const meta = TYPE_META[type];

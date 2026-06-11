@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import { useTeams, useUpdateTask } from "../../hooks/useData";
+import { useProjects, useTeams, useUpdateTask } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
 import type { Task, TaskPriority, TaskStatus } from "../../lib/types";
@@ -17,6 +17,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
   const updateTask = useUpdateTask();
   const { data: membersData } = useOrgMembers();
   const { data: teamsData } = useTeams();
+  const { data: projectsData } = useProjects();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -24,10 +25,12 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
   const [assigneeId, setAssigneeId] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [teamId, setTeamId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
 
   const members = membersData?.members ?? [];
   const teams = teamsData?.teams ?? [];
+  const projects = projectsData?.projects ?? [];
 
   useEffect(() => {
     if (!task) return;
@@ -37,6 +40,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
     setAssigneeId(task.assigneeId ?? "");
     setPriority((task.priority as TaskPriority) || "medium");
     setTeamId(task.teamId ?? "");
+    setProjectId(task.projectId ?? "");
     setStatus(task.status);
   }, [task]);
 
@@ -54,6 +58,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
       assigneeId: assigneeId || null,
       priority,
       teamId: teamId || null,
+      projectId: projectId || null,
       status,
     });
     onClose();
@@ -133,6 +138,20 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {projects.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-navy-700">프로젝트 (선택)</label>
+              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={selectClass}>
+                <option value="">프로젝트 없음</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
               </select>

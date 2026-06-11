@@ -1,6 +1,6 @@
 export type SearchResultItem = {
   id: string;
-  type: "event" | "task" | "member";
+  type: "event" | "task" | "project" | "member";
   title: string;
   subtitle: string;
   link: string;
@@ -16,7 +16,7 @@ export async function searchOrganization(
   if (!q) return [];
 
   const pattern = `%${q}%`;
-  const perType = Math.max(5, Math.ceil(limit / 3));
+  const perType = Math.max(4, Math.ceil(limit / 4));
   const results: SearchResultItem[] = [];
 
   const { results: events } = await db
@@ -72,6 +72,38 @@ export async function searchOrganization(
       title: r.title as string,
       subtitle: `${status} · ${assignee}`,
       link: `/tasks?task=${r.id}`,
+    });
+  }
+
+  const statusLabelsProject: Record<string, string> = {
+    planning: "계획",
+    active: "진행 중",
+    on_hold: "보류",
+    done: "완료",
+  };
+
+  const { results: projects } = await db
+    .prepare(
+      `SELECT p.id, p.name, p.status, u.name as owner_name
+       FROM projects p
+       LEFT JOIN users u ON u.id = p.owner_id
+       WHERE p.organization_id = ?
+         AND (p.name LIKE ? OR COALESCE(p.description, '') LIKE ?)
+       ORDER BY p.updated_at DESC
+       LIMIT ?`,
+    )
+    .bind(orgId, pattern, pattern, perType)
+    .all();
+
+  for (const row of projects ?? []) {
+    const r = row as Record<string, unknown>;
+    const status = statusLabelsProject[r.status as string] ?? (r.status as string);
+    results.push({
+      id: r.id as string,
+      type: "project",
+      title: r.name as string,
+      subtitle: `${status} · ${(r.owner_name as string) ?? "담당자"}`,
+      link: `/projects/${r.id}`,
     });
   }
 

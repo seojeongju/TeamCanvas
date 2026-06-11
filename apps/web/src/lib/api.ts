@@ -518,6 +518,48 @@ export const api = {
   deleteProject: (projectId: string) =>
     request<{ ok: boolean }>(`/api/projects/${projectId}`, { method: "DELETE" }),
 
+  getProjectMilestones: (projectId: string) =>
+    request<{ milestones: import("./types").ProjectMilestone[] }>(`/api/projects/${projectId}/milestones`),
+
+  createProjectMilestone: (
+    projectId: string,
+    data: { title: string; description?: string; dueAt?: number | null; sortOrder?: number },
+  ) =>
+    request<{ id: string }>(`/api/projects/${projectId}/milestones`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateProjectMilestone: (
+    milestoneId: string,
+    data: {
+      title?: string;
+      description?: string | null;
+      dueAt?: number | null;
+      status?: import("./types").MilestoneStatus;
+      sortOrder?: number;
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/milestones/${milestoneId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteProjectMilestone: (milestoneId: string) =>
+    request<{ ok: boolean }>(`/api/milestones/${milestoneId}`, { method: "DELETE" }),
+
+  getProjectMembers: (projectId: string) =>
+    request<{ members: import("./types").ProjectMember[] }>(`/api/projects/${projectId}/members`),
+
+  addProjectMember: (projectId: string, data: { userId: string; role?: string }) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}/members`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  removeProjectMember: (projectId: string, userId: string) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}/members/${userId}`, { method: "DELETE" }),
+
   getTaskActivities: (taskId: string) =>
     request<{ activities: import("./types").TaskActivity[] }>(`/api/tasks/${taskId}/activities`),
 

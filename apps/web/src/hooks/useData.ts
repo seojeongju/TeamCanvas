@@ -293,6 +293,100 @@ export function useDeleteProject() {
   });
 }
 
+export function useProjectMilestones(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-milestones", projectId],
+    queryFn: () => api.getProjectMilestones(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateProjectMilestone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      ...data
+    }: {
+      projectId: string;
+      title: string;
+      description?: string;
+      dueAt?: number | null;
+      sortOrder?: number;
+    }) => api.createProjectMilestone(projectId, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-milestones", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project", vars.projectId] });
+    },
+  });
+}
+
+export function useUpdateProjectMilestone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      milestoneId,
+      projectId,
+      ...data
+    }: {
+      milestoneId: string;
+      projectId: string;
+    } & Parameters<typeof api.updateProjectMilestone>[1]) =>
+      api.updateProjectMilestone(milestoneId, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-milestones", vars.projectId] });
+    },
+  });
+}
+
+export function useDeleteProjectMilestone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ milestoneId }: { milestoneId: string; projectId: string }) =>
+      api.deleteProjectMilestone(milestoneId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-milestones", vars.projectId] });
+    },
+  });
+}
+
+export function useProjectMembers(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-members", projectId],
+    queryFn: () => api.getProjectMembers(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useAddProjectMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      userId,
+      role,
+    }: {
+      projectId: string;
+      userId: string;
+      role?: string;
+    }) => api.addProjectMember(projectId, { userId, role }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-members", vars.projectId] });
+    },
+  });
+}
+
+export function useRemoveProjectMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, userId }: { projectId: string; userId: string }) =>
+      api.removeProjectMember(projectId, userId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-members", vars.projectId] });
+    },
+  });
+}
+
 export function useTaskLabels() {
   const orgId = useCurrentOrgId();
   return useQuery({
