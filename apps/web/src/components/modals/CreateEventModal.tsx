@@ -27,6 +27,7 @@ import {
   fromDatetimeLocal,
   getSmartDefaultRange,
   isSameCalendarDay,
+  normalizeTimedEventEnd,
   setDateKeepTime,
   toDatetimeLocal,
 } from "../../lib/dates";
@@ -300,12 +301,12 @@ export function CreateEventModal({
   };
 
   const handleStartChange = (value: string) => {
-    setStart(value);
+    const prevStart = start ? fromDatetimeLocal(start) : fromDatetimeLocal(value);
+    const prevEnd = end ? fromDatetimeLocal(end) : prevStart + 60 * 60 * 1000;
+    const duration = prevEnd > prevStart ? prevEnd - prevStart : 60 * 60 * 1000;
     const startTs = fromDatetimeLocal(value);
-    const endTs = fromDatetimeLocal(end);
-    if (endTs <= startTs) {
-      setEnd(toDatetimeLocal(startTs + 60 * 60 * 1000));
-    }
+    setStart(value);
+    setEnd(toDatetimeLocal(startTs + Math.max(duration, 60 * 60 * 1000)));
     setTimeError(null);
   };
 
@@ -354,8 +355,17 @@ export function CreateEventModal({
         return;
       }
     } else {
+      if (!start || !end) {
+        setTimeError("시작·종료 시간을 확인해 주세요.");
+        return;
+      }
       startAt = fromDatetimeLocal(start);
       endAt = fromDatetimeLocal(end);
+      if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) {
+        setTimeError("시작·종료 시간을 확인해 주세요.");
+        return;
+      }
+      endAt = normalizeTimedEventEnd(startAt, endAt);
       if (endAt <= startAt) {
         setTimeError("종료 시간은 시작 시간보다 이후여야 합니다.");
         return;

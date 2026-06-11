@@ -11,6 +11,7 @@ import { eventListSubtitle } from "../../lib/todayEventsGroup";
 import { cn } from "../../lib/cn";
 import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
 import type { CalendarEvent } from "../../lib/types";
+import { useAuthStore } from "../../stores/authStore";
 import { useEventPreviewTooltip } from "./EventPreviewTooltip";
 
 function dateKey(d: Date): string {
@@ -32,9 +33,11 @@ function formatAgendaDayLabel(d: Date): string {
 function AgendaEventRow({
   event,
   onClick,
+  viewerId,
 }: {
   event: CalendarEvent;
   onClick: () => void;
+  viewerId?: string;
 }) {
   const personal = isPersonalGoogleEvent(event);
   const {
@@ -54,7 +57,7 @@ function AgendaEventRow({
         ref={triggerRef}
         type="button"
         onClick={onClick}
-        aria-label={calendarEventAriaLabel(event)}
+        aria-label={calendarEventAriaLabel(event, undefined, viewerId)}
         aria-describedby={tooltipVisible ? tooltipId : undefined}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -77,7 +80,7 @@ function AgendaEventRow({
         />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-navy-900">{event.title}</p>
-          <p className="text-xs text-navy-600">{eventListSubtitle(event)}</p>
+          <p className="text-xs text-navy-600">{eventListSubtitle(event, viewerId)}</p>
           {event.recurrenceRule && (
             <p className="mt-0.5 text-[10px] text-primary-600">
               {formatRecurrenceRule(event.recurrenceRule)}
@@ -95,9 +98,11 @@ function AgendaEventRow({
 function AgendaDayEvents({
   dayEvents,
   onEventClick,
+  viewerId,
 }: {
   dayEvents: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
+  viewerId?: string;
 }) {
   const { teamEvents, personalGoogleEvents } = splitCalendarEvents(dayEvents);
 
@@ -106,7 +111,12 @@ function AgendaDayEvents({
       {teamEvents.length > 0 && (
         <div className="space-y-2">
           {teamEvents.map((event) => (
-            <AgendaEventRow key={event.id} event={event} onClick={() => onEventClick(event)} />
+            <AgendaEventRow
+              key={event.id}
+              event={event}
+              viewerId={viewerId}
+              onClick={() => onEventClick(event)}
+            />
           ))}
         </div>
       )}
@@ -117,7 +127,12 @@ function AgendaDayEvents({
             내 Google 일정 · 비공개
           </p>
           {personalGoogleEvents.map((event) => (
-            <AgendaEventRow key={event.id} event={event} onClick={() => onEventClick(event)} />
+            <AgendaEventRow
+              key={event.id}
+              event={event}
+              viewerId={viewerId}
+              onClick={() => onEventClick(event)}
+            />
           ))}
         </div>
       )}
@@ -136,6 +151,7 @@ export function AgendaView({
   onEventClick: (event: CalendarEvent, day?: Date) => void;
   onDayClick: (date: Date) => void;
 }) {
+  const viewerId = useAuthStore((s) => s.user?.id);
   const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDaysToDate(focusDate, i));
 
   return (
@@ -162,7 +178,11 @@ export function AgendaView({
             {dayEvents.length === 0 ? (
               <p className="rounded-xl bg-sky-50/50 px-3 py-2 text-xs text-navy-500">일정 없음</p>
             ) : (
-              <AgendaDayEvents dayEvents={dayEvents} onEventClick={(event) => onEventClick(event, day)} />
+              <AgendaDayEvents
+                dayEvents={dayEvents}
+                viewerId={viewerId}
+                onEventClick={(event) => onEventClick(event, day)}
+              />
             )}
           </section>
         );

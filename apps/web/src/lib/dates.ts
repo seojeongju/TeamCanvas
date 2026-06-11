@@ -144,6 +144,36 @@ export function formatEventDateLabel(ts: number): string {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAY_KO[d.getDay()]})`;
 }
 
+function formatClockTime24(ts: number): string {
+  const d = new Date(ts);
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function isMidnight(ts: number): boolean {
+  const d = new Date(ts);
+  return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0;
+}
+
+/** 시간 일정 저장 시 종료일이 하루만 밀린 경우 시작일+동일 시각으로 보정 (날짜 선택 실수 방지) */
+export function normalizeTimedEventEnd(startAt: number, endAt: number): number {
+  if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt) return endAt;
+  if (isSameCalendarDay(startAt, endAt)) return endAt;
+
+  const startDay = fromDateLocal(toDateLocal(startAt));
+  const endDay = fromDateLocal(toDateLocal(endAt));
+  const dayDiff = Math.round((endDay - startDay) / 86400000);
+  if (dayDiff !== 1) return endAt;
+
+  const endClock = new Date(endAt);
+  const onStartDay = new Date(startAt);
+  onStartDay.setHours(endClock.getHours(), endClock.getMinutes(), 0, 0);
+  if (onStartDay.getTime() > startAt) return onStartDay.getTime();
+
+  return endAt;
+}
+
 /** 일정 목록·상세용 시간 범위 (브라우저 로컬 타임존) */
 export function formatEventTimeRange(
   startAt: number,
@@ -151,13 +181,21 @@ export function formatEventTimeRange(
   allDay?: boolean,
 ): string {
   if (allDay) return "종일";
-  const fmt = (t: number) =>
-    new Date(t).toLocaleTimeString("ko-KR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  return `${fmt(startAt)} - ${fmt(endAt)}`;
+  if (!Number.isFinite(startAt) || !Number.isFinite(endAt)) return "시간 미정";
+
+  const startLabel = formatClockTime24(startAt);
+  const endDate = new Date(endAt);
+
+  if (!isSameCalendarDay(startAt, endAt) && isMidnight(endAt)) {
+    return `${startLabel} - 24:00`;
+  }
+
+  let endLabel = formatClockTime24(endAt);
+  if (!isSameCalendarDay(startAt, endAt)) {
+    endLabel = `${endDate.getMonth() + 1}/${endDate.getDate()} ${endLabel}`;
+  }
+
+  return `${startLabel} - ${endLabel}`;
 }
 
 export function formatEventTimePill(ts: number): string {

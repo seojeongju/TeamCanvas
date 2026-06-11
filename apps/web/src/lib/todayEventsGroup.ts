@@ -49,8 +49,28 @@ export function groupTodayEvents(events: CalendarEvent[]): TodayEventGroup[] {
   }));
 }
 
-export function eventListSubtitle(event: CalendarEvent): string {
+export function formatEventCreatorLabel(
+  event: CalendarEvent,
+  viewerId?: string,
+): string | null {
+  if (isPersonalGoogleEvent(event) || event.sourceType === "task") return null;
+  const name = event.creatorName?.trim();
+  if (!name) return null;
+  if (viewerId && event.creatorId === viewerId) return "내 일정";
+  return name;
+}
+
+function appendCreatorLabel(base: string, event: CalendarEvent, viewerId?: string): string {
+  const creator = formatEventCreatorLabel(event, viewerId);
+  return creator ? `${base} · ${creator}` : base;
+}
+
+export function eventListSubtitle(event: CalendarEvent, viewerId?: string): string {
   if (isPersonalGoogleEvent(event)) return "내 Google 일정 · 팀원에게 비공개";
   if (event.sourceType === "task") return `프로젝트 마감 · ${event.teamName}`;
-  return `${formatEventTimeRange(event.startAt, event.endAt, event.allDay)} · ${event.teamName}`;
+  return appendCreatorLabel(
+    `${formatEventTimeRange(event.startAt, event.endAt, event.allDay)} · ${event.teamName}`,
+    event,
+    viewerId,
+  );
 }

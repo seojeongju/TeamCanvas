@@ -16,6 +16,7 @@ import {
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
+import { useAuthStore } from "../../stores/authStore";
 import { useEventPreviewTooltip } from "./EventPreviewTooltip";
 
 function TodayEventRow({
@@ -23,11 +24,13 @@ function TodayEventRow({
   onClick,
   compact,
   personal,
+  viewerId,
 }: {
   event: CalendarEvent;
   onClick: () => void;
   compact?: boolean;
   personal?: boolean;
+  viewerId?: string;
 }) {
   const {
     triggerRef,
@@ -46,7 +49,7 @@ function TodayEventRow({
         ref={triggerRef}
         type="button"
         onClick={onClick}
-        aria-label={calendarEventAriaLabel(event)}
+        aria-label={calendarEventAriaLabel(event, undefined, viewerId)}
         aria-describedby={tooltipVisible ? tooltipId : undefined}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -71,7 +74,7 @@ function TodayEventRow({
         />
         <div className="min-w-0 flex-1">
           <p className={cn("font-medium text-navy-900", compact && "text-sm")}>{event.title}</p>
-          <p className="text-xs text-navy-600">{eventListSubtitle(event)}</p>
+          <p className="text-xs text-navy-600">{eventListSubtitle(event, viewerId)}</p>
           {event.recurrenceRule && (
             <p className="mt-0.5 text-[11px] text-primary-600">
               반복: {formatRecurrenceRule(event.recurrenceRule)}
@@ -92,12 +95,14 @@ function TodayEventFolder({
   onToggle,
   onEventClick,
   personal,
+  viewerId,
 }: {
   group: TodayEventGroup;
   expanded: boolean;
   onToggle: () => void;
   onEventClick: (event: CalendarEvent) => void;
   personal?: boolean;
+  viewerId?: string;
 }) {
   const accentColor = group.items[0]?.color ?? "#4A9FE8";
 
@@ -146,6 +151,7 @@ function TodayEventFolder({
               event={event}
               compact
               personal={personal}
+              viewerId={viewerId}
               onClick={() => onEventClick(event)}
             />
           ))}
@@ -161,12 +167,14 @@ function TodayEventGroupList({
   onToggleGroup,
   onEventClick,
   personal,
+  viewerId,
 }: {
   groups: TodayEventGroup[];
   expandedKeys: Set<string>;
   onToggleGroup: (key: string) => void;
   onEventClick: (event: CalendarEvent) => void;
   personal?: boolean;
+  viewerId?: string;
 }) {
   if (groups.length === 0) return null;
 
@@ -178,6 +186,7 @@ function TodayEventGroupList({
             key={group.items[0].id}
             event={group.items[0]}
             personal={personal}
+            viewerId={viewerId}
             onClick={() => onEventClick(group.items[0])}
           />
         ) : (
@@ -185,6 +194,7 @@ function TodayEventGroupList({
             key={group.key}
             group={group}
             personal={personal}
+            viewerId={viewerId}
             expanded={expandedKeys.has(group.key)}
             onToggle={() => onToggleGroup(group.key)}
             onEventClick={onEventClick}
@@ -202,6 +212,7 @@ export function TodayEventsList({
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
 }) {
+  const viewerId = useAuthStore((s) => s.user?.id);
   const { teamEvents, personalGoogleEvents } = useMemo(() => splitCalendarEvents(events), [events]);
   const teamGroups = useMemo(() => groupTodayEvents(teamEvents), [teamEvents]);
   const personalGroups = useMemo(() => groupTodayEvents(personalGoogleEvents), [personalGoogleEvents]);
@@ -238,6 +249,7 @@ export function TodayEventsList({
             expandedKeys={expandedTeamKeys}
             onToggleGroup={toggleTeamGroup}
             onEventClick={onEventClick}
+            viewerId={viewerId}
           />
         </section>
       )}

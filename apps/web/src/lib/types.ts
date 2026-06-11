@@ -263,6 +263,7 @@ export type CalendarEvent = {
   /** Google 개인 일정 — API에서 본인 요청에만 포함 */
   isPersonal?: boolean;
   creatorId?: string;
+  creatorName?: string | null;
   taskId?: string;
   /** 반복 일정 occurrence — 상세/수정은 parentEventId 기준 */
   parentEventId?: string;

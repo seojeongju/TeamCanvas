@@ -9,7 +9,15 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "icons.svg"],
+      includeAssets: [
+        "favicon.svg",
+        "favicon-16.png",
+        "favicon-32.png",
+        "apple-touch-icon.png",
+        "icon-192.png",
+        "icon-512.png",
+        "icons.svg",
+      ],
       manifest: {
         name: "TeamCanvas",
         short_name: "TeamCanvas",
@@ -21,15 +29,21 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "/icons.svg",
+            src: "/icon-192.png",
             sizes: "192x192",
-            type: "image/svg+xml",
+            type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons.svg",
+            src: "/icon-512.png",
             sizes: "512x512",
-            type: "image/svg+xml",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
             purpose: "maskable",
           },
         ],

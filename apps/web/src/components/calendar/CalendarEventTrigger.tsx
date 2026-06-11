@@ -6,6 +6,7 @@ import {
 } from "../../lib/calendarEventUi";
 import { isPersonalGoogleEvent, personalGoogleEventClassName } from "../../lib/calendarEventSources";
 import type { CalendarEvent } from "../../lib/types";
+import { useAuthStore } from "../../stores/authStore";
 import { useEventPreviewTooltip } from "./EventPreviewTooltip";
 
 type BarShape = {
@@ -32,6 +33,7 @@ export function CalendarEventTrigger({
   variant?: "bar" | "chip" | "block";
   barShape?: BarShape;
 }) {
+  const viewerId = useAuthStore((s) => s.user?.id);
   const personal = isPersonalGoogleEvent(event);
   const task = event.sourceType === "task";
   const {
@@ -74,7 +76,7 @@ export function CalendarEventTrigger({
           onClick();
         }}
         style={style}
-        aria-label={calendarEventAriaLabel(event, day)}
+        aria-label={calendarEventAriaLabel(event, day, viewerId)}
         aria-describedby={tooltipVisible ? tooltipId : undefined}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}

@@ -50,9 +50,32 @@ export function fromDateLocal(value: string): number {
   return new Date(`${value}T00:00:00`).getTime();
 }
 
+const KST = "Asia/Seoul";
+
+function formatClockKst(ts: number): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(ts));
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hour}:${minute}`;
+}
+
+function dateKeyKst(ts: number): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: KST }).format(new Date(ts));
+}
+
 export function formatEventTime(start: number, end: number, allDay: boolean): string {
   if (allDay) return "종일";
-  const fmt = (t: number) =>
-    new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return `${fmt(start)} - ${fmt(end)}`;
+  if (!sameDateKst(start, end) && formatClockKst(end) === "00:00") {
+    return `${formatClockKst(start)} - 24:00`;
+  }
+  return `${formatClockKst(start)} - ${formatClockKst(end)}`;
+}
+
+function sameDateKst(a: number, b: number): boolean {
+  return dateKeyKst(a) === dateKeyKst(b);
 }

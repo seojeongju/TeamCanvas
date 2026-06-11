@@ -202,9 +202,10 @@ app.get("/organizations/:orgId/events", async (c) => {
   const teamBindNeeded = calendarPolicy !== "all_teams" || member.role === "guest";
 
   const { results } = await c.env.DB.prepare(
-    `SELECT e.*, t.name as team_name
+    `SELECT e.*, t.name as team_name, u.name as creator_name
      FROM events e
      LEFT JOIN teams t ON t.id = e.team_id
+     LEFT JOIN users u ON u.id = e.creator_id
      WHERE e.organization_id = ?
        AND (
          (e.start_at < ? AND e.end_at > ?)
@@ -251,6 +252,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       time: formatEventTime(r.start_at as number, r.end_at as number, Boolean(r.all_day)),
       sourceType: "event" as const,
       creatorId: r.creator_id,
+      creatorName: (r.creator_name as string | null) ?? null,
     };
   });
 
@@ -564,9 +566,10 @@ app.get("/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
 
   const row = await c.env.DB.prepare(
-    `SELECT e.*, t.name as team_name
+    `SELECT e.*, t.name as team_name, u.name as creator_name
      FROM events e
      LEFT JOIN teams t ON t.id = e.team_id
+     LEFT JOIN users u ON u.id = e.creator_id
      WHERE e.id = ?`,
   )
     .bind(eventId)
@@ -620,6 +623,7 @@ app.get("/events/:eventId", async (c) => {
     time: formatEventTime(row.start_at as number, row.end_at as number, Boolean(row.all_day)),
     sourceType: "event" as const,
     creatorId: row.creator_id,
+    creatorName: (row.creator_name as string | null) ?? null,
   };
 
   return c.json({ event });

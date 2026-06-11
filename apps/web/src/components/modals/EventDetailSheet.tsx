@@ -42,6 +42,7 @@ import { useAuthStore } from "../../stores/authStore";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
 import { eventPreviewTitle } from "../../lib/calendarEventUi";
+import { formatEventCreatorLabel } from "../../lib/todayEventsGroup";
 import { googleCalendarOpenUrl, personalGoogleEventClassName } from "../../lib/calendarEventSources";
 import { canCopyCalendarEvent } from "../../lib/eventCopy";
 
@@ -93,6 +94,9 @@ export function EventDetailSheet({
   const [showShare, setShowShare] = useState(false);
 
   const displayEvent = isGoogle ? event : (freshEventData?.event ?? event);
+  const creatorLabel = displayEvent
+    ? formatEventCreatorLabel(displayEvent, user?.id)
+    : null;
 
   const { data: teamData } = useTeamDetail(
     displayEvent?.visibility === "team" && displayEvent?.teamId ? displayEvent.teamId : undefined,
@@ -225,6 +229,7 @@ export function EventDetailSheet({
               <p className="text-xs text-navy-500">
                 {displayEvent.teamName} ·{" "}
                 {VISIBILITY_LABELS[displayEvent.visibility ?? "org"] ?? displayEvent.visibility}
+                {creatorLabel ? ` · ${creatorLabel}` : ""}
               </p>
             )}
           </div>

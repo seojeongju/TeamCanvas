@@ -1,6 +1,6 @@
 import { cn } from "./cn";
 import { formatEventTimeRange } from "./dates";
-import { normalizeEventGroupTitle } from "./todayEventsGroup";
+import { formatEventCreatorLabel, normalizeEventGroupTitle } from "./todayEventsGroup";
 import { isPersonalGoogleEvent } from "./calendarEventSources";
 import type { CalendarEvent } from "./types";
 
@@ -37,18 +37,23 @@ export function formatEventWhen(event: CalendarEvent, day?: Date): string {
   return formatEventTimeRange(event.startAt, event.endAt, event.allDay);
 }
 
-export function eventSourceLabel(event: CalendarEvent): string {
+export function eventSourceLabel(event: CalendarEvent, viewerId?: string): string {
   if (isPersonalGoogleEvent(event)) return "내 Google 일정 · 팀원 비공개 · 읽기 전용";
   if (event.sourceType === "task") return `프로젝트 마감 · ${event.teamName}`;
-  return event.teamName;
+  const creator = formatEventCreatorLabel(event, viewerId);
+  return creator ? `${event.teamName} · ${creator}` : event.teamName;
 }
 
 export function eventPreviewTitle(event: CalendarEvent): string {
   return normalizeEventGroupTitle(event.title);
 }
 
-export function calendarEventAriaLabel(event: CalendarEvent, day?: Date): string {
-  return `${eventPreviewTitle(event)}, ${formatEventWhen(event, day)}, ${eventSourceLabel(event)}`;
+export function calendarEventAriaLabel(
+  event: CalendarEvent,
+  day?: Date,
+  viewerId?: string,
+): string {
+  return `${eventPreviewTitle(event)}, ${formatEventWhen(event, day)}, ${eventSourceLabel(event, viewerId)}`;
 }
 
 /** Phase A — 공통 호버·포커스 액션 상태 */
@@ -76,11 +81,15 @@ export type EventPreviewMeta = {
   description: string | null;
 };
 
-export function buildEventPreviewMeta(event: CalendarEvent, day?: Date): EventPreviewMeta {
+export function buildEventPreviewMeta(
+  event: CalendarEvent,
+  day?: Date,
+  viewerId?: string,
+): EventPreviewMeta {
   return {
     title: eventPreviewTitle(event),
     when: formatEventWhen(event, day),
-    source: eventSourceLabel(event),
+    source: eventSourceLabel(event, viewerId),
     location: event.location?.trim() ? event.location.trim() : null,
     description: event.description?.trim() ? event.description.trim() : null,
   };

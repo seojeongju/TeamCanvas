@@ -90,12 +90,13 @@ export function EventDateTimePicker({
   const updateActiveTime = (parts: TimeWheelParts, snapMinute = false) => {
     const next = applyTimeParts(activeDatetime, parts, snapMinute);
     if (activeField === "start") {
-      onStartChange(next);
+      const prevStart = start ? fromDatetimeLocal(start) : startTs;
+      const prevEnd = end ? fromDatetimeLocal(end) : endTs;
+      const duration =
+        prevEnd > prevStart ? prevEnd - prevStart : 60 * 60 * 1000;
       const startTime = fromDatetimeLocal(next);
-      const endTime = fromDatetimeLocal(end);
-      if (endTime <= startTime) {
-        onEndChange(toDatetimeLocal(startTime + 60 * 60 * 1000));
-      }
+      onStartChange(next);
+      onEndChange(toDatetimeLocal(startTime + Math.max(duration, 60 * 60 * 1000)));
     } else {
       onEndChange(next);
     }
@@ -105,11 +106,10 @@ export function EventDateTimePicker({
     if (!dateValue) return;
     const target = new Date(`${dateValue}T00:00:00`);
     if (field === "start") {
+      const prevDuration = Math.max(endTs - startTs, 60 * 60 * 1000);
       const newStart = setDateKeepTime(startTs, target);
       onStartChange(toDatetimeLocal(newStart));
-      if (fromDatetimeLocal(end) <= newStart) {
-        onEndChange(toDatetimeLocal(newStart + 60 * 60 * 1000));
-      }
+      onEndChange(toDatetimeLocal(newStart + prevDuration));
     } else {
       onEndChange(toDatetimeLocal(setDateKeepTime(endTs, target)));
     }
