@@ -359,6 +359,8 @@ export type Task = {
   assignee: string;
   teamId?: string | null;
   teamName?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
   creatorId?: string;
   eventId?: string | null;
   linkedEvent?: LinkedEventSummary | null;
@@ -385,6 +387,8 @@ export type Project = {
   color: string;
   startAt: number | null;
   endAt: number | null;
+  taskCount?: number;
+  openTaskCount?: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -430,6 +434,7 @@ export type TaskActivity = {
 export type TaskFilters = {
   assignee?: "me" | "all";
   teamId?: string;
+  projectId?: string;
   status?: TaskStatus;
   overdue?: boolean;
   dueToday?: boolean;
@@ -446,6 +451,7 @@ export type UpdateTaskPayload = {
   priority?: TaskPriority;
   sortOrder?: number;
   teamId?: string | null;
+  projectId?: string | null;
   eventId?: string | null;
   labelIds?: string[];
 };

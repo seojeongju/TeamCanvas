@@ -41,7 +41,10 @@ function ProjectCard({ project }: { project: Project }) {
             {project.teamName ? `${project.teamName} · ` : ""}
             {formatProjectDateRange(project.startAt, project.endAt)}
           </p>
-          <p className="mt-0.5 truncate text-xs text-navy-400">담당 {project.ownerName}</p>
+          <p className="mt-0.5 truncate text-xs text-navy-400">
+            담당 {project.ownerName}
+            {project.taskCount != null && project.taskCount > 0 ? ` · 업무 ${project.taskCount}건` : ""}
+          </p>
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-navy-400" />
       </GlassCard>

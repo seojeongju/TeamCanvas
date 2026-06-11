@@ -1129,14 +1129,17 @@ app.get("/organizations/:orgId/tasks", async (c) => {
 
   const assignee = c.req.query("assignee");
   const teamId = c.req.query("teamId");
+  const projectId = c.req.query("projectId");
   const status = c.req.query("status");
   const overdue = c.req.query("overdue");
 
   let sql = `SELECT t.*, u.name as assignee_name, tm.name as team_name,
+       p.name as project_name,
        e.id as le_id, e.title as le_title, e.start_at as le_start_at, e.end_at as le_end_at, e.all_day as le_all_day
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
      LEFT JOIN teams tm ON tm.id = t.team_id
+     LEFT JOIN projects p ON p.id = t.project_id
      LEFT JOIN events e ON e.id = t.event_id
      WHERE t.organization_id = ?`;
   const binds: unknown[] = [orgId];
@@ -1148,6 +1151,10 @@ app.get("/organizations/:orgId/tasks", async (c) => {
   if (teamId) {
     sql += " AND t.team_id = ?";
     binds.push(teamId);
+  }
+  if (projectId) {
+    sql += " AND t.project_id = ?";
+    binds.push(projectId);
   }
   if (status && ["todo", "doing", "done"].includes(status)) {
     sql += " AND t.status = ?";
@@ -1203,6 +1210,8 @@ app.get("/organizations/:orgId/tasks", async (c) => {
       assignee: r.assignee_name ?? "미배정",
       teamId: r.team_id,
       teamName: r.team_name ?? null,
+      projectId: r.project_id ?? null,
+      projectName: r.project_name ?? null,
       creatorId: r.creator_id,
       eventId: r.event_id ?? null,
       linkedEvent,
@@ -1245,11 +1254,21 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     assigneeId?: string;
     priority?: string;
     teamId?: string | null;
+    projectId?: string | null;
     eventId?: string | null;
     labelIds?: string[];
   }>();
 
   if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
+
+  if (body.projectId) {
+    const project = await c.env.DB.prepare(
+      "SELECT id FROM projects WHERE id = ? AND organization_id = ?",
+    )
+      .bind(body.projectId, orgId)
+      .first();
+    if (!project) return c.json({ error: "Invalid project" }, 400);
+  }
 
   const priority = ["low", "medium", "high"].includes(body.priority ?? "")
     ? body.priority
@@ -1260,13 +1279,14 @@ app.post("/organizations/:orgId/tasks", async (c) => {
   const assigneeId = body.assigneeId ?? user.id;
 
   await c.env.DB.prepare(
-    `INSERT INTO tasks (id, organization_id, team_id, creator_id, assignee_id, title, description, status, priority, due_at, event_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (id, organization_id, team_id, project_id, creator_id, assignee_id, title, description, status, priority, due_at, event_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
       orgId,
       body.teamId ?? null,
+      body.projectId ?? null,
       user.id,
       assigneeId,
       body.title.trim(),
@@ -1363,6 +1383,7 @@ app.patch("/tasks/:taskId", async (c) => {
     priority?: string;
     sortOrder?: number;
     teamId?: string | null;
+    projectId?: string | null;
     eventId?: string | null;
     labelIds?: string[];
   }>();
@@ -1374,6 +1395,19 @@ app.patch("/tasks/:taskId", async (c) => {
     await syncTaskLabels(c.env.DB, taskId, body.labelIds, existing.organization_id);
     const { logTaskLabelsUpdated } = await import("../utils/taskActivities");
     await logTaskLabelsUpdated(c.env.DB, existing.organization_id, taskId, user.id);
+  }
+
+  if (body.projectId !== undefined) {
+    if (body.projectId) {
+      const project = await c.env.DB.prepare(
+        "SELECT id FROM projects WHERE id = ? AND organization_id = ?",
+      )
+        .bind(body.projectId, existing.organization_id)
+        .first();
+      if (!project) return c.json({ error: "Invalid project" }, 400);
+    }
+    updates.push("project_id = ?");
+    values.push(body.projectId);
   }
 
   if (body.status !== undefined) {

@@ -421,6 +421,7 @@ export function useCreateTask() {
       assigneeId?: string;
       priority?: string;
       teamId?: string | null;
+      projectId?: string | null;
       eventId?: string | null;
       labelIds?: string[];
     }) => {
@@ -439,6 +440,8 @@ export function useCreateTask() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["event-linked-tasks"] });
     },
@@ -467,6 +470,8 @@ export function useUpdateTask() {
     },
     onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["event-linked-tasks"] });
       invalidateTaskActivities(qc, vars.id);
@@ -494,6 +499,8 @@ export function useDeleteTask() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project"] });
       qc.invalidateQueries({ queryKey: ["events"] });
     },
   });

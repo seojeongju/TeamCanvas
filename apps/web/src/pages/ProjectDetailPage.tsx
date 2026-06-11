@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, FolderKanban, Trash2 } from "lucide-react";
+import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
@@ -199,20 +200,7 @@ export function ProjectDetailPage() {
         )}
       </GlassCard>
 
-      <GlassCard className="p-4">
-        <h2 className="text-sm font-semibold text-navy-800">업무</h2>
-        <p className="mt-2 text-sm text-navy-500">
-          프로젝트에 연결된 업무는 다음 단계에서 이 탭에 표시됩니다. 지금은{" "}
-          <button
-            type="button"
-            onClick={() => navigate("/tasks")}
-            className="font-medium text-primary-600 hover:underline"
-          >
-            업무
-          </button>
-          메뉴에서 관리할 수 있습니다.
-        </p>
-      </GlassCard>
+      <ProjectTasksSection project={project} />
     </div>
   );
 }

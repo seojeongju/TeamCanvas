@@ -401,6 +401,7 @@ export const api = {
     const params = new URLSearchParams();
     if (filters?.assignee === "me") params.set("assignee", "me");
     if (filters?.teamId) params.set("teamId", filters.teamId);
+    if (filters?.projectId) params.set("projectId", filters.projectId);
     if (filters?.status) params.set("status", filters.status);
     if (filters?.overdue) params.set("overdue", "true");
     const qs = params.toString();
@@ -470,6 +471,7 @@ export const api = {
       assigneeId?: string;
       priority?: string;
       teamId?: string | null;
+      projectId?: string | null;
       eventId?: string | null;
       labelIds?: string[];
     },

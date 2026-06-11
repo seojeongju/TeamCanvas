@@ -23,13 +23,17 @@ function mapProjectRow(row: Record<string, unknown>) {
     color: row.color as string,
     startAt: (row.start_at as number | null) ?? null,
     endAt: (row.end_at as number | null) ?? null,
+    taskCount: Number(row.task_count ?? 0),
+    openTaskCount: Number(row.open_task_count ?? 0),
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
   };
 }
 
 const PROJECT_SELECT = `
-  SELECT p.*, u.name as owner_name, tm.name as team_name
+  SELECT p.*, u.name as owner_name, tm.name as team_name,
+    (SELECT COUNT(*) FROM tasks WHERE project_id = p.id) as task_count,
+    (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'done') as open_task_count
   FROM projects p
   LEFT JOIN users u ON u.id = p.owner_id
   LEFT JOIN teams tm ON tm.id = p.team_id

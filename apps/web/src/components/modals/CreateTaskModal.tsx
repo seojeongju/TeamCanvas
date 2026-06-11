@@ -20,9 +20,17 @@ interface CreateTaskModalProps {
   open: boolean;
   onClose: () => void;
   defaultStatus?: TaskStatus;
+  defaultProjectId?: string | null;
+  defaultTeamId?: string | null;
 }
 
-export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: CreateTaskModalProps) {
+export function CreateTaskModal({
+  open,
+  onClose,
+  defaultStatus = "todo",
+  defaultProjectId = null,
+  defaultTeamId = null,
+}: CreateTaskModalProps) {
   const createTask = useCreateTask();
   const { data: labelsData } = useTaskLabels();
   const createLabel = useCreateTaskLabel();
@@ -48,9 +56,10 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
     if (open) {
       setStatus(defaultStatus);
       setAssigneeId(userId ?? "");
+      setTeamId(defaultTeamId ?? "");
       setLabelIds([]);
     }
-  }, [open, defaultStatus, userId]);
+  }, [open, defaultStatus, defaultTeamId, userId]);
 
   const selectClass =
     "min-h-12 w-full rounded-2xl border border-sky-200/80 bg-white/80 px-4 text-[15px] text-navy-800 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";
@@ -66,6 +75,7 @@ export function CreateTaskModal({ open, onClose, defaultStatus = "todo" }: Creat
       assigneeId: assigneeId || undefined,
       priority,
       teamId: teamId || null,
+      projectId: defaultProjectId,
       labelIds: labelIds.length > 0 ? labelIds : undefined,
     });
     setTitle("");
