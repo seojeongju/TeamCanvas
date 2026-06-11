@@ -3,17 +3,19 @@ import type { Env } from "../types";
 import { requireAuth } from "../utils/auth";
 import { requireOrgPermission } from "../utils/permissions";
 import {
-  requireOrgFeature,
-  getOrgSubscription,
   assignOrgPlan,
   writeAuditLog,
   type SubscriptionStatus,
 } from "../utils/subscriptions";
-import { frontendUrl } from "../utils/email";
 import { now } from "../utils/helpers";
-import { createCheckoutSession, resolveBillingProvider, verifyStripeSignature } from "../utils/payments";
+import { verifyStripeSignature } from "../utils/payments";
 
 export const billingRoutes = new Hono<{ Bindings: Env }>();
+
+const BILLING_SELF_SERVICE_DISABLED = {
+  error: "플랜 업그레이드는 관리자 문의를 통해 진행됩니다.",
+  code: "BILLING_CONTACT_ADMIN",
+} as const;
 
 billingRoutes.post("/organizations/:orgId/billing/checkout", async (c) => {
   const user = await requireAuth(c);
@@ -23,68 +25,7 @@ billingRoutes.post("/organizations/:orgId/billing/checkout", async (c) => {
   const access = await requireOrgPermission(c, user.id, orgId, "billing:manage");
   if (access instanceof Response) return access;
 
-  const body = await c.req.json<{ planId: string; billingCycle?: "monthly" | "yearly" }>();
-  if (!body.planId) return c.json({ error: "planId required" }, 400);
-
-  const plan = await c.env.DB.prepare(
-    "SELECT id, code, name, stripe_price_monthly_id, stripe_price_yearly_id FROM subscription_plans WHERE id = ? AND is_active = 1",
-  )
-    .bind(body.planId)
-    .first<{
-      id: string;
-      code: string;
-      name: string;
-      stripe_price_monthly_id: string | null;
-      stripe_price_yearly_id: string | null;
-    }>();
-
-  if (!plan) return c.json({ error: "Invalid plan" }, 400);
-
-  const cycle = body.billingCycle ?? "monthly";
-  const provider = resolveBillingProvider(c.env);
-  const priceId = cycle === "yearly" ? plan.stripe_price_yearly_id : plan.stripe_price_monthly_id;
-
-  const base = frontendUrl(c.req.raw, c.env);
-  const sub = await getOrgSubscription(c.env.DB, orgId);
-  try {
-    const session = await createCheckoutSession({
-      provider,
-      stripeSecretKey: c.env.STRIPE_SECRET_KEY,
-      stripeCustomerId: sub?.stripeCustomerId ?? null,
-      planId: plan.id,
-      planCode: plan.code,
-      priceId,
-      orgId,
-      userId: user.id,
-      userEmail: user.email,
-      successUrl: `${base}/settings/billing?success=1`,
-      cancelUrl: `${base}/settings/billing?canceled=1`,
-      billingCycle: cycle,
-    });
-
-    await writeAuditLog(c.env.DB, orgId, user.id, "billing.checkout_started", "plan", plan.id, {
-      sessionId: session.sessionId,
-      cycle,
-      provider,
-    });
-
-    return c.json({ url: session.url, sessionId: session.sessionId, provider });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown billing error";
-    if (message === "STRIPE_NOT_CONFIGURED") {
-      return c.json({ error: "Stripe not configured", code: "STRIPE_NOT_CONFIGURED" }, 503);
-    }
-    if (message === "NO_STRIPE_PRICE") {
-      return c.json({ error: "Stripe price not configured for this plan", code: "NO_STRIPE_PRICE" }, 400);
-    }
-    if (message.startsWith("STRIPE_CHECKOUT_FAILED:")) {
-      return c.json(
-        { error: "Stripe checkout failed", detail: message.replace("STRIPE_CHECKOUT_FAILED:", "") },
-        502,
-      );
-    }
-    return c.json({ error: "Checkout failed", detail: message }, 500);
-  }
+  return c.json(BILLING_SELF_SERVICE_DISABLED, 403);
 });
 
 billingRoutes.post("/webhooks/stripe", async (c) => {
@@ -187,21 +128,7 @@ billingRoutes.post("/organizations/:orgId/billing/mock/complete", async (c) => {
   const access = await requireOrgPermission(c, user.id, orgId, "billing:manage");
   if (access instanceof Response) return access;
 
-  const provider = resolveBillingProvider(c.env);
-  if (provider !== "mock") {
-    return c.json({ error: "Mock completion is only available when PAYMENT_PROVIDER=mock" }, 403);
-  }
-
-  const body = await c.req.json<{ planId: string }>();
-  if (!body.planId) return c.json({ error: "planId required" }, 400);
-
-  await assignOrgPlan(c.env.DB, orgId, body.planId, "active");
-  await writeAuditLog(c.env.DB, orgId, user.id, "billing.subscription_activated", "plan", body.planId, {
-    provider: "mock",
-    completedAt: now(),
-  });
-
-  return c.json({ ok: true, provider: "mock", status: "active", planId: body.planId });
+  return c.json(BILLING_SELF_SERVICE_DISABLED, 403);
 });
 
 function mapStripeStatus(status: string): SubscriptionStatus {

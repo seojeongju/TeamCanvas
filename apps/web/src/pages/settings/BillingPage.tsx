@@ -1,21 +1,21 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, Shield, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Mail, Phone, Shield, Sparkles } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Button } from "../../components/ui/Button";
 import { ToastMessage } from "../../components/ui/ToastMessage";
-import {
-  useBillingHistory,
-  useCompleteMockCheckout,
-  useOrgSubscriptionDetail,
-  useRefreshBillingState,
-  useStartCheckout,
-} from "../../hooks/useAdmin";
+import { useBillingHistory, useOrgSubscriptionDetail } from "../../hooks/useAdmin";
 import { useHasPermission } from "../../hooks/usePermissions";
-import { useCurrentOrgId } from "../../stores/orgStore";
 import type { PlanFeature } from "../../lib/types";
 import { cn } from "../../lib/cn";
+
+const BILLING_CONTACT = {
+  company: "(주)와우쓰리디",
+  phones: ["02-3144-3137", "054-464-3137"],
+  email: "wow3d16@naver.com",
+} as const;
+
+const UPGRADE_INQUIRY_MESSAGE = `플랜 업그레이드 문의: ${BILLING_CONTACT.company} ${BILLING_CONTACT.phones.join(" / ")} / ${BILLING_CONTACT.email}`;
 
 const FEATURE_LABELS: Record<PlanFeature, string> = {
   calendar: "캘린더",
@@ -32,7 +32,7 @@ const STATUS_META: Record<string, { label: string; className: string; descriptio
   active: {
     label: "정상",
     className: "bg-emerald-500/15 text-emerald-700",
-    description: "모든 유료 기능을 정상적으로 사용할 수 있습니다.",
+    description: "현재 플랜의 기능을 이용할 수 있습니다.",
   },
   trialing: {
     label: "체험중",
@@ -83,102 +83,62 @@ function daysUntil(ts: number): number {
   return Math.max(0, Math.ceil((ts - Date.now()) / 86_400_000));
 }
 
+function BillingContactCard() {
+  return (
+    <GlassCard className="space-y-3 border border-primary-400/20 p-4">
+      <p className="text-sm font-semibold text-navy-900">플랜 업그레이드 · 결제 문의</p>
+      <p className="text-xs leading-relaxed text-navy-600">
+        유료 플랜은 관리자 확인 후 적용됩니다. 아래 연락처로 조직명과 희망 플랜을 알려 주세요.
+      </p>
+      <div className="space-y-2 text-xs text-navy-800">
+        <p className="font-medium text-navy-900">{BILLING_CONTACT.company}</p>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Phone className="h-3.5 w-3.5 text-primary-500" aria-hidden />
+          {BILLING_CONTACT.phones.map((phone, index) => (
+            <span key={phone} className="inline-flex items-center gap-x-2">
+              {index > 0 && <span className="text-navy-500/60" aria-hidden>·</span>}
+              <a href={`tel:${phone.replace(/-/g, "")}`} className="font-medium text-primary-700 hover:underline">
+                {phone}
+              </a>
+            </span>
+          ))}
+        </p>
+        <p className="flex items-center gap-2">
+          <Mail className="h-3.5 w-3.5 text-primary-500" aria-hidden />
+          <a href={`mailto:${BILLING_CONTACT.email}`} className="font-medium text-primary-700 hover:underline">
+            {BILLING_CONTACT.email}
+          </a>
+        </p>
+      </div>
+    </GlassCard>
+  );
+}
+
 export function BillingPage() {
-  const orgId = useCurrentOrgId();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const canManage = useHasPermission("billing:manage");
-  const refreshBilling = useRefreshBillingState();
-  const { data, isLoading, refetch } = useOrgSubscriptionDetail();
+  const { data } = useOrgSubscriptionDetail();
   const { data: billingHistory } = useBillingHistory();
-  const checkout = useStartCheckout();
-  const completeMock = useCompleteMockCheckout();
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
-  const handledReturnRef = useRef(false);
 
   const subscription = data?.subscription ?? null;
   const plans = data?.plans ?? [];
-  const billingProvider = data?.billingProvider ?? "stripe";
-  const isMockBilling = billingProvider === "mock";
   const subscriptionStatus = String(subscription?.status ?? "active");
   const currentStatus = STATUS_META[subscriptionStatus] ?? STATUS_META.active;
+  const isFreePlan = subscription?.planCode === "free";
 
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 4500);
+    const timer = window.setTimeout(() => setToast(null), 5000);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    if (handledReturnRef.current || !orgId) return;
-
-    const success = searchParams.get("success");
-    const canceled = searchParams.get("canceled");
-    const mock = searchParams.get("mock");
-    const planId = searchParams.get("plan_id");
-
-    if (!success && !canceled) return;
-    handledReturnRef.current = true;
-
-    const clearParams = () => navigate("/settings/billing", { replace: true });
-
-    if (canceled === "1") {
-      setToast({ tone: "info", message: "결제가 취소되었습니다." });
-      clearParams();
-      return;
-    }
-
-    if (success === "1") {
-      void (async () => {
-        try {
-          if (mock === "1" && planId) {
-            await completeMock.mutateAsync({ orgId, planId });
-            setToast({ tone: "info", message: "플랜이 적용되었습니다." });
-          } else {
-            await refreshBilling();
-            await refetch();
-            setToast({ tone: "info", message: "결제가 완료되었습니다. 플랜이 반영되었습니다." });
-          }
-        } catch (err) {
-          setToast({
-            tone: "error",
-            message: err instanceof Error ? err.message : "결제 완료 처리 중 오류가 발생했습니다.",
-          });
-        } finally {
-          clearParams();
-        }
-      })();
-    }
-  }, [orgId, searchParams, completeMock, refreshBilling, refetch, navigate]);
-
-  const handleSelectPlan = async (planId: string, priceMonthly: number) => {
-    if (!orgId) return;
-
-    if (priceMonthly === 0) {
-      setToast({ tone: "info", message: "무료 플랜으로 변경하려면 관리자에게 문의해 주세요." });
-      return;
-    }
-
-    try {
-      if (isMockBilling) {
-        await completeMock.mutateAsync({ orgId, planId });
-        setToast({ tone: "info", message: "플랜이 적용되었습니다." });
-        return;
-      }
-
-      const { url } = await checkout.mutateAsync({ orgId, planId, billingCycle });
-      window.location.href = url;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "결제 시작 실패";
-      setToast({
-        tone: "error",
-        message: msg.includes("STRIPE") || msg.includes("Stripe")
-          ? "Stripe 결제가 아직 설정되지 않았습니다. 관리자에게 문의해 주세요."
-          : msg,
-      });
-    }
+  const handleUpgradeInquiry = (planName: string) => {
+    setToast({
+      tone: "info",
+      message: `${planName} ${UPGRADE_INQUIRY_MESSAGE}`,
+    });
   };
 
   const trialDaysLeft =
@@ -197,7 +157,11 @@ export function BillingPage() {
             <div>
               <h2 className="font-semibold text-navy-900">{subscription?.planName ?? "Free"}</h2>
               <p className="text-xs text-navy-600">
-                {subscription?.billingCycle === "yearly" ? "연간 결제" : "월간 결제"}
+                {isFreePlan
+                  ? "무료 플랜 · 신규 가입 시 기본 제공"
+                  : subscription?.billingCycle === "yearly"
+                    ? "연간 결제"
+                    : "월간 결제"}
               </p>
             </div>
           </div>
@@ -211,7 +175,11 @@ export function BillingPage() {
           </span>
         </div>
 
-        <p className="text-sm text-navy-600">{currentStatus.description}</p>
+        <p className="text-sm text-navy-600">
+          {isFreePlan && subscriptionStatus === "active"
+            ? "캘린더·업무 등 무료 플랜 기능을 이용할 수 있습니다. 추가 기능이 필요하면 플랜 업그레이드를 문의해 주세요."
+            : currentStatus.description}
+        </p>
 
         {trialDaysLeft != null && (
           <p className="rounded-xl bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-800">
@@ -236,7 +204,7 @@ export function BillingPage() {
           </div>
           <div className="rounded-xl bg-navy-800/5 px-3 py-2">
             <p className="text-[11px] text-navy-600">팀</p>
-            <p className="text-sm font-semibold text-navy-900">최대 {subscription?.maxTeams ?? 3}개</p>
+            <p className="text-sm font-semibold text-navy-900">최대 {subscription?.maxTeams ?? 1}개</p>
           </div>
           <div className="rounded-xl bg-navy-800/5 px-3 py-2">
             <p className="text-[11px] text-navy-600">저장공간</p>
@@ -258,10 +226,12 @@ export function BillingPage() {
         </div>
       </GlassCard>
 
+      <BillingContactCard />
+
       {canManage && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-navy-800">플랜 선택</h3>
+            <h3 className="text-sm font-semibold text-navy-800">플랜 비교</h3>
             <div className="inline-flex rounded-xl bg-navy-800/5 p-1">
               <button
                 type="button"
@@ -294,17 +264,7 @@ export function BillingPage() {
             {plans.map((plan) => {
               const isCurrent = plan.code === subscription?.planCode;
               const features = parsePlanFeatures(plan.features_json);
-              const price =
-                billingCycle === "yearly" ? plan.price_yearly : plan.price_monthly;
-              const stripePriceId =
-                billingCycle === "yearly"
-                  ? plan.stripe_price_yearly_id
-                  : plan.stripe_price_monthly_id;
-              const canCheckout =
-                !isCurrent &&
-                plan.price_monthly > 0 &&
-                (isMockBilling || !!stripePriceId);
-              const isPending = checkout.isPending || completeMock.isPending;
+              const price = billingCycle === "yearly" ? plan.price_yearly : plan.price_monthly;
 
               return (
                 <GlassCard
@@ -359,33 +319,25 @@ export function BillingPage() {
                     ))}
                   </div>
 
-                  {canManage && (
-                    <div className="mt-auto pt-1">
-                      {isCurrent ? (
-                        <Button type="button" variant="secondary" disabled className="w-full">
-                          사용 중
-                        </Button>
-                      ) : plan.price_monthly === 0 ? (
-                        <Button type="button" variant="secondary" disabled className="w-full">
-                          기본 플랜
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          className="w-full"
-                          disabled={!canCheckout || isPending || isLoading}
-                          onClick={() => handleSelectPlan(plan.id, plan.price_monthly)}
-                        >
-                          {isMockBilling ? "플랜 적용" : "결제하기"}
-                        </Button>
-                      )}
-                      {!isMockBilling && plan.price_monthly > 0 && !stripePriceId && !isCurrent && (
-                        <p className="mt-1 text-center text-[10px] text-amber-700">
-                          Stripe 가격 ID 미설정
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className="mt-auto pt-1">
+                    {isCurrent ? (
+                      <Button type="button" variant="secondary" disabled className="w-full">
+                        사용 중
+                      </Button>
+                    ) : plan.price_monthly === 0 ? (
+                      <Button type="button" variant="secondary" disabled className="w-full">
+                        기본 플랜
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        className="w-full"
+                        onClick={() => handleUpgradeInquiry(plan.name)}
+                      >
+                        업그레이드 문의
+                      </Button>
+                    )}
+                  </div>
                 </GlassCard>
               );
             })}
@@ -393,9 +345,7 @@ export function BillingPage() {
 
           <p className="flex items-start gap-2 text-xs text-navy-600">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-500" />
-            {isMockBilling
-              ? "테스트 결제 모드입니다. 플랜 적용 버튼으로 즉시 플랜을 변경할 수 있습니다."
-              : "Stripe로 안전하게 결제됩니다. 결제 완료 후 자동으로 플랜이 반영됩니다."}
+            신규 가입 시 무료 플랜으로 시작합니다. 유료 플랜은 관리자 문의 후 적용됩니다.
           </p>
         </div>
       )}

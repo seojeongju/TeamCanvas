@@ -286,7 +286,7 @@ export async function createOrganization(
     .bind(defaultTeamId, userId)
     .run();
 
-  await createOrgSubscription(db, orgId, "plan_pro", { trialDays: 14, status: "trialing" });
+  await createOrgSubscription(db, orgId, "plan_free", { status: "active" });
 
   return { id: orgId, name, slug, role: "owner" };
 }
