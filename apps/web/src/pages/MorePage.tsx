@@ -1,4 +1,4 @@
-import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell, CheckSquare, LayoutTemplate } from "lucide-react";
+import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell, LayoutTemplate } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -27,13 +27,6 @@ export function MorePage() {
   const stats = orgData?.stats;
 
   const menuItems = [
-    {
-      icon: CheckSquare,
-      label: "업무",
-      desc: "칸반 · 리스트",
-      onClick: () => navigate("/tasks"),
-      show: true,
-    },
     {
       icon: LayoutTemplate,
       label: "프로젝트 템플릿",

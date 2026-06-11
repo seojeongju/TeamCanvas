@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -29,6 +30,7 @@ type Props = {
 };
 
 export function CreateProjectModal({ open, onClose, onCreated }: Props) {
+  const navigate = useNavigate();
   const createProject = useCreateProject();
   const createMilestone = useCreateProjectMilestone();
   const { data: teamsData } = useTeams();
@@ -130,7 +132,19 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-navy-700">템플릿</label>
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-medium text-navy-700">템플릿</label>
+            <button
+              type="button"
+              onClick={() => {
+                handleClose();
+                navigate("/settings/project-templates");
+              }}
+              className="text-xs text-primary-600 hover:underline"
+            >
+              템플릿 설정
+            </button>
+          </div>
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={selectClass}>
             {templateOptions.map((t) => (
               <option key={t.id} value={t.id}>

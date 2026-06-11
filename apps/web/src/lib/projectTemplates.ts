@@ -99,6 +99,22 @@ export function resolveProjectTemplate(
   };
 }
 
+export function milestonesFromProject(
+  milestones: { title: string; dueAt: number | null; sortOrder: number }[],
+  projectStartAt: number | null,
+): ProjectTemplateMilestone[] {
+  const dayMs = 86400000;
+  return [...milestones]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((m) => ({
+      title: m.title,
+      offsetDays:
+        projectStartAt != null && m.dueAt != null
+          ? Math.round((m.dueAt - projectStartAt) / dayMs)
+          : undefined,
+    }));
+}
+
 export function milestoneDueDatesFromTemplate(
   template: { milestones: ProjectTemplateMilestone[] },
   projectStartAt: number | null,

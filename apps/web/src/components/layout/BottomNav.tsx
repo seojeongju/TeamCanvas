@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { CalendarDays, FolderKanban, Home, Bell, Search } from "lucide-react";
+import { CalendarDays, CheckSquare, FolderKanban, Home, Bell } from "lucide-react";
 import { useNotifications } from "../../hooks/useData";
 import { cn } from "../../lib/cn";
 
@@ -7,7 +7,7 @@ const tabs = [
   { to: "/", icon: Home, label: "홈" },
   { to: "/calendar", icon: CalendarDays, label: "일정" },
   { to: "/projects", icon: FolderKanban, label: "프로젝트" },
-  { to: "/search", icon: Search, label: "검색" },
+  { to: "/tasks", icon: CheckSquare, label: "업무" },
   { to: "/notifications", icon: Bell, label: "알림", showBadge: true },
 ] as const;
 

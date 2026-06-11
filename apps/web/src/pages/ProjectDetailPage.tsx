@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, FolderKanban, Trash2 } from "lucide-react";
+import { ArrowLeft, FolderKanban, LayoutTemplate, Trash2 } from "lucide-react";
+import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
 import { EntityFilesSection } from "../components/ui/EntityFilesSection";
 import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
@@ -43,6 +44,7 @@ export function ProjectDetailPage() {
 
   const project = data?.project;
   const [tab, setTab] = useState<TabId>("overview");
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -216,9 +218,15 @@ export function ProjectDetailPage() {
                   </Button>
                 </>
               ) : (
-                <Button variant="secondary" onClick={startEdit}>
-                  수정
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={startEdit}>
+                    수정
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShowSaveTemplate(true)}>
+                    <LayoutTemplate className="mr-1.5 h-4 w-4" />
+                    템플릿으로 저장
+                  </Button>
+                </>
               )}
               {canDelete && (
                 <button
@@ -245,6 +253,12 @@ export function ProjectDetailPage() {
       {tab === "tasks" && <ProjectTasksSection project={project} />}
       {tab === "milestones" && <ProjectMilestonesSection project={project} />}
       {tab === "members" && <ProjectMembersSection project={project} />}
+
+      <SaveProjectAsTemplateModal
+        open={showSaveTemplate}
+        onClose={() => setShowSaveTemplate(false)}
+        project={project}
+      />
     </div>
   );
 }

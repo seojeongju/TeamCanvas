@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, FolderKanban, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ChevronRight, FolderKanban, LayoutTemplate, Plus } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { CreateProjectModal } from "../components/modals/CreateProjectModal";
@@ -53,6 +53,7 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 export function ProjectsPage() {
+  const navigate = useNavigate();
   const { data, isLoading } = useProjects();
   const canWrite = useHasPermission("projects:write");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
@@ -69,6 +70,19 @@ export function ProjectsPage() {
       <PageHeader
         title="프로젝트"
         subtitle={projects.length > 0 ? `총 ${projects.length}개` : "팀 프로젝트를 계획하고 추적하세요"}
+        action={
+          canWrite ? (
+            <button
+              type="button"
+              onClick={() => navigate("/settings/project-templates")}
+              className="glass flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-primary-600"
+              aria-label="프로젝트 템플릿 설정"
+            >
+              <LayoutTemplate className="h-4 w-4" />
+              템플릿
+            </button>
+          ) : undefined
+        }
       />
 
       {projects.length > 0 && (

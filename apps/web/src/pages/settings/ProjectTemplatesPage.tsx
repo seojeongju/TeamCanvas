@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
@@ -23,7 +22,6 @@ const selectClass =
   "w-full rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2.5 text-sm text-navy-900 outline-none focus:border-primary-400";
 
 export function ProjectTemplatesPage() {
-  const navigate = useNavigate();
   const canWrite = useHasPermission("projects:write");
   const { data, isLoading } = useOrgProjectTemplates();
   const createTemplate = useCreateOrgProjectTemplate();
@@ -92,7 +90,7 @@ export function ProjectTemplatesPage() {
     <div className="space-y-6">
       <PageHeader
         title="프로젝트 템플릿"
-        subtitle="조직 전용 템플릿 관리"
+        subtitle="새 프로젝트 생성 시 마일스톤을 자동으로 채웁니다"
         action={
           canWrite ? (
             <button
@@ -161,14 +159,6 @@ export function ProjectTemplatesPage() {
           </div>
         )}
       </section>
-
-      <button
-        type="button"
-        onClick={() => navigate("/projects")}
-        className="text-sm text-primary-600 hover:underline"
-      >
-        프로젝트 목록으로
-      </button>
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? "템플릿 수정" : "템플릿 추가"}>
         <form onSubmit={handleSave} className="space-y-4">

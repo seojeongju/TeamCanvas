@@ -18,6 +18,11 @@ const BACK_RULES: BackRule[] = [
     label: "조직 설정",
   },
   {
+    match: (p) => p === "/settings/project-templates",
+    to: "/projects",
+    label: "프로젝트",
+  },
+  {
     match: (p) => p.startsWith("/settings"),
     to: "/more",
     label: "더보기",
