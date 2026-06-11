@@ -14,7 +14,7 @@ export default defineConfig({
         name: "TeamCanvas",
         short_name: "TeamCanvas",
         description: "팀 일정·협업을 하나의 캔버스에서",
-        theme_color: "#4A9FE8",
+        theme_color: "#3B8AD9",
         background_color: "#F0F7FF",
         display: "standalone",
         orientation: "portrait",
