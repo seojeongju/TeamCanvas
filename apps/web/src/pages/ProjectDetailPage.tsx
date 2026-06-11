@@ -10,13 +10,17 @@ import { ProjectMembersSection } from "../components/projects/ProjectMembersSect
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
-import { useDeleteProject, useProject, useUpdateProject } from "../hooks/useData";
+import { useDeleteProject, useProject, useTeams, useUpdateProject } from "../hooks/useData";
 import { useHasPermission } from "../hooks/usePermissions";
 import {
   formatProjectDateRange,
+  parseDateInputEnd,
+  parseDateInputStart,
+  PROJECT_COLORS,
   PROJECT_STATUS_OPTIONS,
   projectStatusLabel,
   projectStatusTone,
+  toDateInputValue,
 } from "../lib/projectUtils";
 import { cn } from "../lib/cn";
 import type { ProjectStatus } from "../lib/types";
@@ -37,7 +41,9 @@ export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { data, isLoading, isError } = useProject(projectId);
+  const { data: teamsData } = useTeams();
   const updateProject = useUpdateProject();
+  const teams = teamsData?.teams ?? [];
   const deleteProject = useDeleteProject();
   const canWrite = useHasPermission("projects:write");
   const canDelete = useHasPermission("projects:delete");
@@ -49,12 +55,20 @@ export function ProjectDetailPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<ProjectStatus>("planning");
+  const [color, setColor] = useState(PROJECT_COLORS[0]);
+  const [teamId, setTeamId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const startEdit = () => {
     if (!project) return;
     setName(project.name);
     setDescription(project.description ?? "");
     setStatus(project.status);
+    setColor(project.color);
+    setTeamId(project.teamId ?? "");
+    setStartDate(toDateInputValue(project.startAt));
+    setEndDate(toDateInputValue(project.endAt));
     setEditing(true);
   };
 
@@ -65,6 +79,10 @@ export function ProjectDetailPage() {
       name: name.trim(),
       description: description.trim() || null,
       status,
+      color,
+      teamId: teamId || null,
+      startAt: parseDateInputStart(startDate),
+      endAt: parseDateInputEnd(endDate),
     });
     setEditing(false);
   };
@@ -198,6 +216,58 @@ export function ProjectDetailPage() {
                   placeholder="프로젝트 설명"
                   className={cn(selectClass, "min-h-[80px] resize-none py-3")}
                 />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-navy-700">시작일</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className={selectClass}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium text-navy-700">종료일</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className={selectClass}
+                    />
+                  </div>
+                </div>
+                {teams.length > 0 && (
+                  <select
+                    value={teamId}
+                    onChange={(e) => setTeamId(e.target.value)}
+                    className={selectClass}
+                  >
+                    <option value="">팀 없음</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-navy-700">색상</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PROJECT_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setColor(c)}
+                        className={cn(
+                          "h-8 w-8 rounded-full border-2 transition",
+                          color === c ? "border-navy-800 scale-110" : "border-transparent",
+                        )}
+                        style={{ backgroundColor: c }}
+                        aria-label={`색상 ${c}`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </>
             ) : (
               <p className="text-sm text-navy-700 whitespace-pre-wrap">

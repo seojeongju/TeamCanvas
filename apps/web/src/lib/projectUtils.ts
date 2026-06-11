@@ -1,5 +1,7 @@
 import type { ProjectStatus } from "./types";
 
+export const PROJECT_COLORS = ["#4A9FE8", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899"];
+
 export const PROJECT_STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "planning", label: "계획" },
   { value: "active", label: "진행 중" },
@@ -51,4 +53,23 @@ export function formatMilestoneDue(dueAt: number | null): string {
   if (!dueAt) return "기한 없음";
   const d = new Date(dueAt);
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+export function toDateInputValue(ts: number | null): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function parseDateInputStart(value: string): number | null {
+  if (!value) return null;
+  return new Date(`${value}T00:00:00`).getTime();
+}
+
+export function parseDateInputEnd(value: string): number | null {
+  if (!value) return null;
+  return new Date(`${value}T23:59:59`).getTime();
 }

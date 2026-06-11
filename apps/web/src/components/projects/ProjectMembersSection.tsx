@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { UserMinus, UserPlus } from "lucide-react";
+import { Pencil, UserMinus, UserPlus } from "lucide-react";
+import { EditProjectMemberModal } from "../modals/EditProjectMemberModal";
 import { GlassCard } from "../ui/GlassCard";
 import { Button } from "../ui/Button";
 import { useAddProjectMember, useProjectMembers, useRemoveProjectMember } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { PROJECT_MEMBER_ROLE_LABELS } from "../../lib/projectUtils";
-import type { Project } from "../../lib/types";
+import type { Project, ProjectMember } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
 const selectClass =
@@ -27,6 +28,7 @@ export function ProjectMembersSection({ project }: Props) {
   const orgMembers = orgMembersData?.members ?? [];
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState("member");
+  const [editMember, setEditMember] = useState<ProjectMember | null>(null);
 
   const available = useMemo(() => {
     const existing = new Set(members.map((m) => m.userId));
@@ -63,22 +65,37 @@ export function ProjectMembersSection({ project }: Props) {
               >
                 {m.name.charAt(0)}
               </div>
-              <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                disabled={!canWrite || m.role === "owner"}
+                onClick={() => canWrite && m.role !== "owner" && setEditMember(m)}
+                className="min-w-0 flex-1 text-left disabled:cursor-default"
+              >
                 <p className="font-medium text-navy-900">{m.name}</p>
                 <p className="truncate text-xs text-navy-500">
                   {PROJECT_MEMBER_ROLE_LABELS[m.role] ?? m.role}
                   {m.email ? ` · ${m.email}` : ""}
                 </p>
-              </div>
+              </button>
               {canWrite && m.role !== "owner" && (
-                <button
-                  type="button"
-                  onClick={() => handleRemove(m.userId, m.name)}
-                  className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600"
-                  aria-label="제외"
-                >
-                  <UserMinus className="h-4 w-4" />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditMember(m)}
+                    className="rounded-lg p-2 text-navy-500 hover:bg-sky-50 hover:text-primary-600"
+                    aria-label="역할 수정"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(m.userId, m.name)}
+                    className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600"
+                    aria-label="제외"
+                  >
+                    <UserMinus className="h-4 w-4" />
+                  </button>
+                </>
               )}
             </GlassCard>
           ))}
@@ -107,6 +124,12 @@ export function ProjectMembersSection({ project }: Props) {
           </Button>
         </GlassCard>
       )}
+
+      <EditProjectMemberModal
+        projectId={project.id}
+        member={editMember}
+        onClose={() => setEditMember(null)}
+      />
     </section>
   );
 }

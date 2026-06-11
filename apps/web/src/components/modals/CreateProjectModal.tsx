@@ -9,7 +9,7 @@ import {
   useOrgProjectTemplates,
   useTeams,
 } from "../../hooks/useData";
-import { PROJECT_STATUS_OPTIONS } from "../../lib/projectUtils";
+import { PROJECT_COLORS, PROJECT_STATUS_OPTIONS } from "../../lib/projectUtils";
 import {
   listBuiltinTemplates,
   milestoneDueDatesFromTemplate,
@@ -17,8 +17,6 @@ import {
 } from "../../lib/projectTemplates";
 import { cn } from "../../lib/cn";
 import type { ProjectStatus } from "../../lib/types";
-
-const PROJECT_COLORS = ["#4A9FE8", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899"];
 
 const selectClass =
   "w-full rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2.5 text-sm text-navy-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";

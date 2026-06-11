@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { EditMilestoneModal } from "../modals/EditMilestoneModal";
 import { GlassCard } from "../ui/GlassCard";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -14,7 +15,7 @@ import { ProjectGanttChart } from "./ProjectGanttChart";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { formatMilestoneDue, MILESTONE_STATUS_OPTIONS } from "../../lib/projectUtils";
 import { ProjectTimeline } from "./ProjectTimeline";
-import type { Project } from "../../lib/types";
+import type { Project, ProjectMilestone } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
 type Props = {
@@ -33,6 +34,7 @@ export function ProjectMilestonesSection({ project }: Props) {
   const milestones = data?.milestones ?? [];
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [editMilestone, setEditMilestone] = useState<ProjectMilestone | null>(null);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +111,12 @@ export function ProjectMilestonesSection({ project }: Props) {
                 >
                   <Check className="h-4 w-4" />
                 </button>
-                <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  disabled={!canWrite}
+                  onClick={() => canWrite && setEditMilestone(m)}
+                  className="min-w-0 flex-1 text-left disabled:cursor-default"
+                >
                   <p
                     className={cn(
                       "font-medium text-navy-900",
@@ -122,16 +129,29 @@ export function ProjectMilestonesSection({ project }: Props) {
                     {MILESTONE_STATUS_OPTIONS.find((o) => o.value === m.status)?.label} ·{" "}
                     {formatMilestoneDue(m.dueAt)}
                   </p>
-                </div>
+                  {m.description?.trim() && (
+                    <p className="mt-0.5 line-clamp-2 text-xs text-navy-400">{m.description}</p>
+                  )}
+                </button>
                 {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(m.id, m.title)}
-                    className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600"
-                    aria-label="삭제"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setEditMilestone(m)}
+                      className="rounded-lg p-2 text-navy-500 hover:bg-sky-50 hover:text-primary-600"
+                      aria-label="수정"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(m.id, m.title)}
+                      className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600"
+                      aria-label="삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </>
                 )}
               </GlassCard>
             ))}
@@ -160,6 +180,8 @@ export function ProjectMilestonesSection({ project }: Props) {
           </form>
         )}
       </div>
+
+      <EditMilestoneModal milestone={editMilestone} onClose={() => setEditMilestone(null)} />
     </section>
   );
 }
