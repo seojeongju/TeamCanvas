@@ -823,17 +823,26 @@ export const api = {
 
   adminUpdateOrganization: (
     orgId: string,
-    data: { status?: string; planId?: string; subscriptionStatus?: string },
+    data: {
+      status?: string;
+      planId?: string;
+      subscriptionStatus?: string;
+      name?: string;
+      timezone?: string;
+    },
   ) =>
-    request<{ ok: boolean }>(`/api/admin/organizations/${orgId}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    }),
+    request<{ ok: boolean; subscription?: import("./types").OrgSubscriptionDetail | null }>(
+      `/api/admin/organizations/${orgId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+    ),
 
   adminUpdateOrganizationMember: (
     orgId: string,
     userId: string,
-    data: { role?: string; status?: string },
+    data: { role?: string; status?: string; name?: string },
   ) =>
     request<{ ok: boolean }>(`/api/admin/organizations/${orgId}/members/${userId}`, {
       method: "PATCH",
@@ -859,8 +868,17 @@ export const api = {
     if (params?.limit) search.set("limit", String(params.limit));
     if (params?.offset) search.set("offset", String(params.offset));
     const qs = search.toString();
-    return request<{ users: Record<string, unknown>[] }>(`/api/admin/users${qs ? `?${qs}` : ""}`);
+    return request<{ users: import("./types").AdminUserListItem[] }>(`/api/admin/users${qs ? `?${qs}` : ""}`);
   },
+
+  adminSetPlatformAdmin: (
+    userId: string,
+    data: { grant: boolean; role?: "super_admin" | "support" | "billing" },
+  ) =>
+    request<{ ok: boolean }>(`/api/admin/users/${userId}/platform-admin`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 };
 
 export function oauthUrl(provider: "google" | "kakao"): string {

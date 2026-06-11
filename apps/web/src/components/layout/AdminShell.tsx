@@ -1,15 +1,19 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Building2, CreditCard, ArrowLeft, Shield } from "lucide-react";
+import { LayoutDashboard, Building2, CreditCard, Users, ArrowLeft, Shield } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { useAuthStore } from "../../stores/authStore";
+import { PLATFORM_ROLE_LABELS } from "../../lib/adminLabels";
 
 const navItems = [
   { to: "/admin", end: true, icon: LayoutDashboard, label: "대시보드" },
-  { to: "/admin/organizations", icon: Building2, label: "조직" },
-  { to: "/admin/plans", icon: CreditCard, label: "플랜" },
+  { to: "/admin/organizations", end: false, icon: Building2, label: "조직" },
+  { to: "/admin/plans", end: false, icon: CreditCard, label: "플랜" },
+  { to: "/admin/users", end: false, icon: Users, label: "사용자" },
 ];
 
 export function AdminShell() {
   const navigate = useNavigate();
+  const platformRole = useAuthStore((s) => s.platformRole);
 
   return (
     <div className="bg-mesh min-h-dvh">
@@ -17,7 +21,14 @@ export function AdminShell() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary-500" />
-            <span className="font-bold text-navy-900">TeamCanvas Admin</span>
+            <div>
+              <span className="font-bold text-navy-900">TeamCanvas 관리자</span>
+              {platformRole && (
+                <p className="text-[11px] text-navy-600">
+                  {PLATFORM_ROLE_LABELS[platformRole] ?? platformRole}
+                </p>
+              )}
+            </div>
           </div>
           <button
             type="button"

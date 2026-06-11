@@ -526,6 +526,17 @@ export type AdminDashboardStats = {
   subscriptionsByPlan: { code: string; name: string; c: number }[];
 };
 
+export type AdminUserListItem = {
+  id: string;
+  email: string | null;
+  name: string;
+  email_verified: number;
+  created_at: number;
+  is_platform_admin: number;
+  platform_role: string | null;
+  org_count: number;
+};
+
 export type AdminOrgListItem = {
   id: string;
   name: string;

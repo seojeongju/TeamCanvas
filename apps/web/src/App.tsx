@@ -29,6 +29,7 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminOrganizationsPage } from "./pages/admin/AdminOrganizationsPage";
 import { AdminOrgDetailPage } from "./pages/admin/AdminOrgDetailPage";
 import { AdminPlansPage } from "./pages/admin/AdminPlansPage";
+import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AppSettingsPage } from "./pages/settings/AppSettingsPage";
 import { PwaInstallBanner } from "./components/layout/PwaInstallBanner";
 import { LandingPage } from "./pages/LandingPage";
@@ -121,6 +122,7 @@ export default function App() {
           <Route path="organizations" element={<AdminOrganizationsPage />} />
           <Route path="organizations/:orgId" element={<AdminOrgDetailPage />} />
           <Route path="plans" element={<AdminPlansPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

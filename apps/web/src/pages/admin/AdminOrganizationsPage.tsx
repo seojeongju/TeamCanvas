@@ -4,10 +4,13 @@ import { Search, ChevronRight } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { Input } from "../../components/ui/Input";
+import { Button } from "../../components/ui/Button";
 import { ToastMessage } from "../../components/ui/ToastMessage";
 import { useAdminCreateOrganization, useAdminOrganizations } from "../../hooks/useAdmin";
+import { ORG_STATUS_LABELS, SUBSCRIPTION_STATUS_LABELS } from "../../lib/adminLabels";
+import { cn } from "../../lib/cn";
 
-const statusColors: Record<string, string> = {
+const statusTone: Record<string, string> = {
   active: "text-emerald-600",
   trialing: "text-primary-600",
   past_due: "text-amber-600",
@@ -35,12 +38,10 @@ export function AdminOrganizationsPage() {
       <PageHeader title="조직 관리" subtitle="전체 테넌트 목록" />
 
       <GlassCard className="space-y-2 p-4 text-xs">
-        <p className="font-semibold text-navy-900">정책 가이드</p>
+        <p className="font-semibold text-navy-900">운영 안내</p>
         <p className="text-navy-600">
-          로그인한 사용자는 조직 1개를 생성할 수 있습니다. 관리자 화면에서는 소유자 이메일을 지정해 조직을 대신 생성할 수 있습니다.
-        </p>
-        <p className="text-navy-600">
-          한 사용자는 하나의 활성 조직에만 소속될 수 있습니다. 무료 플랜은 소유자 포함 최대 4명(추가 초대 3명)입니다.
+          조직을 선택하면 플랜·멤버·소유자를 관리할 수 있습니다. 유료 플랜은 고객 문의 확인 후
+          조직 상세에서 적용하세요.
         </p>
       </GlassCard>
 
@@ -60,30 +61,28 @@ export function AdminOrganizationsPage() {
             className="pl-9"
           />
         </div>
-        <button
-          type="submit"
-          className="rounded-xl bg-primary-400 px-4 text-sm font-medium text-white"
-        >
-          검색
-        </button>
+        <Button type="submit">검색</Button>
       </form>
 
       <GlassCard className="space-y-3 p-4">
-        <p className="text-sm font-semibold text-navy-900">조직 생성 (플랫폼 관리자)</p>
+        <p className="text-sm font-semibold text-navy-900">조직 생성</p>
+        <p className="text-xs text-navy-600">소유자 이메일은 가입된 계정이어야 합니다.</p>
         <div className="grid gap-2 sm:grid-cols-2">
           <Input
             value={newOrgName}
             onChange={(e) => setNewOrgName(e.target.value)}
-            placeholder="새 조직 이름"
+            placeholder="조직 이름"
+            label="조직 이름"
           />
           <Input
             type="email"
             value={ownerEmail}
             onChange={(e) => setOwnerEmail(e.target.value)}
-            placeholder="소유자 이메일(필수)"
+            placeholder="owner@example.com"
+            label="소유자 이메일"
           />
         </div>
-        <button
+        <Button
           type="button"
           disabled={createOrg.isPending || !newOrgName.trim() || !ownerEmail.trim()}
           onClick={async () => {
@@ -93,32 +92,43 @@ export function AdminOrganizationsPage() {
               setOwnerEmail("");
               setToast({ tone: "info", message: "조직을 생성했습니다." });
             } catch (err) {
-              setToast({ tone: "error", message: err instanceof Error ? err.message : "조직 생성 실패" });
+              setToast({
+                tone: "error",
+                message: err instanceof Error ? err.message : "조직 생성 실패",
+              });
             }
           }}
-          className="rounded-xl bg-primary-400 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {createOrg.isPending ? "생성 중..." : "조직 생성"}
-        </button>
+          {createOrg.isPending ? "생성 중…" : "조직 생성"}
+        </Button>
       </GlassCard>
 
       {isLoading ? (
-        <p className="text-sm text-navy-600">로딩 중...</p>
+        <p className="text-sm text-navy-600">불러오는 중…</p>
+      ) : (data?.organizations ?? []).length === 0 ? (
+        <p className="text-sm text-navy-600">조직이 없습니다.</p>
       ) : (
         <div className="space-y-2">
           {(data?.organizations ?? []).map((org) => (
             <Link key={org.id} to={`/admin/organizations/${org.id}`}>
               <GlassCard className="flex items-center gap-4 p-4 transition hover:shadow-soft">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-navy-900 truncate">{org.name}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-navy-900">{org.name}</p>
                   <p className="text-xs text-navy-600">
-                    {org.slug} · 멤버 {org.member_count}명
+                    {org.slug} · 멤버 {org.member_count}명 ·{" "}
+                    {ORG_STATUS_LABELS[org.status ?? "active"] ?? org.status}
                   </p>
                 </div>
                 <div className="text-right text-xs">
                   <p className="font-medium text-navy-800">{org.plan_name ?? "—"}</p>
-                  <p className={statusColors[org.subscription_status ?? ""] ?? "text-navy-600"}>
-                    {org.subscription_status ?? "—"}
+                  <p
+                    className={cn(
+                      statusTone[org.subscription_status ?? ""] ?? "text-navy-600",
+                    )}
+                  >
+                    {SUBSCRIPTION_STATUS_LABELS[org.subscription_status ?? ""] ??
+                      org.subscription_status ??
+                      "—"}
                   </p>
                 </div>
                 <ChevronRight className="h-5 w-5 shrink-0 text-navy-600/30" />
@@ -129,11 +139,7 @@ export function AdminOrganizationsPage() {
       )}
 
       {toast && (
-        <ToastMessage
-          message={toast.message}
-          tone={toast.tone}
-          onClose={() => setToast(null)}
-        />
+        <ToastMessage message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />
       )}
     </div>
   );

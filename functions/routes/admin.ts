@@ -213,7 +213,11 @@ adminRoutes.get("/organizations/:orgId", async (c) => {
 
   const orgId = c.req.param("orgId");
   const org = await c.env.DB.prepare(
-    "SELECT id, name, slug, status, owner_id, timezone, created_at FROM organizations WHERE id = ?",
+    `SELECT o.id, o.name, o.slug, o.status, o.owner_id, o.timezone, o.created_at,
+            ou.name as owner_name, ou.email as owner_email
+     FROM organizations o
+     LEFT JOIN users ou ON ou.id = o.owner_id
+     WHERE o.id = ?`,
   )
     .bind(orgId)
     .first();
@@ -241,10 +245,28 @@ adminRoutes.patch("/organizations/:orgId", async (c) => {
   if (admin instanceof Response) return admin;
 
   const orgId = c.req.param("orgId");
-  const body = await c.req.json<{ status?: string; planId?: string; subscriptionStatus?: string }>();
+  const body = await c.req.json<{
+    status?: string;
+    planId?: string;
+    subscriptionStatus?: string;
+    name?: string;
+    timezone?: string;
+  }>();
 
   const org = await c.env.DB.prepare("SELECT id FROM organizations WHERE id = ?").bind(orgId).first();
   if (!org) return c.json({ error: "Not found" }, 404);
+
+  if (body.name?.trim()) {
+    await c.env.DB.prepare("UPDATE organizations SET name = ?, updated_at = ? WHERE id = ?")
+      .bind(body.name.trim(), now(), orgId)
+      .run();
+  }
+
+  if (body.timezone) {
+    await c.env.DB.prepare("UPDATE organizations SET timezone = ?, updated_at = ? WHERE id = ?")
+      .bind(body.timezone, now(), orgId)
+      .run();
+  }
 
   if (body.status) {
     await c.env.DB.prepare("UPDATE organizations SET status = ?, updated_at = ? WHERE id = ?")
@@ -257,12 +279,19 @@ adminRoutes.patch("/organizations/:orgId", async (c) => {
       .bind(body.planId)
       .first();
     if (!plan) return c.json({ error: "Invalid plan" }, 400);
-    await assignOrgPlan(
-      c.env.DB,
-      orgId,
-      body.planId,
-      (body.subscriptionStatus as "active" | "trialing" | "suspended") ?? "active",
-    );
+    const allowedStatuses = ["active", "trialing", "past_due", "canceled", "suspended"] as const;
+    const nextStatus = allowedStatuses.includes(body.subscriptionStatus as (typeof allowedStatuses)[number])
+      ? (body.subscriptionStatus as (typeof allowedStatuses)[number])
+      : "active";
+    await assignOrgPlan(c.env.DB, orgId, body.planId, nextStatus);
+  } else if (body.subscriptionStatus) {
+    const allowedStatuses = ["active", "trialing", "past_due", "canceled", "suspended"] as const;
+    if (!allowedStatuses.includes(body.subscriptionStatus as (typeof allowedStatuses)[number])) {
+      return c.json({ error: "Invalid subscription status" }, 400);
+    }
+    await c.env.DB.prepare("UPDATE organization_subscriptions SET status = ?, updated_at = ? WHERE organization_id = ?")
+      .bind(body.subscriptionStatus, now(), orgId)
+      .run();
   }
 
   await writeAuditLog(c.env.DB, orgId, user.id, "admin.org_updated", "organization", orgId, body);
@@ -279,7 +308,7 @@ adminRoutes.patch("/organizations/:orgId/members/:userId", async (c) => {
 
   const orgId = c.req.param("orgId");
   const targetUserId = c.req.param("userId");
-  const body = await c.req.json<{ role?: string; status?: string }>();
+  const body = await c.req.json<{ role?: string; status?: string; name?: string }>();
 
   const target = await c.env.DB.prepare(
     "SELECT role, status FROM memberships WHERE organization_id = ? AND user_id = ?",
@@ -298,12 +327,20 @@ adminRoutes.patch("/organizations/:orgId/members/:userId", async (c) => {
     updates.push("status = ?");
     values.push(body.status);
   }
-  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
+  if (body.name?.trim()) {
+    await c.env.DB.prepare("UPDATE users SET name = ?, updated_at = ? WHERE id = ?")
+      .bind(body.name.trim(), now(), targetUserId)
+      .run();
+  }
 
-  values.push(orgId, targetUserId);
-  await c.env.DB.prepare(`UPDATE memberships SET ${updates.join(", ")} WHERE organization_id = ? AND user_id = ?`)
-    .bind(...values)
-    .run();
+  if (updates.length) {
+    values.push(orgId, targetUserId);
+    await c.env.DB.prepare(`UPDATE memberships SET ${updates.join(", ")} WHERE organization_id = ? AND user_id = ?`)
+      .bind(...values)
+      .run();
+  }
+
+  if (!updates.length && !body.name?.trim()) return c.json({ error: "Nothing to update" }, 400);
 
   await writeAuditLog(c.env.DB, orgId, user.id, "admin.member_updated", "membership", targetUserId, body);
   return c.json({ ok: true });

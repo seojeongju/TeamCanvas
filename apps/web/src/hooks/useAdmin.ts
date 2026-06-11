@@ -255,6 +255,8 @@ export function useAdminUpdateOrganization() {
       status?: string;
       planId?: string;
       subscriptionStatus?: string;
+      name?: string;
+      timezone?: string;
     }) => api.adminUpdateOrganization(orgId, data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["admin"] });
@@ -275,6 +277,7 @@ export function useAdminUpdateOrganizationMember() {
       userId: string;
       role?: string;
       status?: string;
+      name?: string;
     }) => api.adminUpdateOrganizationMember(orgId, userId, data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["admin", "organization", vars.orgId] });
@@ -304,6 +307,28 @@ export function useAdminTransferOrganizationOwner() {
       qc.invalidateQueries({ queryKey: ["admin", "organization", vars.orgId] });
       qc.invalidateQueries({ queryKey: ["admin", "organizations"] });
     },
+  });
+}
+
+export function useAdminUsers(q?: string) {
+  return useQuery({
+    queryKey: ["admin", "users", q],
+    queryFn: () => api.adminUsers({ q, limit: 50 }),
+  });
+}
+
+export function useAdminSetPlatformAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      userId,
+      ...data
+    }: {
+      userId: string;
+      grant: boolean;
+      role?: "super_admin" | "support" | "billing";
+    }) => api.adminSetPlatformAdmin(userId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }
 
