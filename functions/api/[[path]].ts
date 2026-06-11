@@ -1674,9 +1674,22 @@ app.get("/organizations/:orgId/activity", async (c) => {
   if (member instanceof Response) return member;
 
   const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
+  const offset = Math.max(Number(c.req.query("offset") ?? 0), 0);
+  const actorId = c.req.query("actorId")?.trim() || undefined;
+  const fromRaw = c.req.query("from");
+  const toRaw = c.req.query("to");
+  const from = fromRaw ? Number(fromRaw) : undefined;
+  const to = toRaw ? Number(toRaw) : undefined;
+
   const { fetchOrgActivity } = await import("../utils/orgActivity");
-  const items = await fetchOrgActivity(c.env.DB, orgId, limit);
-  return c.json({ items });
+  const result = await fetchOrgActivity(c.env.DB, orgId, {
+    limit,
+    offset,
+    actorId,
+    from: from != null && !Number.isNaN(from) ? from : undefined,
+    to: to != null && !Number.isNaN(to) ? to : undefined,
+  });
+  return c.json(result);
 });
 
 // ── Search ──

@@ -51,11 +51,11 @@ export function useTeams() {
   });
 }
 
-export function useOrgActivity(limit = 20) {
+export function useOrgActivity(query: import("../lib/types").OrgActivityQuery = {}) {
   const orgId = useCurrentOrgId();
   return useQuery({
-    queryKey: ["org-activity", orgId, limit],
-    queryFn: () => api.getOrgActivity(orgId!, limit),
+    queryKey: ["org-activity", orgId, query],
+    queryFn: () => api.getOrgActivity(orgId!, query),
     enabled: !!orgId,
   });
 }

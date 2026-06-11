@@ -320,10 +320,18 @@ export const api = {
     );
   },
 
-  getOrgActivity: (orgId: string, limit = 20) =>
-    request<{ items: import("./types").OrgActivityItem[] }>(
-      `/api/organizations/${orgId}/activity?limit=${limit}`,
-    ),
+  getOrgActivity: (orgId: string, query: import("./types").OrgActivityQuery = {}) => {
+    const params = new URLSearchParams();
+    if (query.limit != null) params.set("limit", String(query.limit));
+    if (query.offset != null) params.set("offset", String(query.offset));
+    if (query.actorId) params.set("actorId", query.actorId);
+    if (query.from != null) params.set("from", String(query.from));
+    if (query.to != null) params.set("to", String(query.to));
+    const qs = params.toString();
+    return request<import("./types").OrgActivityResponse>(
+      `/api/organizations/${orgId}/activity${qs ? `?${qs}` : ""}`,
+    );
+  },
 
   getTeams: (orgId: string) =>
     request<{ teams: import("./types").Team[] }>(`/api/organizations/${orgId}/teams`),

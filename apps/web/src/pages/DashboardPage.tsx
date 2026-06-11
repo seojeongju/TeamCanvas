@@ -1,9 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
-import { ActivityFeed } from "../components/dashboard/ActivityFeed";
+import {
+  ActivityFeed,
+  ACTIVITY_PAGE_SIZE,
+  type ActivityFeedFilters,
+} from "../components/dashboard/ActivityFeed";
 import { DashboardInsightsPanel } from "../components/dashboard/DashboardInsights";
 import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
 import { TodayEventsList } from "../components/calendar/TodayEventsList";
@@ -16,9 +20,10 @@ import {
   useOrgActivity,
   useTasks,
 } from "../hooks/useData";
+import { useOrgMembers } from "../hooks/useAdmin";
 import { useLogout } from "../hooks/useAuth";
 import { eventsForDay } from "../lib/calendarUtils";
-import { endOfDay, startOfDay } from "../lib/dates";
+import { endOfDay, fromDateLocal, startOfDay } from "../lib/dates";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { expandCalendarEvents, resolveParentEventId } from "../lib/recurrence";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
@@ -31,14 +36,35 @@ export function DashboardPage() {
   const to = endOfDay(Date.now());
   const { data: eventsData } = useEvents(from, to);
   const { data: tasksData } = useTasks();
+  const { data: membersData } = useOrgMembers();
+  const [activityFilters, setActivityFilters] = useState<ActivityFeedFilters>({
+    actorId: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+  const [activityPage, setActivityPage] = useState(0);
+  const activityQuery = useMemo(
+    () => ({
+      limit: ACTIVITY_PAGE_SIZE,
+      offset: activityPage * ACTIVITY_PAGE_SIZE,
+      actorId: activityFilters.actorId || undefined,
+      from: activityFilters.dateFrom ? startOfDay(fromDateLocal(activityFilters.dateFrom)) : undefined,
+      to: activityFilters.dateTo ? endOfDay(fromDateLocal(activityFilters.dateTo)) : undefined,
+    }),
+    [activityFilters, activityPage],
+  );
   const {
     data: activityData,
     isLoading: activityLoading,
     isError: activityError,
-  } = useOrgActivity(20);
+  } = useOrgActivity(activityQuery);
   const { data: insightsData, isLoading: insightsLoading } = useDashboardInsights();
   const [showCreate, setShowCreate] = useState(false);
   const [createPrefillDate, setCreatePrefillDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setActivityPage(0);
+  }, [activityFilters]);
   const logout = useLogout();
   const navigate = useNavigate();
 
@@ -144,6 +170,12 @@ export function DashboardPage() {
         </div>
         <ActivityFeed
           items={activityData?.items ?? []}
+          total={activityData?.total ?? 0}
+          page={activityPage}
+          members={membersData?.members ?? []}
+          filters={activityFilters}
+          onFiltersChange={setActivityFilters}
+          onPageChange={setActivityPage}
           isLoading={activityLoading}
           isError={activityError}
         />

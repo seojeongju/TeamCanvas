@@ -186,6 +186,21 @@ export type OrgActivityItem = {
   createdAt: number;
 };
 
+export type OrgActivityQuery = {
+  limit?: number;
+  offset?: number;
+  actorId?: string;
+  from?: number;
+  to?: number;
+};
+
+export type OrgActivityResponse = {
+  items: OrgActivityItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type OrgSettings = {
   id: string;
   name: string;
