@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
-import { Input } from "../../components/ui/Input";
-import { Button } from "../../components/ui/Button";
-import { Modal } from "../../components/ui/Modal";
+import { ToastMessage } from "../../components/ui/ToastMessage";
+import {
+  ProjectTemplateEditorModal,
+  emptyTemplateFormValues,
+  formValuesToPayload,
+  templateToFormValues,
+  type ProjectTemplateFormValues,
+} from "../../components/modals/ProjectTemplateEditorModal";
 import {
   useCreateOrgProjectTemplate,
   useDeleteOrgProjectTemplate,
@@ -14,14 +20,9 @@ import {
 import { useHasPermission } from "../../hooks/usePermissions";
 import { listBuiltinTemplates } from "../../lib/projectTemplates";
 import type { OrgProjectTemplate } from "../../lib/types";
-import { cn } from "../../lib/cn";
-
-type MilestoneDraft = { title: string; offsetDays: string };
-
-const selectClass =
-  "w-full rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2.5 text-sm text-navy-900 outline-none focus:border-primary-400";
 
 export function ProjectTemplatesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const canWrite = useHasPermission("projects:write");
   const { data, isLoading } = useOrgProjectTemplates();
   const createTemplate = useCreateOrgProjectTemplate();
@@ -33,57 +34,86 @@ export function ProjectTemplatesPage() {
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<OrgProjectTemplate | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [milestones, setMilestones] = useState<MilestoneDraft[]>([{ title: "", offsetDays: "0" }]);
+  const [formValues, setFormValues] = useState<ProjectTemplateFormValues>(emptyTemplateFormValues());
+  const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditing(null);
+    setFormValues(emptyTemplateFormValues());
+  };
 
   const openCreate = () => {
     setEditing(null);
-    setName("");
-    setDescription("");
-    setMilestones([{ title: "", offsetDays: "0" }]);
+    setFormValues(emptyTemplateFormValues());
     setShowModal(true);
   };
 
-  const openEdit = (t: OrgProjectTemplate) => {
-    setEditing(t);
-    setName(t.name);
-    setDescription(t.description ?? "");
-    setMilestones(
-      t.milestones.length > 0
-        ? t.milestones.map((m) => ({
-            title: m.title,
-            offsetDays: m.offsetDays != null ? String(m.offsetDays) : "",
-          }))
-        : [{ title: "", offsetDays: "0" }],
-    );
+  const openEdit = (template: OrgProjectTemplate) => {
+    setEditing(template);
+    setFormValues(templateToFormValues(template));
     setShowModal(true);
   };
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || isLoading || !canWrite) return;
+
+    const template = orgTemplates.find((t) => t.id === editId);
+    if (!template) return;
+
+    openEdit(template);
+    const next = new URLSearchParams(searchParams);
+    next.delete("edit");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, orgTemplates, isLoading, canWrite, setSearchParams]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    const payload = {
-      name: name.trim(),
-      description: description.trim() || undefined,
-      milestones: milestones
-        .filter((m) => m.title.trim())
-        .map((m) => ({
-          title: m.title.trim(),
-          offsetDays: m.offsetDays ? Number(m.offsetDays) : undefined,
-        })),
-    };
-    if (editing) {
-      await updateTemplate.mutateAsync({ templateId: editing.id, ...payload });
-    } else {
-      await createTemplate.mutateAsync(payload);
+    if (!formValues.name.trim()) return;
+
+    const payload = formValuesToPayload(formValues, !!editing);
+
+    try {
+      if (editing) {
+        await updateTemplate.mutateAsync({ templateId: editing.id, ...payload });
+        setToast({ tone: "info", message: `"${payload.name}" 템플릿을 수정했습니다.` });
+      } else {
+        await createTemplate.mutateAsync({
+          name: payload.name,
+          description: payload.description ?? undefined,
+          milestones: payload.milestones,
+        });
+        setToast({ tone: "info", message: `"${payload.name}" 템플릿을 추가했습니다.` });
+      }
+      closeModal();
+    } catch (err) {
+      setToast({
+        tone: "error",
+        message: err instanceof Error ? err.message : "템플릿 저장에 실패했습니다.",
+      });
     }
-    setShowModal(false);
   };
 
-  const handleDelete = async (t: OrgProjectTemplate) => {
-    if (!window.confirm(`"${t.name}" 템플릿을 삭제할까요?`)) return;
-    await deleteTemplate.mutateAsync(t.id);
+  const handleDelete = async (template: OrgProjectTemplate) => {
+    if (!window.confirm(`"${template.name}" 템플릿을 삭제할까요?`)) return;
+
+    try {
+      await deleteTemplate.mutateAsync(template.id);
+      if (editing?.id === template.id) closeModal();
+      setToast({ tone: "info", message: `"${template.name}" 템플릿을 삭제했습니다.` });
+    } catch (err) {
+      setToast({
+        tone: "error",
+        message: err instanceof Error ? err.message : "템플릿 삭제에 실패했습니다.",
+      });
+    }
   };
 
   return (
@@ -107,6 +137,7 @@ export function ProjectTemplatesPage() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold text-navy-800">기본 템플릿</h2>
+        <p className="mb-2 text-xs text-navy-500">기본 템플릿은 수정할 수 없습니다. 조직 템플릿으로 복사해 사용하세요.</p>
         <div className="space-y-2">
           {builtins.map((t) => (
             <GlassCard key={t.id} className="p-4">
@@ -129,91 +160,64 @@ export function ProjectTemplatesPage() {
         ) : orgTemplates.length === 0 ? (
           <GlassCard className="p-6 text-center text-sm text-navy-500">
             조직 전용 템플릿이 없습니다.
-            {canWrite && " 위 버튼으로 추가할 수 있습니다."}
+            {canWrite && " 위 버튼으로 추가하거나 프로젝트 상세에서 템플릿으로 저장할 수 있습니다."}
           </GlassCard>
         ) : (
           <div className="space-y-2">
             {orgTemplates.map((t) => (
-              <GlassCard key={t.id} className="flex items-center gap-3 p-4">
+              <GlassCard key={t.id} className="flex items-center gap-2 p-4">
                 <button
                   type="button"
                   onClick={() => canWrite && openEdit(t)}
-                  className="min-w-0 flex-1 text-left"
+                  disabled={!canWrite}
+                  className="min-w-0 flex-1 text-left disabled:cursor-default"
                 >
                   <p className="font-medium text-navy-900">{t.name}</p>
                   <p className="text-xs text-navy-500">{t.description ?? "설명 없음"}</p>
-                  <p className="mt-0.5 text-xs text-navy-400">마일스톤 {t.milestones.length}개</p>
+                  <p className="mt-0.5 text-xs text-navy-400">
+                    마일스톤 {t.milestones.length}개
+                    {t.milestones.length > 0 ? ` · ${t.milestones.map((m) => m.title).join(" → ")}` : ""}
+                  </p>
                 </button>
                 {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(t)}
-                    className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openEdit(t)}
+                      className="rounded-lg p-2 text-navy-500 hover:bg-sky-50 hover:text-primary-600"
+                      aria-label={`${t.name} 수정`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(t)}
+                      disabled={deleteTemplate.isPending}
+                      className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      aria-label={`${t.name} 삭제`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-navy-400" />
+                  </>
                 )}
-                {canWrite && <ChevronRight className="h-4 w-4 text-navy-400" />}
               </GlassCard>
             ))}
           </div>
         )}
       </section>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editing ? "템플릿 수정" : "템플릿 추가"}>
-        <form onSubmit={handleSave} className="space-y-4">
-          <Input label="이름" value={name} onChange={(e) => setName(e.target.value)} required />
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-navy-700">설명</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className={cn(selectClass, "resize-none py-3")}
-            />
-          </div>
+      <ProjectTemplateEditorModal
+        open={showModal}
+        onClose={closeModal}
+        editing={editing}
+        values={formValues}
+        onChange={setFormValues}
+        onSubmit={handleSave}
+        isPending={createTemplate.isPending || updateTemplate.isPending}
+      />
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-navy-700">마일스톤</label>
-            {milestones.map((m, i) => (
-              <div key={i} className="flex gap-2">
-                <Input
-                  placeholder="제목"
-                  value={m.title}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[i] = { ...next[i], title: e.target.value };
-                    setMilestones(next);
-                  }}
-                  className="flex-1"
-                />
-                <Input
-                  type="number"
-                  placeholder="일"
-                  value={m.offsetDays}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[i] = { ...next[i], offsetDays: e.target.value };
-                    setMilestones(next);
-                  }}
-                  className="w-20"
-                />
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setMilestones([...milestones, { title: "", offsetDays: "" }])}
-            >
-              마일스톤 행 추가
-            </Button>
-          </div>
-
-          <Button type="submit" fullWidth disabled={createTemplate.isPending || updateTemplate.isPending}>
-            저장
-          </Button>
-        </form>
-      </Modal>
+      {toast && <ToastMessage message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
     </div>
   );
 }

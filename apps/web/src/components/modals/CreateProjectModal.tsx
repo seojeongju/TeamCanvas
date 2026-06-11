@@ -153,6 +153,18 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
               </option>
             ))}
           </select>
+          {templateId.startsWith("org:") && (
+            <button
+              type="button"
+              onClick={() => {
+                handleClose();
+                navigate(`/settings/project-templates?edit=${templateId.slice(4)}`);
+              }}
+              className="self-start text-xs text-primary-600 hover:underline"
+            >
+              선택한 템플릿 수정
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
