@@ -6,6 +6,7 @@ import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { AgendaView } from "../components/calendar/AgendaView";
 import { CalendarViewSwitcher } from "../components/calendar/CalendarViewSwitcher";
+import { DayEventsSheet } from "../components/calendar/DayEventsSheet";
 import { MonthView } from "../components/calendar/MonthView";
 import { TimeGridView } from "../components/calendar/TimeGridView";
 import { AGENDA_DAYS } from "../lib/calendarUtils";
@@ -22,7 +23,14 @@ import { expandCalendarEvents, resolveParentEventId } from "../lib/recurrence";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { useHolidays } from "../hooks/useOrgSettings";
-import { eventsForDay, getViewRange, getWeekDays, type CalendarViewMode } from "../lib/calendarUtils";
+import {
+  eventsForDay,
+  getViewRange,
+  getWeekDays,
+  sortEventsForDay,
+  type CalendarViewMode,
+} from "../lib/calendarUtils";
+import { holidaysForDay } from "../lib/holidays";
 import { toDateLocal } from "../lib/dates";
 import type { CalendarEvent } from "../lib/types";
 import { api } from "../lib/api";
@@ -59,6 +67,7 @@ export function CalendarPage() {
   const [copyEvent, setCopyEvent] = useState<CalendarEvent | null>(null);
   const [focusExcludeDate, setFocusExcludeDate] = useState<string | undefined>(undefined);
   const [googleToast, setGoogleToast] = useState<string | null>(null);
+  const [daySheetDate, setDaySheetDate] = useState<Date | null>(null);
 
   const { from, to } = getViewRange(viewMode, focusDate);
   const { data } = useEvents(from, to);
@@ -126,6 +135,24 @@ export function CalendarPage() {
       return next;
     });
   };
+
+  const openDaySheet = (date: Date) => setDaySheetDate(date);
+  const closeDaySheet = () => setDaySheetDate(null);
+
+  const daySheetEvents = useMemo(
+    () => (daySheetDate ? sortEventsForDay(events, daySheetDate) : []),
+    [daySheetDate, events],
+  );
+
+  const daySheetHolidays = useMemo(() => {
+    if (!daySheetDate) return [];
+    return holidaysForDay(
+      daySheetDate.getFullYear(),
+      daySheetDate.getMonth(),
+      daySheetDate.getDate(),
+      holidays,
+    );
+  }, [daySheetDate, holidays]);
 
   const openCreate = (opts?: {
     date?: Date;
@@ -374,7 +401,7 @@ export function CalendarPage() {
               month={focusDate.getMonth()}
               events={events}
               holidays={holidays}
-              onDayClick={(date) => openCreate({ date })}
+              onDayClick={openDaySheet}
               onEventClick={handleEventClick}
             />
           )}
@@ -470,6 +497,23 @@ export function CalendarPage() {
         copyEvent={copyEvent}
         focusExcludeDate={focusExcludeDate}
         existingEvents={events}
+      />
+
+      <DayEventsSheet
+        date={daySheetDate}
+        events={daySheetEvents}
+        holidays={daySheetHolidays}
+        onClose={closeDaySheet}
+        onEventClick={(event) => {
+          const day = daySheetDate;
+          closeDaySheet();
+          handleEventClick(event, day ?? undefined);
+        }}
+        onAdd={() => {
+          const day = daySheetDate;
+          closeDaySheet();
+          if (day) openCreate({ date: day });
+        }}
       />
 
       <EventDetailSheet

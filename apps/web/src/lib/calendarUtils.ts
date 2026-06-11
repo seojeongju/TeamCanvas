@@ -250,3 +250,33 @@ export function singleDayChipEvents(day: Date, events: CalendarEvent[]): Calenda
     (e) => !isSpanningBarEvent(e) && e.startAt >= from && e.startAt <= to,
   );
 }
+
+export function sortEventsForDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
+  return eventsForDay(events, day).sort((a, b) => {
+    if (a.allDay && !b.allDay) return -1;
+    if (!a.allDay && b.allDay) return 1;
+    return a.startAt - b.startAt;
+  });
+}
+
+const MONTH_MAX_BAR_LANES = 3;
+const MONTH_MAX_CHIPS = 2;
+
+/** 월간 셀에서 숨겨진 일정 개수 (막대 레인·칩 초과분) */
+export function monthDayHiddenEventCount(
+  day: Date,
+  weekIndex: number,
+  week: Date[],
+  barSegments: MonthBarSegment[],
+  events: CalendarEvent[],
+): number {
+  const col = week.findIndex((d) => d.toDateString() === day.toDateString());
+  if (col < 0) return 0;
+
+  const chipsHidden = Math.max(0, singleDayChipEvents(day, events).length - MONTH_MAX_CHIPS);
+  const barsOnDay = barSegments.filter(
+    (s) => s.weekIndex === weekIndex && col >= s.startCol && col < s.startCol + s.span,
+  );
+  const barsHidden = barsOnDay.filter((b) => b.lane >= MONTH_MAX_BAR_LANES).length;
+  return chipsHidden + barsHidden;
+}

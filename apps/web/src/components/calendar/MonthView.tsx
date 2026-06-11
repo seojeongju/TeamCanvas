@@ -4,6 +4,7 @@ import { monthGridEventLabel } from "../../lib/calendarEventUi";
 import {
   getMonthWeeks,
   layoutMonthBarSegments,
+  monthDayHiddenEventCount,
   singleDayChipEvents,
   type MonthBarSegment,
 } from "../../lib/calendarUtils";
@@ -66,7 +67,6 @@ export function MonthView({
         {weeks.map((week, weekIndex) => {
           const weekBars = segmentsByWeek.get(weekIndex) ?? [];
           const visibleBars = weekBars.filter((b) => b.lane < MAX_BAR_LANES);
-          const hiddenBarCount = weekBars.filter((b) => b.lane >= MAX_BAR_LANES).length;
           const maxLane = visibleBars.reduce((m, b) => Math.max(m, b.lane), -1);
           const barRows = maxLane >= 0 ? maxLane + 1 : 0;
 
@@ -140,16 +140,15 @@ export function MonthView({
                 </div>
               )}
 
-              {hiddenBarCount > 0 && (
-                <p className="px-1 text-[8px] text-navy-500">+{hiddenBarCount}개 일정</p>
-              )}
-
               {/* 3. 단일일 칩 (막대 아래) */}
               <div className="grid grid-cols-7 gap-1">
                 {week.map((day) => {
                   const inMonth = day.getMonth() === month;
                   const isToday = day.toDateString() === today.toDateString();
                   const dayChips = singleDayChipEvents(day, events);
+                  const hiddenCount = inMonth
+                    ? monthDayHiddenEventCount(day, weekIndex, week, barSegments, events)
+                    : 0;
 
                   return (
                     <div
@@ -175,8 +174,14 @@ export function MonthView({
                           )}
                         />
                       ))}
-                      {dayChips.length > 2 && (
-                        <span className="text-[8px] text-navy-500">+{dayChips.length - 2}</span>
+                      {hiddenCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onDayClick(day)}
+                          className="rounded-md px-0.5 text-left text-[8px] font-medium text-primary-600 hover:bg-primary-400/10"
+                        >
+                          +{hiddenCount}개 더보기
+                        </button>
                       )}
                     </div>
                   );
