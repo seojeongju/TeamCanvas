@@ -8,10 +8,11 @@ import {
   personalGoogleEventClassName,
   splitCalendarEvents,
 } from "../../lib/calendarEventSources";
-import { eventListSubtitle } from "../../lib/todayEventsGroup";
+import { eventListSubtitle, type EventDisplayContext } from "../../lib/todayEventsGroup";
 import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
 import type { CalendarEvent, OrgHoliday } from "../../lib/types";
 import { cn } from "../../lib/cn";
+import { useMemberNameMap } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
 
 function formatDaySheetTitle(date: Date): string {
@@ -34,11 +35,11 @@ function formatDaySheetTitle(date: Date): string {
 function DayEventRow({
   event,
   onClick,
-  viewerId,
+  displayCtx,
 }: {
   event: CalendarEvent;
   onClick: () => void;
-  viewerId?: string;
+  displayCtx: EventDisplayContext;
 }) {
   const personal = isPersonalGoogleEvent(event);
 
@@ -46,7 +47,7 @@ function DayEventRow({
     <button
       type="button"
       onClick={onClick}
-      aria-label={calendarEventAriaLabel(event, undefined, viewerId)}
+      aria-label={calendarEventAriaLabel(event, undefined, displayCtx)}
       className="w-full cursor-pointer text-left transition-shadow duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/80"
     >
       <GlassCard
@@ -64,7 +65,7 @@ function DayEventRow({
         />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-navy-900">{event.title}</p>
-          <p className="text-xs text-navy-600">{eventListSubtitle(event, viewerId)}</p>
+          <p className="text-xs text-navy-600">{eventListSubtitle(event, displayCtx)}</p>
           {event.recurrenceRule && (
             <p className="mt-0.5 text-[10px] text-primary-600">
               반복: {formatRecurrenceRule(event.recurrenceRule)}
@@ -92,9 +93,12 @@ export function DayEventsSheet({
   onEventClick: (event: CalendarEvent) => void;
   onAdd: () => void;
 }) {
+  const viewerId = useAuthStore((s) => s.user?.id);
+  const memberNames = useMemberNameMap();
+  const displayCtx: EventDisplayContext = { viewerId, memberNames };
+
   if (!date) return null;
 
-  const viewerId = useAuthStore((s) => s.user?.id);
   const { teamEvents, personalGoogleEvents } = splitCalendarEvents(events);
 
   return (
@@ -147,7 +151,7 @@ export function DayEventsSheet({
                     <DayEventRow
                       key={event.id}
                       event={event}
-                      viewerId={viewerId}
+                      displayCtx={displayCtx}
                       onClick={() => onEventClick(event)}
                     />
                   ))}
@@ -163,7 +167,7 @@ export function DayEventsSheet({
                     <DayEventRow
                       key={event.id}
                       event={event}
-                      viewerId={viewerId}
+                      displayCtx={displayCtx}
                       onClick={() => onEventClick(event)}
                     />
                   ))}

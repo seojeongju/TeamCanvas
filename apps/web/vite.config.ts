@@ -57,7 +57,7 @@ export default defineConfig({
             urlPattern: /^\/api\/organizations\/[^/]+\/(tasks|events)/,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "api-data-cache",
+              cacheName: "api-data-cache-v2",
               expiration: { maxAgeSeconds: 86400, maxEntries: 32 },
             },
           },

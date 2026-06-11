@@ -7,10 +7,11 @@ import {
   personalGoogleEventClassName,
   splitCalendarEvents,
 } from "../../lib/calendarEventSources";
-import { eventListSubtitle } from "../../lib/todayEventsGroup";
+import { eventListSubtitle, type EventDisplayContext } from "../../lib/todayEventsGroup";
 import { cn } from "../../lib/cn";
 import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
 import type { CalendarEvent } from "../../lib/types";
+import { useMemberNameMap } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
 import { useEventPreviewTooltip } from "./EventPreviewTooltip";
 
@@ -33,11 +34,11 @@ function formatAgendaDayLabel(d: Date): string {
 function AgendaEventRow({
   event,
   onClick,
-  viewerId,
+  displayCtx,
 }: {
   event: CalendarEvent;
   onClick: () => void;
-  viewerId?: string;
+  displayCtx: EventDisplayContext;
 }) {
   const personal = isPersonalGoogleEvent(event);
   const {
@@ -57,7 +58,7 @@ function AgendaEventRow({
         ref={triggerRef}
         type="button"
         onClick={onClick}
-        aria-label={calendarEventAriaLabel(event, undefined, viewerId)}
+        aria-label={calendarEventAriaLabel(event, undefined, displayCtx)}
         aria-describedby={tooltipVisible ? tooltipId : undefined}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -80,7 +81,7 @@ function AgendaEventRow({
         />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-navy-900">{event.title}</p>
-          <p className="text-xs text-navy-600">{eventListSubtitle(event, viewerId)}</p>
+          <p className="text-xs text-navy-600">{eventListSubtitle(event, displayCtx)}</p>
           {event.recurrenceRule && (
             <p className="mt-0.5 text-[10px] text-primary-600">
               {formatRecurrenceRule(event.recurrenceRule)}
@@ -98,11 +99,11 @@ function AgendaEventRow({
 function AgendaDayEvents({
   dayEvents,
   onEventClick,
-  viewerId,
+  displayCtx,
 }: {
   dayEvents: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
-  viewerId?: string;
+  displayCtx: EventDisplayContext;
 }) {
   const { teamEvents, personalGoogleEvents } = splitCalendarEvents(dayEvents);
 
@@ -114,7 +115,7 @@ function AgendaDayEvents({
             <AgendaEventRow
               key={event.id}
               event={event}
-              viewerId={viewerId}
+              displayCtx={displayCtx}
               onClick={() => onEventClick(event)}
             />
           ))}
@@ -130,7 +131,7 @@ function AgendaDayEvents({
             <AgendaEventRow
               key={event.id}
               event={event}
-              viewerId={viewerId}
+              displayCtx={displayCtx}
               onClick={() => onEventClick(event)}
             />
           ))}
@@ -152,6 +153,8 @@ export function AgendaView({
   onDayClick: (date: Date) => void;
 }) {
   const viewerId = useAuthStore((s) => s.user?.id);
+  const memberNames = useMemberNameMap();
+  const displayCtx: EventDisplayContext = { viewerId, memberNames };
   const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addDaysToDate(focusDate, i));
 
   return (
@@ -180,7 +183,7 @@ export function AgendaView({
             ) : (
               <AgendaDayEvents
                 dayEvents={dayEvents}
-                viewerId={viewerId}
+                displayCtx={displayCtx}
                 onEventClick={(event) => onEventClick(event, day)}
               />
             )}

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useCurrentOrgId } from "../stores/orgStore";
@@ -10,6 +11,14 @@ export function useOrgMembers() {
     queryFn: () => api.getOrgMembers(orgId!),
     enabled: !!orgId,
   });
+}
+
+export function useMemberNameMap(): Record<string, string> {
+  const { data } = useOrgMembers();
+  return useMemo(
+    () => Object.fromEntries((data?.members ?? []).map((m) => [m.user_id, m.name])),
+    [data?.members],
+  );
 }
 
 export function useUpdateOrgMember() {

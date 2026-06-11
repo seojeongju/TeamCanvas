@@ -5,7 +5,9 @@ import { cn } from "../../lib/cn";
 import { buildEventPreviewMeta } from "../../lib/calendarEventUi";
 import { isPersonalGoogleEvent } from "../../lib/calendarEventSources";
 import type { CalendarEvent } from "../../lib/types";
+import { useMemberNameMap } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
+import type { EventDisplayContext } from "../../lib/todayEventsGroup";
 
 const SHOW_DELAY_MS = 300;
 const TOOLTIP_WIDTH = 280;
@@ -18,16 +20,16 @@ function TooltipCard({
   placement,
   style,
   id,
-  viewerId,
+  displayCtx,
 }: {
   event: CalendarEvent;
   day?: Date;
   placement: TooltipPlacement;
   style: React.CSSProperties;
   id: string;
-  viewerId?: string;
+  displayCtx: EventDisplayContext;
 }) {
-  const meta = buildEventPreviewMeta(event, day, viewerId);
+  const meta = buildEventPreviewMeta(event, day, displayCtx);
   const personal = isPersonalGoogleEvent(event);
 
   return (
@@ -74,6 +76,8 @@ function TooltipCard({
 
 export function useEventPreviewTooltip(event: CalendarEvent, day?: Date, disabled = false) {
   const viewerId = useAuthStore((s) => s.user?.id);
+  const memberNames = useMemberNameMap();
+  const displayCtx: EventDisplayContext = { viewerId, memberNames };
   const tooltipId = useId();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,7 +141,7 @@ export function useEventPreviewTooltip(event: CalendarEvent, day?: Date, disable
         id={tooltipId}
         event={event}
         day={day}
-        viewerId={viewerId}
+        displayCtx={displayCtx}
         placement={placement}
         style={{
           top: coords.top,

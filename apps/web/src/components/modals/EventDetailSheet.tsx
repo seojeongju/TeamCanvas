@@ -94,8 +94,12 @@ export function EventDetailSheet({
   const [showShare, setShowShare] = useState(false);
 
   const displayEvent = isGoogle ? event : (freshEventData?.event ?? event);
+  const memberNameMap = useMemo(
+    () => Object.fromEntries(members.map((m) => [m.user_id, m.name])),
+    [members],
+  );
   const creatorLabel = displayEvent
-    ? formatEventCreatorLabel(displayEvent, user?.id)
+    ? formatEventCreatorLabel(displayEvent, user?.id, memberNameMap)
     : null;
 
   const { data: teamData } = useTeamDetail(

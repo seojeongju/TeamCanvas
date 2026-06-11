@@ -24,7 +24,7 @@ export function useOrgDetail() {
 export function useEvents(from?: number, to?: number) {
   const orgId = useCurrentOrgId();
   return useQuery({
-    queryKey: ["events", orgId, from, to],
+    queryKey: ["events", orgId, from, to, "v2"],
     queryFn: async () => {
       const data = await api.getEvents(orgId!, from, to);
       if (orgId && from != null && to != null) {
