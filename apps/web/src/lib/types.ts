@@ -442,6 +442,28 @@ export type ProjectMember = {
   joinedAt: number;
 };
 
+export type ProjectActivity = {
+  id: string;
+  projectId: string;
+  actorId: string;
+  actorName: string;
+  action: string;
+  field: string | null;
+  summary: string;
+  createdAt: number;
+  time: string;
+};
+
+export type OrgProjectTemplate = {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  milestones: { title: string; offsetDays?: number }[];
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type TaskActivity = {
   id: string;
   taskId: string;

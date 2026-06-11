@@ -7,8 +7,10 @@ import {
   useCreateProjectMilestone,
   useDeleteProjectMilestone,
   useProjectMilestones,
+  useTasks,
   useUpdateProjectMilestone,
 } from "../../hooks/useData";
+import { ProjectGanttChart } from "./ProjectGanttChart";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { formatMilestoneDue, MILESTONE_STATUS_OPTIONS } from "../../lib/projectUtils";
 import { ProjectTimeline } from "./ProjectTimeline";
@@ -21,6 +23,8 @@ type Props = {
 
 export function ProjectMilestonesSection({ project }: Props) {
   const { data, isLoading } = useProjectMilestones(project.id);
+  const { data: tasksData } = useTasks({ projectId: project.id });
+  const projectTasks = tasksData?.tasks ?? [];
   const createMilestone = useCreateProjectMilestone();
   const updateMilestone = useUpdateProjectMilestone();
   const deleteMilestone = useDeleteProjectMilestone();
@@ -60,6 +64,13 @@ export function ProjectMilestonesSection({ project }: Props) {
         <h2 className="text-sm font-semibold text-navy-800">타임라인</h2>
         <GlassCard className="mt-2 p-4">
           <ProjectTimeline project={project} milestones={milestones} />
+        </GlassCard>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold text-navy-800">Gantt 차트</h2>
+        <GlassCard className="mt-2 p-4">
+          <ProjectGanttChart project={project} milestones={milestones} tasks={projectTasks} />
         </GlassCard>
       </div>
 

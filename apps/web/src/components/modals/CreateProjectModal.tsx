@@ -2,11 +2,17 @@ import { useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import { useCreateProject, useCreateProjectMilestone, useTeams } from "../../hooks/useData";
+import {
+  useCreateProject,
+  useCreateProjectMilestone,
+  useOrgProjectTemplates,
+  useTeams,
+} from "../../hooks/useData";
 import { PROJECT_STATUS_OPTIONS } from "../../lib/projectUtils";
 import {
+  listBuiltinTemplates,
   milestoneDueDatesFromTemplate,
-  PROJECT_TEMPLATES,
+  resolveProjectTemplate,
 } from "../../lib/projectTemplates";
 import { cn } from "../../lib/cn";
 import type { ProjectStatus } from "../../lib/types";
@@ -26,7 +32,19 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const createProject = useCreateProject();
   const createMilestone = useCreateProjectMilestone();
   const { data: teamsData } = useTeams();
+  const { data: orgTemplatesData } = useOrgProjectTemplates();
   const teams = teamsData?.teams ?? [];
+  const orgTemplates = orgTemplatesData?.templates ?? [];
+  const templateOptions = [
+    ...listBuiltinTemplates(),
+    ...orgTemplates.map((t) => ({
+      id: `org:${t.id}`,
+      name: t.name,
+      description: t.description ?? "",
+      milestones: t.milestones,
+      source: "org" as const,
+    })),
+  ];
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -35,7 +53,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const [teamId, setTeamId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [templateId, setTemplateId] = useState("blank");
+  const [templateId, setTemplateId] = useState("builtin:blank");
 
   const reset = () => {
     setName("");
@@ -45,7 +63,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
     setTeamId("");
     setStartDate("");
     setEndDate("");
-    setTemplateId("blank");
+    setTemplateId("builtin:blank");
   };
 
   const handleClose = () => {
@@ -70,8 +88,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
       endAt,
     });
 
-    const template = PROJECT_TEMPLATES.find((t) => t.id === templateId) ?? PROJECT_TEMPLATES[0];
-    if (template.milestones.length > 0) {
+    const template = resolveProjectTemplate(templateId, orgTemplates);
+    if (template && template.milestones.length > 0) {
       const dueDates = milestoneDueDatesFromTemplate(template, startAt);
       for (let i = 0; i < template.milestones.length; i++) {
         const m = template.milestones[i];
@@ -114,8 +132,9 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-navy-700">템플릿</label>
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={selectClass}>
-            {PROJECT_TEMPLATES.map((t) => (
+            {templateOptions.map((t) => (
               <option key={t.id} value={t.id}>
+                {t.source === "org" ? "[조직] " : ""}
                 {t.name} — {t.description}
               </option>
             ))}

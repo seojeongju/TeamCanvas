@@ -280,6 +280,7 @@ export function useUpdateProject() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["projects", orgId] });
       qc.invalidateQueries({ queryKey: ["project", vars.id] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.id] });
     },
   });
 }
@@ -317,6 +318,7 @@ export function useCreateProjectMilestone() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-milestones", vars.projectId] });
       qc.invalidateQueries({ queryKey: ["project", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
     },
   });
 }
@@ -335,6 +337,7 @@ export function useUpdateProjectMilestone() {
       api.updateProjectMilestone(milestoneId, data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-milestones", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
     },
   });
 }
@@ -346,6 +349,7 @@ export function useDeleteProjectMilestone() {
       api.deleteProjectMilestone(milestoneId),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-milestones", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
     },
   });
 }
@@ -372,6 +376,7 @@ export function useAddProjectMember() {
     }) => api.addProjectMember(projectId, { userId, role }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-members", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
     },
   });
 }
@@ -383,7 +388,64 @@ export function useRemoveProjectMember() {
       api.removeProjectMember(projectId, userId),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-members", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
     },
+  });
+}
+
+export function useProjectActivities(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-activities", projectId],
+    queryFn: () => api.getProjectActivities(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useOrgProjectTemplates() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["project-templates", orgId],
+    queryFn: () => api.getOrgProjectTemplates(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateOrgProjectTemplate() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      description?: string;
+      milestones?: { title: string; offsetDays?: number }[];
+    }) => api.createOrgProjectTemplate(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["project-templates", orgId] }),
+  });
+}
+
+export function useUpdateOrgProjectTemplate() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({
+      templateId,
+      ...data
+    }: {
+      templateId: string;
+      name?: string;
+      description?: string | null;
+      milestones?: { title: string; offsetDays?: number }[];
+    }) => api.updateOrgProjectTemplate(templateId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["project-templates", orgId] }),
+  });
+}
+
+export function useDeleteOrgProjectTemplate() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (templateId: string) => api.deleteOrgProjectTemplate(templateId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["project-templates", orgId] }),
   });
 }
 

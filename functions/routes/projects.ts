@@ -165,6 +165,9 @@ projectRoutes.post("/organizations/:orgId/projects", async (c) => {
     .bind(id, user.id, ts)
     .run();
 
+  const { logProjectCreated } = await import("../utils/projectActivities");
+  await logProjectCreated(c.env.DB, orgId, id, user.id, body.name.trim());
+
   return c.json({ id }, 201);
 });
 
@@ -256,6 +259,20 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
   await c.env.DB.prepare(`UPDATE projects SET ${updates.join(", ")} WHERE id = ?`)
     .bind(...binds)
     .run();
+
+  const { logProjectUpdated } = await import("../utils/projectActivities");
+  await logProjectUpdated(
+    c.env.DB,
+    orgId,
+    projectId,
+    user.id,
+    body,
+    {
+      name: existing.name as string,
+      description: (existing.description as string | null) ?? null,
+      status: existing.status as string,
+    },
+  );
 
   return c.json({ ok: true });
 });
@@ -349,6 +366,15 @@ projectRoutes.post("/projects/:projectId/milestones", async (c) => {
     )
     .run();
 
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  await insertProjectActivity(c.env.DB, {
+    projectId,
+    organizationId: orgId,
+    actorId: user.id,
+    action: "milestone_added",
+    summary: `마일스톤 추가 · ${body.title.trim()}`,
+  });
+
   return c.json({ id }, 201);
 });
 
@@ -414,6 +440,27 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
     .bind(...binds)
     .run();
 
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  const projectId = existing.project_id as string;
+  const title = (body.title?.trim() ?? existing.title) as string;
+  if (body.status === "done" && existing.status !== "done") {
+    await insertProjectActivity(c.env.DB, {
+      projectId,
+      organizationId: orgId,
+      actorId: user.id,
+      action: "milestone_done",
+      summary: `마일스톤 완료 · ${title}`,
+    });
+  } else {
+    await insertProjectActivity(c.env.DB, {
+      projectId,
+      organizationId: orgId,
+      actorId: user.id,
+      action: "milestone_updated",
+      summary: `마일스톤 수정 · ${title}`,
+    });
+  }
+
   return c.json({ ok: true });
 });
 
@@ -423,17 +470,27 @@ projectRoutes.delete("/milestones/:milestoneId", async (c) => {
   const milestoneId = c.req.param("milestoneId");
 
   const existing = await c.env.DB.prepare(
-    `SELECT m.id, p.organization_id FROM project_milestones m
+    `SELECT m.id, m.title, m.project_id, p.organization_id FROM project_milestones m
      JOIN projects p ON p.id = m.project_id WHERE m.id = ?`,
   )
     .bind(milestoneId)
-    .first<{ id: string; organization_id: string }>();
+    .first<{ id: string; title: string; project_id: string; organization_id: string }>();
   if (!existing) return c.json({ error: "not found" }, 404);
 
   const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:write");
   if (member instanceof Response) return member;
 
   await c.env.DB.prepare("DELETE FROM project_milestones WHERE id = ?").bind(milestoneId).run();
+
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  await insertProjectActivity(c.env.DB, {
+    projectId: existing.project_id,
+    organizationId: existing.organization_id,
+    actorId: user.id,
+    action: "milestone_removed",
+    summary: `마일스톤 삭제 · ${existing.title}`,
+  });
+
   return c.json({ ok: true });
 });
 
@@ -500,6 +557,19 @@ projectRoutes.post("/projects/:projectId/members", async (c) => {
     .bind(projectId, body.userId, role, ts)
     .run();
 
+  const added = await c.env.DB.prepare("SELECT name FROM users WHERE id = ?")
+    .bind(body.userId)
+    .first<{ name: string }>();
+
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  await insertProjectActivity(c.env.DB, {
+    projectId,
+    organizationId: orgId,
+    actorId: user.id,
+    action: "member_added",
+    summary: `멤버 추가 · ${added?.name ?? body.userId}`,
+  });
+
   return c.json({ ok: true }, 201);
 });
 
@@ -517,10 +587,12 @@ projectRoutes.delete("/projects/:projectId/members/:userId", async (c) => {
   if (access instanceof Response) return access;
 
   const target = await c.env.DB.prepare(
-    "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?",
+    `SELECT pm.role, u.name FROM project_members pm
+     JOIN users u ON u.id = pm.user_id
+     WHERE pm.project_id = ? AND pm.user_id = ?`,
   )
     .bind(projectId, targetUserId)
-    .first<{ role: string }>();
+    .first<{ role: string; name: string }>();
   if (!target) return c.json({ error: "not found" }, 404);
   if (target.role === "owner") return c.json({ error: "Cannot remove project owner" }, 400);
 
@@ -528,5 +600,187 @@ projectRoutes.delete("/projects/:projectId/members/:userId", async (c) => {
     .bind(projectId, targetUserId)
     .run();
 
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  await insertProjectActivity(c.env.DB, {
+    projectId,
+    organizationId: orgId,
+    actorId: user.id,
+    action: "member_removed",
+    summary: `멤버 제외 · ${target.name}`,
+  });
+
+  return c.json({ ok: true });
+});
+
+// ── Activities ──
+
+projectRoutes.get("/projects/:projectId/activities", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const { fetchProjectActivities } = await import("../utils/projectActivities");
+  const activities = await fetchProjectActivities(c.env.DB, projectId);
+  return c.json({ activities });
+});
+
+// ── Org project templates ──
+
+function parseTemplateMilestones(json: string): { title: string; offsetDays?: number }[] {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((m): m is { title: string; offsetDays?: number } => typeof m === "object" && m !== null && "title" in m)
+      .map((m) => ({
+        title: String(m.title),
+        offsetDays: typeof m.offsetDays === "number" ? m.offsetDays : undefined,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function mapTemplateRow(row: Record<string, unknown>) {
+  return {
+    id: row.id as string,
+    organizationId: row.organization_id as string,
+    name: row.name as string,
+    description: (row.description as string | null) ?? null,
+    milestones: parseTemplateMilestones(row.milestones_json as string),
+    createdAt: row.created_at as number,
+    updatedAt: row.updated_at as number,
+  };
+}
+
+projectRoutes.get("/organizations/:orgId/project-templates", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT * FROM project_templates WHERE organization_id = ? ORDER BY updated_at DESC`,
+  )
+    .bind(orgId)
+    .all();
+
+  const templates = (results ?? []).map((row) => mapTemplateRow(row as Record<string, unknown>));
+  return c.json({ templates });
+});
+
+projectRoutes.post("/organizations/:orgId/project-templates", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{
+    name: string;
+    description?: string;
+    milestones?: { title: string; offsetDays?: number }[];
+  }>();
+
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+
+  const id = newId();
+  const ts = now();
+  const milestonesJson = JSON.stringify(
+    (body.milestones ?? []).filter((m) => m.title?.trim()).map((m) => ({
+      title: m.title.trim(),
+      offsetDays: m.offsetDays,
+    })),
+  );
+
+  await c.env.DB.prepare(
+    `INSERT INTO project_templates (id, organization_id, name, description, milestones_json, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, orgId, body.name.trim(), body.description?.trim() || null, milestonesJson, user.id, ts, ts)
+    .run();
+
+  return c.json({ id }, 201);
+});
+
+projectRoutes.patch("/project-templates/:templateId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const templateId = c.req.param("templateId");
+
+  const existing = await c.env.DB.prepare("SELECT organization_id FROM project_templates WHERE id = ?")
+    .bind(templateId)
+    .first<{ organization_id: string }>();
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{
+    name?: string;
+    description?: string | null;
+    milestones?: { title: string; offsetDays?: number }[];
+  }>();
+
+  const updates: string[] = [];
+  const binds: unknown[] = [];
+
+  if (body.name !== undefined) {
+    if (!body.name.trim()) return c.json({ error: "name required" }, 400);
+    updates.push("name = ?");
+    binds.push(body.name.trim());
+  }
+  if (body.description !== undefined) {
+    updates.push("description = ?");
+    binds.push(body.description?.trim() || null);
+  }
+  if (body.milestones !== undefined) {
+    updates.push("milestones_json = ?");
+    binds.push(
+      JSON.stringify(
+        body.milestones.filter((m) => m.title?.trim()).map((m) => ({
+          title: m.title.trim(),
+          offsetDays: m.offsetDays,
+        })),
+      ),
+    );
+  }
+
+  if (updates.length === 0) return c.json({ ok: true });
+
+  updates.push("updated_at = ?");
+  binds.push(now(), templateId);
+
+  await c.env.DB.prepare(`UPDATE project_templates SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...binds)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+projectRoutes.delete("/project-templates/:templateId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const templateId = c.req.param("templateId");
+
+  const existing = await c.env.DB.prepare("SELECT organization_id FROM project_templates WHERE id = ?")
+    .bind(templateId)
+    .first<{ organization_id: string }>();
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:write");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM project_templates WHERE id = ?").bind(templateId).run();
   return c.json({ ok: true });
 });

@@ -1,4 +1,4 @@
-import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell, CheckSquare } from "lucide-react";
+import { Building2, Users, Users2, Settings, LogOut, Shield, ChevronRight, CreditCard, Bell, CheckSquare, LayoutTemplate } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -21,6 +21,7 @@ export function MorePage() {
   const navigate = useNavigate();
   const canManageMembers = useHasPermission("members:read");
   const canViewBilling = useHasPermission("billing:read");
+  const canManageProjects = useHasPermission("projects:write");
   const bootstrap = useAdminBootstrap();
 
   const stats = orgData?.stats;
@@ -32,6 +33,13 @@ export function MorePage() {
       desc: "칸반 · 리스트",
       onClick: () => navigate("/tasks"),
       show: true,
+    },
+    {
+      icon: LayoutTemplate,
+      label: "프로젝트 템플릿",
+      desc: "조직 전용 템플릿",
+      onClick: () => navigate("/settings/project-templates"),
+      show: canManageProjects,
     },
     {
       icon: Building2,

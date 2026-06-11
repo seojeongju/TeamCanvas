@@ -13,6 +13,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { TasksPage } from "./pages/TasksPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
+import { ProjectTemplatesPage } from "./pages/settings/ProjectTemplatesPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { MorePage } from "./pages/MorePage";
 import { SearchPage } from "./pages/SearchPage";
@@ -117,6 +118,7 @@ export default function App() {
           <Route path="settings/members" element={<MembersPage />} />
           <Route path="settings/billing" element={<BillingPage />} />
           <Route path="settings/permissions" element={<PermissionsPage />} />
+          <Route path="settings/project-templates" element={<ProjectTemplatesPage />} />
           <Route path="settings/notifications" element={<NotificationSettingsPage />} />
           <Route path="settings/audit" element={<AuditLogsPage />} />
           <Route path="settings/app" element={<AppSettingsPage />} />

@@ -560,6 +560,39 @@ export const api = {
   removeProjectMember: (projectId: string, userId: string) =>
     request<{ ok: boolean }>(`/api/projects/${projectId}/members/${userId}`, { method: "DELETE" }),
 
+  getProjectActivities: (projectId: string) =>
+    request<{ activities: import("./types").ProjectActivity[] }>(`/api/projects/${projectId}/activities`),
+
+  getOrgProjectTemplates: (orgId: string) =>
+    request<{ templates: import("./types").OrgProjectTemplate[] }>(
+      `/api/organizations/${orgId}/project-templates`,
+    ),
+
+  createOrgProjectTemplate: (
+    orgId: string,
+    data: { name: string; description?: string; milestones?: { title: string; offsetDays?: number }[] },
+  ) =>
+    request<{ id: string }>(`/api/organizations/${orgId}/project-templates`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateOrgProjectTemplate: (
+    templateId: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      milestones?: { title: string; offsetDays?: number }[];
+    },
+  ) =>
+    request<{ ok: boolean }>(`/api/project-templates/${templateId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteOrgProjectTemplate: (templateId: string) =>
+    request<{ ok: boolean }>(`/api/project-templates/${templateId}`, { method: "DELETE" }),
+
   getTaskActivities: (taskId: string) =>
     request<{ activities: import("./types").TaskActivity[] }>(`/api/tasks/${taskId}/activities`),
 

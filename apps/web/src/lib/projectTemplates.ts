@@ -53,8 +53,54 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
 ];
 
+export type ResolvedProjectTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  milestones: ProjectTemplateMilestone[];
+  source: "builtin" | "org";
+};
+
+export function listBuiltinTemplates(): ResolvedProjectTemplate[] {
+  return PROJECT_TEMPLATES.map((t) => ({
+    id: `builtin:${t.id}`,
+    name: t.name,
+    description: t.description,
+    milestones: t.milestones,
+    source: "builtin" as const,
+  }));
+}
+
+export function resolveProjectTemplate(
+  templateId: string,
+  orgTemplates: { id: string; name: string; description: string | null; milestones: ProjectTemplateMilestone[] }[],
+): ResolvedProjectTemplate | null {
+  if (templateId.startsWith("org:")) {
+    const id = templateId.slice(4);
+    const t = orgTemplates.find((o) => o.id === id);
+    if (!t) return null;
+    return {
+      id: templateId,
+      name: t.name,
+      description: t.description ?? "",
+      milestones: t.milestones,
+      source: "org",
+    };
+  }
+  const builtinId = templateId.startsWith("builtin:") ? templateId.slice(8) : templateId;
+  const t = PROJECT_TEMPLATES.find((b) => b.id === builtinId);
+  if (!t) return null;
+  return {
+    id: `builtin:${t.id}`,
+    name: t.name,
+    description: t.description,
+    milestones: t.milestones,
+    source: "builtin",
+  };
+}
+
 export function milestoneDueDatesFromTemplate(
-  template: ProjectTemplate,
+  template: { milestones: ProjectTemplateMilestone[] },
   projectStartAt: number | null,
 ): (number | null)[] {
   if (!projectStartAt) {
