@@ -164,6 +164,16 @@ Repository → **Settings** → **Secrets and variables** → **Actions** → **
 
 ---
 
+### 4.4 Pages Cron (일정 리마인더)
+
+`wrangler.jsonc`의 `triggers`는 **Workers 전용**이라 Pages 배포 시 오류가 납니다.  
+리마인더 Cron(`functions/_scheduled.ts`)은 대시보드에서 설정하세요:
+
+1. **Workers & Pages** → **teamcanvas** → **Settings** → **Functions**
+2. **Cron triggers** → `*/5 * * * *` 추가
+
+---
+
 ## 6. 배포 흐름
 
 ```
