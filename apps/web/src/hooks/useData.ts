@@ -10,7 +10,13 @@ import {
   isOffline,
 } from "../lib/offlineCache";
 import { enqueueOfflineMutation, newOfflineId } from "../lib/offlineQueue";
-import type { Task, TaskFilters, UpdateTaskPayload } from "../lib/types";
+import type {
+  ProjectFilters,
+  Task,
+  TaskFilters,
+  UpdateProjectPayload,
+  UpdateTaskPayload,
+} from "../lib/types";
 
 export function useOrgDetail() {
   const orgId = useCurrentOrgId();
@@ -237,6 +243,53 @@ export function useTasks(filters?: TaskFilters) {
       return cached ? { tasks: cached } : undefined;
     },
     networkMode: isOffline() ? "always" : "online",
+  });
+}
+
+export function useProjects(filters?: ProjectFilters) {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["projects", orgId, filters],
+    queryFn: () => api.getProjects(orgId!, filters),
+    enabled: !!orgId,
+  });
+}
+
+export function useProject(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.getProject(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateProject() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: import("../lib/types").CreateProjectPayload) => api.createProject(orgId!, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", orgId] }),
+  });
+}
+
+export function useUpdateProject() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ id, ...data }: UpdateProjectPayload) => api.updateProject(id, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project", vars.id] });
+    },
+  });
+}
+
+export function useDeleteProject() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (projectId: string) => api.deleteProject(projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", orgId] }),
   });
 }
 

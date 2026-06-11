@@ -67,7 +67,7 @@ export function LabelPillPicker({
 
   const handleDelete = async (label: TaskLabel) => {
     if (!onDeleteLabel) return;
-    const ok = window.confirm(`"${label.name}" 라벨을 삭제할까요?\n연결된 프로젝트·일정에서도 제거됩니다.`);
+    const ok = window.confirm(`"${label.name}" 라벨을 삭제할까요?\n연결된 업무·일정에서도 제거됩니다.`);
     if (!ok) return;
     setDeletingId(label.id);
     try {

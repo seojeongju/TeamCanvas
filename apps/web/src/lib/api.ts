@@ -488,6 +488,34 @@ export const api = {
   deleteTask: (taskId: string) =>
     request<{ ok: boolean }>(`/api/tasks/${taskId}`, { method: "DELETE" }),
 
+  getProjects: (orgId: string, filters?: import("./types").ProjectFilters) => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.teamId) params.set("teamId", filters.teamId);
+    const qs = params.toString();
+    return request<{ projects: import("./types").Project[] }>(
+      `/api/organizations/${orgId}/projects${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  getProject: (projectId: string) =>
+    request<{ project: import("./types").Project }>(`/api/projects/${projectId}`),
+
+  createProject: (orgId: string, data: import("./types").CreateProjectPayload) =>
+    request<{ id: string }>(`/api/organizations/${orgId}/projects`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateProject: (projectId: string, data: Omit<import("./types").UpdateProjectPayload, "id">) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteProject: (projectId: string) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}`, { method: "DELETE" }),
+
   getTaskActivities: (taskId: string) =>
     request<{ activities: import("./types").TaskActivity[] }>(`/api/tasks/${taskId}/activities`),
 

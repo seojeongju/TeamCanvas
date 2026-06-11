@@ -94,7 +94,7 @@ export async function logTaskCreated(
     organizationId: orgId,
     actorId,
     action: "created",
-    summary: `프로젝트 생성 · ${title}`,
+    summary: `업무 생성 · ${title}`,
   });
 }
 

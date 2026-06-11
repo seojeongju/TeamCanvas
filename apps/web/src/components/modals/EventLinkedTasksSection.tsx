@@ -13,7 +13,7 @@ export function EventLinkedTasksSection({ eventId }: { eventId: string }) {
   const tasks = data?.tasks ?? [];
 
   if (isLoading) {
-    return <p className="mb-3 text-xs text-navy-500">연결된 프로젝트 불러오는 중…</p>;
+    return <p className="mb-3 text-xs text-navy-500">연결된 업무 불러오는 중…</p>;
   }
 
   if (tasks.length === 0) return null;
@@ -22,7 +22,7 @@ export function EventLinkedTasksSection({ eventId }: { eventId: string }) {
     <div className="mb-4 rounded-2xl border border-sky-100/80 bg-sky-50/40 p-4">
       <div className="mb-2 flex items-center gap-2">
         <CheckSquare className="h-4 w-4 text-emerald-600" />
-        <h3 className="text-sm font-semibold text-navy-800">연결된 프로젝트 ({tasks.length})</h3>
+        <h3 className="text-sm font-semibold text-navy-800">연결된 업무 ({tasks.length})</h3>
       </div>
       <ul className="space-y-1.5">
         {tasks.map((t) => (

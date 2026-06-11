@@ -34,7 +34,7 @@ const metrics = [
   },
   {
     key: "tasks",
-    label: "진행 프로젝트",
+    label: "진행 업무",
     unit: "건",
     icon: CheckSquare,
     accent: "from-emerald-500/15 to-emerald-500/5 text-emerald-600",
@@ -140,7 +140,7 @@ export function TeamFlowCard({
 
       <div className="border-t border-sky-100/80 px-5 py-4">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-medium text-navy-700">프로젝트 완료율</span>
+          <span className="font-medium text-navy-700">업무 완료율</span>
           <span className="text-navy-600">
             {doneTasks}/{totalTasks || 0}건 · {progress}%
           </span>
@@ -152,7 +152,7 @@ export function TeamFlowCard({
           />
         </div>
         <p className="mt-1.5 text-[11px] text-navy-500">
-          {doingTasks > 0 ? `진행 중 ${doingTasks}건` : "진행 중인 프로젝트가 없습니다"}
+          {doingTasks > 0 ? `진행 중 ${doingTasks}건` : "진행 중인 업무가 없습니다"}
         </p>
       </div>
 

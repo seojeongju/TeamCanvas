@@ -198,7 +198,7 @@ function DroppableColumn({
       >
         {tasks.length === 0 ? (
           <GlassCard className="p-4 text-center text-xs text-navy-500">
-            {column.label} 프로젝트가 없습니다
+            {column.label} 업무가 없습니다
           </GlassCard>
         ) : (
           <TaskPaginatedColumn tasks={tasks} resetKey={resetKey}>
@@ -248,7 +248,7 @@ function TaskColumn({
   if (tasks.length === 0) {
     return (
       <GlassCard className="p-4 text-center text-xs text-navy-500">
-        {column.label} 프로젝트가 없습니다
+        {column.label} 업무가 없습니다
       </GlassCard>
     );
   }

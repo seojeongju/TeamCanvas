@@ -114,7 +114,7 @@ export function tasksToCalendarEvents(tasks: Task[], from: number, to: number): 
         endAt: dayStart + 86400000,
         allDay: true,
         color: t.isOverdue ? "#EF4444" : "#F97316",
-        teamName: t.teamName ?? "프로젝트 마감",
+        teamName: t.teamName ?? "업무 마감",
         time: t.isOverdue ? "마감 지연" : "마감",
         visibility: "private",
       };

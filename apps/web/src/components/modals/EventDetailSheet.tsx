@@ -416,7 +416,7 @@ export function EventDetailSheet({
               disabled={createTask.isPending}
             >
               <CheckSquare className="h-4 w-4" />
-              {createTask.isPending ? "변환 중..." : "프로젝트로 변환"}
+              {createTask.isPending ? "변환 중..." : "업무로 변환"}
             </Button>
 
             {displayEvent.visibility !== "private" && canWrite && teamEventId && (

@@ -43,7 +43,7 @@ export function TaskSummaryBar({
     },
     {
       key: "mine",
-      label: "내 프로젝트",
+      label: "내 업무",
       value: mine,
       accent: "text-primary-600",
       active: filters?.assignee === "me",

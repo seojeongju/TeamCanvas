@@ -72,7 +72,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`"${task.title}" 프로젝트를 삭제할까요?`)) return;
+    if (!window.confirm(`"${task.title}" 업무를 삭제할까요?`)) return;
     await deleteTask.mutateAsync(task.id);
     onClose();
   };
@@ -86,7 +86,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
       <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-4">
         <div className="mb-4 flex items-start justify-between gap-3">
-          <h2 className="text-lg font-bold text-navy-900">프로젝트 상세</h2>
+          <h2 className="text-lg font-bold text-navy-900">업무 상세</h2>
           <div className="flex items-center gap-1">
             {canWrite && onEdit && (
               <button
@@ -146,7 +146,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
                 description !== (task.description ?? "") && save({ description: description || null })
               }
               rows={3}
-              placeholder="프로젝트 설명 (선택)"
+              placeholder="업무 설명 (선택)"
               className={cn(selectClass, "min-h-[88px] resize-none py-3")}
             />
           </div>
@@ -286,7 +286,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
               disabled={deleteTask.isPending}
             >
               <Trash2 className="h-4 w-4" />
-              {deleteTask.isPending ? "삭제 중..." : "프로젝트 삭제"}
+              {deleteTask.isPending ? "삭제 중..." : "업무 삭제"}
             </Button>
           </div>
         )}

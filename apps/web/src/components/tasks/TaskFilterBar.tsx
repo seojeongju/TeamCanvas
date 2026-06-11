@@ -93,7 +93,7 @@ export function TaskFilterBar({ filters, teams, labels = [], onChange }: TaskFil
         onClick={() => onChange({ ...filters, assignee: mine ? "all" : "me" })}
       >
         <User className="h-3.5 w-3.5" />
-        내 프로젝트
+        내 업무
       </QuickChip>
 
       <QuickChip

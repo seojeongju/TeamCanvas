@@ -302,7 +302,7 @@ export function CalendarSourceLegend({ hasPersonalGoogle }: { hasPersonalGoogle:
           className={cn("h-2.5 w-6 rounded ring-1 ring-white/30", colorClass(CALENDAR_LEGEND_COLORS.taskDue))}
           aria-hidden
         />
-        프로젝트 마감
+        업무 마감
       </span>
       {hasPersonalGoogle && (
         <span className="inline-flex items-center gap-1.5">

@@ -71,7 +71,7 @@ export function TaskStatusTabs({ active, onChange, counts, className }: TaskStat
     <div
       className={cn("flex gap-1.5 rounded-2xl bg-sky-100/50 p-1", className)}
       role="tablist"
-      aria-label="프로젝트 상태"
+      aria-label="업무 상태"
     >
       {TASK_COLUMNS.map((col) => {
         const count = counts[col.id];

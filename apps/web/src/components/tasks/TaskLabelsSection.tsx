@@ -26,7 +26,7 @@ export function TaskLabelsSection({ task }: { task: Task }) {
         onDeleteLabel={(labelId) => deleteLabel.mutateAsync(labelId)}
         isCreating={createLabel.isPending}
         isDeleting={deleteLabel.isPending}
-        emptyMessage="라벨을 만들어 프로젝트를 분류하세요."
+        emptyMessage="라벨을 만들어 업무를 분류하세요."
       />
     </div>
   );

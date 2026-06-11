@@ -92,7 +92,7 @@ export function TaskListView({
       <section role="tabpanel" aria-label={activeColumn.label}>
         {activeTasks.length === 0 ? (
           <GlassCard className="p-6 text-center text-sm text-navy-600">
-            {activeColumn.label} 프로젝트가 없습니다
+            {activeColumn.label} 업무가 없습니다
           </GlassCard>
         ) : (
           <>

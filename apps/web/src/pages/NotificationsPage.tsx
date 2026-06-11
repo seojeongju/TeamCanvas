@@ -13,9 +13,9 @@ import { resolveNotificationLink } from "../lib/notificationLinks";
 import type { Notification } from "../lib/types";
 
 const TYPE_LABELS: Record<string, string> = {
-  task_assigned: "프로젝트 배정",
+  task_assigned: "업무 배정",
   task_due_soon: "마감 임박",
-  task_comment: "프로젝트 댓글",
+  task_comment: "업무 댓글",
   task_mention: "멘션",
   event_attendee: "일정 초대",
   event_reminder: "일정 알림",

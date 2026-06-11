@@ -43,7 +43,7 @@ export function OfflineBanner() {
   return (
     <div className="mb-3 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-900">
       <WifiOff className="h-4 w-4 shrink-0" />
-      오프라인 모드 — 저장된 일정·프로젝트를 표시하며, 새 항목은 연결 후 자동 동기화됩니다.
+      오프라인 모드 — 저장된 일정·업무를 표시하며, 새 항목은 연결 후 자동 동기화됩니다.
     </div>
   );
 }

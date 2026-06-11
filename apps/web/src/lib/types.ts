@@ -370,6 +370,51 @@ export type Task = {
   labels?: TaskLabel[];
 };
 
+export type ProjectStatus = "planning" | "active" | "on_hold" | "done";
+
+export type Project = {
+  id: string;
+  organizationId: string;
+  teamId: string | null;
+  teamName: string | null;
+  ownerId: string;
+  ownerName: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  color: string;
+  startAt: number | null;
+  endAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type ProjectFilters = {
+  status?: ProjectStatus;
+  teamId?: string;
+};
+
+export type CreateProjectPayload = {
+  name: string;
+  description?: string;
+  status?: ProjectStatus;
+  color?: string;
+  teamId?: string | null;
+  startAt?: number | null;
+  endAt?: number | null;
+};
+
+export type UpdateProjectPayload = {
+  id: string;
+  name?: string;
+  description?: string | null;
+  status?: ProjectStatus;
+  color?: string;
+  teamId?: string | null;
+  startAt?: number | null;
+  endAt?: number | null;
+};
+
 export type TaskActivity = {
   id: string;
   taskId: string;
@@ -484,6 +529,9 @@ export type Permission =
   | "tasks:read"
   | "tasks:write"
   | "tasks:delete"
+  | "projects:read"
+  | "projects:write"
+  | "projects:delete"
   | "billing:read"
   | "billing:manage";
 

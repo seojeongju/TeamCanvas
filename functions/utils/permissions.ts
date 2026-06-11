@@ -21,6 +21,9 @@ export type Permission =
   | "tasks:read"
   | "tasks:write"
   | "tasks:delete"
+  | "projects:read"
+  | "projects:write"
+  | "projects:delete"
   | "billing:read"
   | "billing:manage";
 
@@ -39,6 +42,9 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     "tasks:read",
     "tasks:write",
     "tasks:delete",
+    "projects:read",
+    "projects:write",
+    "projects:delete",
     "billing:read",
     "billing:manage",
   ],
@@ -56,6 +62,9 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     "tasks:read",
     "tasks:write",
     "tasks:delete",
+    "projects:read",
+    "projects:write",
+    "projects:delete",
     "billing:read",
   ],
   member: [
@@ -66,8 +75,10 @@ const ROLE_PERMISSIONS: Record<OrgRole, Permission[]> = {
     "events:write",
     "tasks:read",
     "tasks:write",
+    "projects:read",
+    "projects:write",
   ],
-  guest: ["org:read", "events:read", "tasks:read"],
+  guest: ["org:read", "events:read", "tasks:read", "projects:read"],
 };
 
 export function isOrgRole(role: string): role is OrgRole {

@@ -43,7 +43,7 @@ export function formatEventWhen(event: CalendarEvent, day?: Date): string {
 
 export function eventSourceLabel(event: CalendarEvent, ctx?: EventDisplayContext): string {
   if (isPersonalGoogleEvent(event)) return "내 Google 일정 · 팀원 비공개 · 읽기 전용";
-  if (event.sourceType === "task") return `프로젝트 마감 · ${event.teamName}`;
+  if (event.sourceType === "task") return `업무 마감 · ${event.teamName}`;
   const creator = formatEventCreatorLabel(event, ctx?.viewerId, ctx?.memberNames);
   return creator ? `${event.teamName} · ${creator}` : event.teamName;
 }

@@ -12,8 +12,8 @@ import {
 
 const EVENT_LABELS: Record<string, string> = {
   "event.created": "일정 생성",
-  "task.assigned": "프로젝트 배정",
-  "task.completed": "프로젝트 완료",
+  "task.assigned": "업무 배정",
+  "task.completed": "업무 완료",
 };
 
 export function WebhooksSection() {

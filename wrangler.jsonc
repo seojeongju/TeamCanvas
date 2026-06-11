@@ -17,6 +17,4 @@
       "bucket_name": "teamcanvas-files"
     }
   ]
-  // Cron(리마인더): Pages는 wrangler triggers 미지원 → 대시보드에서 설정
-  // Workers & Pages → teamcanvas → Settings → Functions → Cron triggers → */5 * * * *
 }

@@ -12,7 +12,7 @@ const FEATURES = [
   {
     icon: CheckSquare,
     title: "업무 보드",
-    desc: "Kanban·라벨·체크리스트로 프로젝트 관리",
+    desc: "Kanban·라벨·체크리스트로 업무 관리",
   },
   {
     icon: Users,

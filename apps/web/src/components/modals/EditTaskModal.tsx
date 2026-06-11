@@ -60,11 +60,11 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
   };
 
   return (
-    <Modal open={!!task} onClose={onClose} title="프로젝트 수정">
+    <Modal open={!!task} onClose={onClose} title="업무 수정">
       {task && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="프로젝트 제목"
+            label="업무 제목"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
@@ -76,7 +76,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              placeholder="프로젝트 설명"
+              placeholder="업무 설명"
               className={cn(selectClass, "min-h-[72px] resize-none py-3")}
             />
           </div>

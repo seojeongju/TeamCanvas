@@ -12,6 +12,7 @@ import {
 import { adminRoutes } from "../routes/admin";
 import { orgAdminRoutes } from "../routes/orgAdmin";
 import { billingRoutes } from "../routes/billing";
+import { projectRoutes } from "../routes/projects";
 import {
   newId,
   now,
@@ -38,6 +39,7 @@ const app = new Hono<{ Bindings: Env }>().basePath("/api");
 app.route("/admin", adminRoutes);
 app.route("/", orgAdminRoutes);
 app.route("/", billingRoutes);
+app.route("/", projectRoutes);
 
 app.get("/health", async (c) => {
   let dbStatus = "ok";
@@ -279,7 +281,7 @@ app.get("/organizations/:orgId/events", async (c) => {
       events.push({
         id: `task-due:${r.id}`,
         title: `📋 ${r.title}`,
-        description: "프로젝트 마감",
+        description: "업무 마감",
         startAt: dayStart,
         endAt: dayEndExclusive,
         allDay: true,
@@ -288,7 +290,7 @@ app.get("/organizations/:orgId/events", async (c) => {
         location: null,
         teamId: r.team_id ?? null,
         color: "#F97316",
-        teamName: (r.team_name as string) ?? "프로젝트",
+        teamName: (r.team_name as string) ?? "업무",
         time: formatEventTime(dayStart, dayEndExclusive, true),
         sourceType: "task" as const,
         taskId: r.id,
@@ -1307,7 +1309,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
         orgId,
         "task.assigned",
         {
-          title: `프로젝트 배정: ${body.title.trim()}`,
+          title: `업무 배정: ${body.title.trim()}`,
           link: `/tasks?task=${id}`,
           actorName: user.name,
         },
@@ -1464,7 +1466,7 @@ app.patch("/tasks/:taskId", async (c) => {
         existing.organization_id,
         "task.assigned",
         {
-          title: `프로젝트 배정: ${nextTitle}`,
+          title: `업무 배정: ${nextTitle}`,
           link: `/tasks?task=${taskId}`,
           actorName: user.name,
         },
@@ -1484,7 +1486,7 @@ app.patch("/tasks/:taskId", async (c) => {
         existing.organization_id,
         "task.completed",
         {
-          title: `프로젝트 완료: ${nextTitle}`,
+          title: `업무 완료: ${nextTitle}`,
           link: `/tasks?task=${taskId}`,
           actorName: user.name,
         },
