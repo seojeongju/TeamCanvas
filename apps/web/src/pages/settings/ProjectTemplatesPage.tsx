@@ -89,6 +89,8 @@ export function ProjectTemplatesPage() {
           name: payload.name,
           description: payload.description ?? undefined,
           milestones: payload.milestones,
+          tasks: payload.tasks,
+          memberSlots: payload.memberSlots,
         });
         setToast({ tone: "info", message: `"${payload.name}" 템플릿을 추가했습니다.` });
       }
@@ -120,7 +122,7 @@ export function ProjectTemplatesPage() {
     <div className="space-y-6">
       <PageHeader
         title="프로젝트 템플릿"
-        subtitle="새 프로젝트 생성 시 마일스톤을 자동으로 채웁니다"
+        subtitle="마일스톤·기본 업무·권장 역할을 포함한 프로젝트 템플릿"
         action={
           canWrite ? (
             <button
@@ -143,9 +145,11 @@ export function ProjectTemplatesPage() {
             <GlassCard key={t.id} className="p-4">
               <p className="font-medium text-navy-900">{t.name}</p>
               <p className="text-xs text-navy-500">{t.description}</p>
-              {t.milestones.length > 0 && (
+              {(t.milestones.length > 0 || t.tasks.length > 0) && (
                 <p className="mt-1 text-xs text-navy-400">
-                  마일스톤 {t.milestones.length}개 · {t.milestones.map((m) => m.title).join(" → ")}
+                  마일스톤 {t.milestones.length}개
+                  {t.tasks.length > 0 ? ` · 업무 ${t.tasks.length}개` : ""}
+                  {t.milestones.length > 0 ? ` · ${t.milestones.map((m) => m.title).join(" → ")}` : ""}
                 </p>
               )}
             </GlassCard>
@@ -176,6 +180,8 @@ export function ProjectTemplatesPage() {
                   <p className="text-xs text-navy-500">{t.description ?? "설명 없음"}</p>
                   <p className="mt-0.5 text-xs text-navy-400">
                     마일스톤 {t.milestones.length}개
+                    {(t.tasks?.length ?? 0) > 0 ? ` · 업무 ${t.tasks!.length}개` : ""}
+                    {(t.memberSlots?.length ?? 0) > 0 ? ` · 역할 ${t.memberSlots!.length}개` : ""}
                     {t.milestones.length > 0 ? ` · ${t.milestones.map((m) => m.title).join(" → ")}` : ""}
                   </p>
                 </button>

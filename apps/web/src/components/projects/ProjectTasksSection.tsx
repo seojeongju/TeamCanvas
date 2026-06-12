@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
 import { CreateTaskModal } from "../modals/CreateTaskModal";
+import { LinkTasksToProjectModal } from "../modals/LinkTasksToProjectModal";
 import { EditTaskModal } from "../modals/EditTaskModal";
 import { TaskBoardView } from "../tasks/TaskBoardView";
 import { TaskDetailSheet } from "../tasks/TaskDetailSheet";
@@ -26,6 +27,7 @@ export function ProjectTasksSection({ project }: Props) {
   const tasks = data?.tasks ?? [];
   const [viewMode, setViewMode] = useState<TaskViewMode>("list");
   const [showCreate, setShowCreate] = useState(false);
+  const [showLink, setShowLink] = useState(false);
   const [createStatus, setCreateStatus] = useState<TaskStatus>("todo");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [editTask, setEditTask] = useState<Task | null>(null);
@@ -60,7 +62,19 @@ export function ProjectTasksSection({ project }: Props) {
               : ""}
           </p>
         </div>
-        {tasks.length > 0 && <TaskViewSwitcher value={viewMode} onChange={setViewMode} />}
+        <div className="flex items-center gap-2">
+          {canWrite && (
+            <button
+              type="button"
+              onClick={() => setShowLink(true)}
+              className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-white/80 px-3 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 hover:bg-white"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              업무 연결
+            </button>
+          )}
+          {tasks.length > 0 && <TaskViewSwitcher value={viewMode} onChange={setViewMode} />}
+        </div>
       </div>
 
       {isLoading ? (
@@ -117,6 +131,8 @@ export function ProjectTasksSection({ project }: Props) {
           setEditTask(task);
         }}
       />
+
+      <LinkTasksToProjectModal open={showLink} onClose={() => setShowLink(false)} project={project} />
     </section>
   );
 }

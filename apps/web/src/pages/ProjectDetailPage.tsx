@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
+import { ArrowLeft, Copy, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
+import { DuplicateProjectModal } from "../components/modals/DuplicateProjectModal";
 import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
 import { TransferProjectOwnershipModal } from "../components/modals/TransferProjectOwnershipModal";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
@@ -61,6 +62,7 @@ export function ProjectDetailPage() {
     if (t && TABS.some((x) => x.id === t)) setTab(t as TabId);
   }, [searchParams]);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showDuplicate, setShowDuplicate] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
@@ -316,6 +318,10 @@ export function ProjectDetailPage() {
                         <LayoutTemplate className="mr-1.5 h-4 w-4" />
                         템플릿으로 저장
                       </Button>
+                      <Button variant="secondary" onClick={() => setShowDuplicate(true)}>
+                        <Copy className="mr-1.5 h-4 w-4" />
+                        복제
+                      </Button>
                     </>
                   )}
                 </>
@@ -356,6 +362,12 @@ export function ProjectDetailPage() {
       <SaveProjectAsTemplateModal
         open={showSaveTemplate}
         onClose={() => setShowSaveTemplate(false)}
+        project={project}
+      />
+
+      <DuplicateProjectModal
+        open={showDuplicate}
+        onClose={() => setShowDuplicate(false)}
         project={project}
       />
 

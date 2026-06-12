@@ -518,6 +518,36 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  createProjectFromTemplate: (
+    orgId: string,
+    data: import("./types").CreateProjectPayload & { templateId: string },
+  ) =>
+    request<import("./types").CreateProjectFromTemplateResult>(
+      `/api/organizations/${orgId}/projects/from-template`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
+
+  duplicateProject: (
+    projectId: string,
+    data?: { name?: string; includeTasks?: boolean },
+  ) =>
+    request<{ id: string; milestoneCount: number; taskCount: number }>(
+      `/api/projects/${projectId}/duplicate`,
+      {
+        method: "POST",
+        body: JSON.stringify(data ?? {}),
+      },
+    ),
+
+  linkTasksToProject: (projectId: string, taskIds: string[]) =>
+    request<{ ok: boolean; linked: number }>(`/api/projects/${projectId}/link-tasks`, {
+      method: "POST",
+      body: JSON.stringify({ taskIds }),
+    }),
+
   updateProject: (projectId: string, data: Omit<import("./types").UpdateProjectPayload, "id">) =>
     request<{ ok: boolean }>(`/api/projects/${projectId}`, {
       method: "PATCH",
@@ -585,7 +615,13 @@ export const api = {
 
   createOrgProjectTemplate: (
     orgId: string,
-    data: { name: string; description?: string; milestones?: { title: string; offsetDays?: number }[] },
+    data: {
+      name: string;
+      description?: string;
+      milestones?: { title: string; offsetDays?: number }[];
+      tasks?: import("./types").ProjectTemplateTask[];
+      memberSlots?: import("./types").ProjectTemplateMemberSlot[];
+    },
   ) =>
     request<{ id: string }>(`/api/organizations/${orgId}/project-templates`, {
       method: "POST",
@@ -598,6 +634,8 @@ export const api = {
       name?: string;
       description?: string | null;
       milestones?: { title: string; offsetDays?: number }[];
+      tasks?: import("./types").ProjectTemplateTask[];
+      memberSlots?: import("./types").ProjectTemplateMemberSlot[];
     },
   ) =>
     request<{ ok: boolean }>(`/api/project-templates/${templateId}`, {

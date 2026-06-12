@@ -1,25 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import {
-  useCreateProject,
-  useCreateProjectMilestone,
-  useOrgProjectTemplates,
-  useTeams,
-} from "../../hooks/useData";
+import { useCreateProjectFromTemplate, useOrgProjectTemplates, useTeams } from "../../hooks/useData";
 import { PROJECT_COLORS, PROJECT_STATUS_OPTIONS } from "../../lib/projectUtils";
-import {
-  listBuiltinTemplates,
-  milestoneDueDatesFromTemplate,
-  resolveProjectTemplate,
-} from "../../lib/projectTemplates";
+import { listBuiltinTemplates, resolveProjectTemplate } from "../../lib/projectTemplates";
 import { cn } from "../../lib/cn";
 import type { ProjectStatus } from "../../lib/types";
 
 const selectClass =
   "w-full rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2.5 text-sm text-navy-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";
+
+const MEMBER_ROLE_LABELS: Record<string, string> = {
+  manager: "매니저",
+  member: "멤버",
+  viewer: "뷰어",
+};
 
 type Props = {
   open: boolean;
@@ -29,8 +26,7 @@ type Props = {
 
 export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const navigate = useNavigate();
-  const createProject = useCreateProject();
-  const createMilestone = useCreateProjectMilestone();
+  const createFromTemplate = useCreateProjectFromTemplate();
   const { data: teamsData } = useTeams();
   const { data: orgTemplatesData } = useOrgProjectTemplates();
   const teams = teamsData?.teams ?? [];
@@ -42,6 +38,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
       name: t.name,
       description: t.description ?? "",
       milestones: t.milestones,
+      tasks: t.tasks ?? [],
+      memberSlots: t.memberSlots ?? [],
       source: "org" as const,
     })),
   ];
@@ -54,6 +52,11 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [templateId, setTemplateId] = useState("builtin:blank");
+
+  const selectedTemplate = useMemo(
+    () => resolveProjectTemplate(templateId, orgTemplates),
+    [templateId, orgTemplates],
+  );
 
   const reset = () => {
     setName("");
@@ -78,7 +81,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
     const startAt = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
     const endAt = endDate ? new Date(`${endDate}T23:59:59`).getTime() : null;
 
-    const result = await createProject.mutateAsync({
+    const result = await createFromTemplate.mutateAsync({
+      templateId,
       name: name.trim(),
       description: description.trim() || undefined,
       status,
@@ -87,20 +91,6 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
       startAt,
       endAt,
     });
-
-    const template = resolveProjectTemplate(templateId, orgTemplates);
-    if (template && template.milestones.length > 0) {
-      const dueDates = milestoneDueDatesFromTemplate(template, startAt);
-      for (let i = 0; i < template.milestones.length; i++) {
-        const m = template.milestones[i];
-        await createMilestone.mutateAsync({
-          projectId: result.id,
-          title: m.title,
-          dueAt: dueDates[i],
-          sortOrder: i,
-        });
-      }
-    }
 
     handleClose();
     onCreated?.(result.id);
@@ -151,6 +141,25 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
               </option>
             ))}
           </select>
+          {selectedTemplate &&
+            (selectedTemplate.milestones.length > 0 ||
+              selectedTemplate.tasks.length > 0 ||
+              selectedTemplate.memberSlots.length > 0) && (
+              <div className="rounded-xl bg-sky-50/60 px-3 py-2.5 text-xs text-navy-600">
+                {selectedTemplate.milestones.length > 0 && (
+                  <p>마일스톤 {selectedTemplate.milestones.length}개</p>
+                )}
+                {selectedTemplate.tasks.length > 0 && <p>기본 업무 {selectedTemplate.tasks.length}개</p>}
+                {selectedTemplate.memberSlots.length > 0 && (
+                  <p className="mt-1 text-navy-500">
+                    권장 역할:{" "}
+                    {selectedTemplate.memberSlots
+                      .map((s) => `${s.label}(${MEMBER_ROLE_LABELS[s.role] ?? s.role})`)
+                      .join(" · ")}
+                  </p>
+                )}
+              </div>
+            )}
           {templateId.startsWith("org:") && (
             <button
               type="button"
@@ -214,8 +223,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
           <Input label="종료일 (선택)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
 
-        <Button type="submit" fullWidth disabled={createProject.isPending || createMilestone.isPending}>
-          {createProject.isPending || createMilestone.isPending ? "저장 중..." : "프로젝트 저장"}
+        <Button type="submit" fullWidth disabled={createFromTemplate.isPending}>
+          {createFromTemplate.isPending ? "생성 중..." : "프로젝트 저장"}
         </Button>
       </form>
     </Modal>

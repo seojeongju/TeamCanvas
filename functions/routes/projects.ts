@@ -15,6 +15,13 @@ import {
   PROJECT_MEMBER_ACCESS_SQL,
   type ProjectMemberRole,
 } from "../utils/projectAccess";
+import {
+  parseTemplateMemberSlots,
+  parseTemplateMilestones,
+  parseTemplateTasks,
+  serializeTemplateMemberSlots,
+  serializeTemplateTasks,
+} from "../utils/projectTemplateData";
 
 export const projectRoutes = new Hono<{ Bindings: Env }>();
 
@@ -251,6 +258,53 @@ projectRoutes.post("/organizations/:orgId/projects", async (c) => {
   await logProjectCreated(c.env.DB, orgId, id, user.id, body.name.trim());
 
   return c.json({ id }, 201);
+});
+
+projectRoutes.post("/organizations/:orgId/projects/from-template", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
+
+  const body = await c.req.json<{
+    templateId: string;
+    name: string;
+    description?: string;
+    status?: string;
+    color?: string;
+    teamId?: string | null;
+    startAt?: number | null;
+    endAt?: number | null;
+  }>();
+
+  if (!body.templateId?.trim()) return c.json({ error: "templateId required" }, 400);
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+
+  const { createProjectFromTemplate } = await import("../utils/createProjectFromTemplate");
+  try {
+    const result = await createProjectFromTemplate(c.env.DB, {
+      orgId,
+      userId: user.id,
+      templateId: body.templateId.trim(),
+      name: body.name.trim(),
+      description: body.description,
+      status: body.status,
+      color: body.color,
+      teamId: body.teamId,
+      startAt: body.startAt,
+      endAt: body.endAt,
+    });
+    return c.json(result, 201);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "create_failed";
+    if (message === "template_not_found") return c.json({ error: "template not found" }, 404);
+    throw err;
+  }
 });
 
 projectRoutes.get("/projects/:projectId", async (c) => {
@@ -925,28 +979,15 @@ projectRoutes.get("/projects/:projectId/files", async (c) => {
 
 // ── Org project templates ──
 
-function parseTemplateMilestones(json: string): { title: string; offsetDays?: number }[] {
-  try {
-    const parsed = JSON.parse(json) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((m): m is { title: string; offsetDays?: number } => typeof m === "object" && m !== null && "title" in m)
-      .map((m) => ({
-        title: String(m.title),
-        offsetDays: typeof m.offsetDays === "number" ? m.offsetDays : undefined,
-      }));
-  } catch {
-    return [];
-  }
-}
-
 function mapTemplateRow(row: Record<string, unknown>) {
   return {
     id: row.id as string,
     organizationId: row.organization_id as string,
     name: row.name as string,
     description: (row.description as string | null) ?? null,
-    milestones: parseTemplateMilestones(row.milestones_json as string),
+    milestones: parseTemplateMilestones((row.milestones_json as string) ?? "[]"),
+    tasks: parseTemplateTasks((row.tasks_json as string) ?? "[]"),
+    memberSlots: parseTemplateMemberSlots((row.member_slots_json as string) ?? "[]"),
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
   };
@@ -982,6 +1023,8 @@ projectRoutes.post("/organizations/:orgId/project-templates", async (c) => {
     name: string;
     description?: string;
     milestones?: { title: string; offsetDays?: number }[];
+    tasks?: { title: string; description?: string; status?: string; offsetDays?: number }[];
+    memberSlots?: { label: string; role: string }[];
   }>();
 
   if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
@@ -994,12 +1037,34 @@ projectRoutes.post("/organizations/:orgId/project-templates", async (c) => {
       offsetDays: m.offsetDays,
     })),
   );
+  const tasksJson = serializeTemplateTasks(body.tasks ?? []);
+  const memberSlotsJson = serializeTemplateMemberSlots(
+    (body.memberSlots ?? []).map((s) => ({
+      label: s.label,
+      role: (s.role === "manager" || s.role === "member" || s.role === "viewer" ? s.role : "member") as
+        | "manager"
+        | "member"
+        | "viewer",
+    })),
+  );
 
   await c.env.DB.prepare(
-    `INSERT INTO project_templates (id, organization_id, name, description, milestones_json, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO project_templates (
+      id, organization_id, name, description, milestones_json, tasks_json, member_slots_json, created_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, orgId, body.name.trim(), body.description?.trim() || null, milestonesJson, user.id, ts, ts)
+    .bind(
+      id,
+      orgId,
+      body.name.trim(),
+      body.description?.trim() || null,
+      milestonesJson,
+      tasksJson,
+      memberSlotsJson,
+      user.id,
+      ts,
+      ts,
+    )
     .run();
 
   return c.json({ id }, 201);
@@ -1022,6 +1087,8 @@ projectRoutes.patch("/project-templates/:templateId", async (c) => {
     name?: string;
     description?: string | null;
     milestones?: { title: string; offsetDays?: number }[];
+    tasks?: { title: string; description?: string; status?: string; offsetDays?: number }[];
+    memberSlots?: { label: string; role: string }[];
   }>();
 
   const updates: string[] = [];
@@ -1047,6 +1114,24 @@ projectRoutes.patch("/project-templates/:templateId", async (c) => {
       ),
     );
   }
+  if (body.tasks !== undefined) {
+    updates.push("tasks_json = ?");
+    binds.push(serializeTemplateTasks(body.tasks));
+  }
+  if (body.memberSlots !== undefined) {
+    updates.push("member_slots_json = ?");
+    binds.push(
+      serializeTemplateMemberSlots(
+        body.memberSlots.map((s) => ({
+          label: s.label,
+          role: (s.role === "manager" || s.role === "member" || s.role === "viewer" ? s.role : "member") as
+            | "manager"
+            | "member"
+            | "viewer",
+        })),
+      ),
+    );
+  }
 
   if (updates.length === 0) return c.json({ ok: true });
 
@@ -1058,6 +1143,123 @@ projectRoutes.patch("/project-templates/:templateId", async (c) => {
     .run();
 
   return c.json({ ok: true });
+});
+
+projectRoutes.post("/projects/:projectId/duplicate", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const existing = await getProjectOr404(c.env.DB, projectId);
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const orgId = existing.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (member instanceof Response) return member;
+
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectEditMeta,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
+
+  const body = await c.req
+    .json<{ name?: string; includeTasks?: boolean }>()
+    .catch(() => ({} as { name?: string; includeTasks?: boolean }));
+
+  const { duplicateProject } = await import("../utils/duplicateProject");
+  try {
+    const result = await duplicateProject(c.env.DB, {
+      sourceProjectId: projectId,
+      actorId: user.id,
+      orgId,
+      name: body.name,
+      includeTasks: body.includeTasks,
+    });
+    return c.json(result, 201);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "duplicate_failed";
+    if (message === "not_found") return c.json({ error: "not found" }, 404);
+    throw err;
+  }
+});
+
+projectRoutes.post("/projects/:projectId/link-tasks", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const existing = await getProjectOr404(c.env.DB, projectId);
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const orgId = existing.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const projectRole = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (projectRole instanceof Response) return projectRole;
+
+  const body = await c.req.json<{ taskIds: string[] }>();
+  const taskIds = [...new Set((body.taskIds ?? []).filter((id) => typeof id === "string" && id.trim()))];
+  if (taskIds.length === 0) return c.json({ error: "taskIds required" }, 400);
+  if (taskIds.length > 50) return c.json({ error: "too many tasks" }, 400);
+
+  const placeholders = taskIds.map(() => "?").join(",");
+  const { results: taskRows } = await c.env.DB.prepare(
+    `SELECT id, title, project_id FROM tasks WHERE organization_id = ? AND id IN (${placeholders})`,
+  )
+    .bind(orgId, ...taskIds)
+    .all();
+
+  if ((taskRows ?? []).length !== taskIds.length) {
+    return c.json({ error: "invalid task ids" }, 400);
+  }
+
+  const ts = now();
+  let linked = 0;
+  for (const row of taskRows ?? []) {
+    const r = row as Record<string, unknown>;
+    const taskId = r.id as string;
+    const currentProjectId = r.project_id as string | null;
+    if (currentProjectId === projectId) continue;
+    if (currentProjectId) {
+      return c.json({ error: "task_already_linked", taskId }, 409);
+    }
+
+    await c.env.DB.prepare("UPDATE tasks SET project_id = ?, updated_at = ? WHERE id = ?")
+      .bind(projectId, ts, taskId)
+      .run();
+    linked++;
+  }
+
+  if (linked > 0) {
+    await c.env.DB.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").bind(ts, projectId).run();
+    const { insertProjectActivity } = await import("../utils/projectActivities");
+    await insertProjectActivity(c.env.DB, {
+      projectId,
+      organizationId: orgId,
+      actorId: user.id,
+      action: "updated",
+      field: "tasks",
+      summary: `업무 ${linked}건 연결`,
+    });
+  }
+
+  return c.json({ ok: true, linked });
 });
 
 projectRoutes.post("/tasks/:taskId/convert-to-project", async (c) => {

@@ -272,6 +272,55 @@ export function useCreateProject() {
   });
 }
 
+export function useCreateProjectFromTemplate() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (data: import("../lib/types").CreateProjectPayload & { templateId: string }) =>
+      api.createProjectFromTemplate(orgId!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["dashboard-insights", orgId] });
+    },
+  });
+}
+
+export function useDuplicateProject() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      ...data
+    }: {
+      projectId: string;
+      name?: string;
+      includeTasks?: boolean;
+    }) => api.duplicateProject(projectId, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+    },
+  });
+}
+
+export function useLinkTasksToProject() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ projectId, taskIds }: { projectId: string; taskIds: string[] }) =>
+      api.linkTasksToProject(projectId, taskIds),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["project", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
+    },
+  });
+}
+
 export function useUpdateProject() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();
@@ -456,6 +505,8 @@ export function useCreateOrgProjectTemplate() {
       name: string;
       description?: string;
       milestones?: { title: string; offsetDays?: number }[];
+      tasks?: import("../lib/types").ProjectTemplateTask[];
+      memberSlots?: import("../lib/types").ProjectTemplateMemberSlot[];
     }) => api.createOrgProjectTemplate(orgId!, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["project-templates", orgId] }),
   });
@@ -473,6 +524,8 @@ export function useUpdateOrgProjectTemplate() {
       name?: string;
       description?: string | null;
       milestones?: { title: string; offsetDays?: number }[];
+      tasks?: import("../lib/types").ProjectTemplateTask[];
+      memberSlots?: import("../lib/types").ProjectTemplateMemberSlot[];
     }) => api.updateOrgProjectTemplate(templateId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["project-templates", orgId] }),
   });

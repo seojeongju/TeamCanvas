@@ -492,14 +492,35 @@ export type ProjectActivity = {
   time: string;
 };
 
+export type ProjectTemplateTask = {
+  title: string;
+  description?: string;
+  status?: "todo" | "doing" | "done";
+  offsetDays?: number;
+};
+
+export type ProjectTemplateMemberSlot = {
+  label: string;
+  role: "manager" | "member" | "viewer";
+};
+
 export type OrgProjectTemplate = {
   id: string;
   organizationId: string;
   name: string;
   description: string | null;
   milestones: { title: string; offsetDays?: number }[];
+  tasks: ProjectTemplateTask[];
+  memberSlots: ProjectTemplateMemberSlot[];
   createdAt: number;
   updatedAt: number;
+};
+
+export type CreateProjectFromTemplateResult = {
+  id: string;
+  milestoneCount: number;
+  taskCount: number;
+  memberSlots: ProjectTemplateMemberSlot[];
 };
 
 export type TaskActivity = {

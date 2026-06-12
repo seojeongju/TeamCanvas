@@ -1,3 +1,5 @@
+import type { ProjectTemplateMemberSlot, ProjectTemplateTask } from "./types";
+
 export type ProjectTemplateMilestone = {
   title: string;
   /** 프로젝트 시작일 기준 일수 오프셋 (시작일 없으면 순서만 사용) */
@@ -9,6 +11,8 @@ export type ProjectTemplate = {
   name: string;
   description: string;
   milestones: ProjectTemplateMilestone[];
+  tasks?: ProjectTemplateTask[];
+  memberSlots?: ProjectTemplateMemberSlot[];
 };
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -29,6 +33,17 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       { title: "QA", offsetDays: 56 },
       { title: "출시", offsetDays: 70 },
     ],
+    tasks: [
+      { title: "요구사항 문서 작성", offsetDays: 3 },
+      { title: "와이어프레임 검토", offsetDays: 10 },
+      { title: "MVP 개발 착수", offsetDays: 21 },
+      { title: "QA 체크리스트 실행", offsetDays: 58 },
+    ],
+    memberSlots: [
+      { label: "PM", role: "manager" },
+      { label: "디자이너", role: "member" },
+      { label: "개발", role: "member" },
+    ],
   },
   {
     id: "marketing",
@@ -40,6 +55,15 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       { title: "채널 배포", offsetDays: 21 },
       { title: "성과 분석", offsetDays: 35 },
     ],
+    tasks: [
+      { title: "타깃·메시지 정의", offsetDays: 2 },
+      { title: "크리에이티브 제작", offsetDays: 12 },
+      { title: "채널별 배포 일정 확정", offsetDays: 18 },
+    ],
+    memberSlots: [
+      { label: "캠페인 리드", role: "manager" },
+      { label: "콘텐츠", role: "member" },
+    ],
   },
   {
     id: "internal",
@@ -50,14 +74,37 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       { title: "개선 실행", offsetDays: 7 },
       { title: "결과 검토", offsetDays: 21 },
     ],
+    tasks: [
+      { title: "현황 조사·정리", offsetDays: 2 },
+      { title: "개선안 실행", offsetDays: 9 },
+    ],
+    memberSlots: [{ label: "담당자", role: "member" }],
   },
 ];
+
+export function tasksFromProject(
+  tasks: { title: string; description?: string | null; status: string; dueAt: number | null }[],
+  projectStartAt: number | null,
+): ProjectTemplateTask[] {
+  const dayMs = 86400000;
+  return tasks.map((t) => ({
+    title: t.title,
+    description: t.description?.trim() || undefined,
+    status: t.status === "doing" || t.status === "done" ? t.status : "todo",
+    offsetDays:
+      projectStartAt != null && t.dueAt != null
+        ? Math.round((t.dueAt - projectStartAt) / dayMs)
+        : undefined,
+  }));
+}
 
 export type ResolvedProjectTemplate = {
   id: string;
   name: string;
   description: string;
   milestones: ProjectTemplateMilestone[];
+  tasks: ProjectTemplateTask[];
+  memberSlots: ProjectTemplateMemberSlot[];
   source: "builtin" | "org";
 };
 
@@ -67,13 +114,22 @@ export function listBuiltinTemplates(): ResolvedProjectTemplate[] {
     name: t.name,
     description: t.description,
     milestones: t.milestones,
+    tasks: t.tasks ?? [],
+    memberSlots: t.memberSlots ?? [],
     source: "builtin" as const,
   }));
 }
 
 export function resolveProjectTemplate(
   templateId: string,
-  orgTemplates: { id: string; name: string; description: string | null; milestones: ProjectTemplateMilestone[] }[],
+  orgTemplates: {
+    id: string;
+    name: string;
+    description: string | null;
+    milestones: ProjectTemplateMilestone[];
+    tasks?: ProjectTemplateTask[];
+    memberSlots?: ProjectTemplateMemberSlot[];
+  }[],
 ): ResolvedProjectTemplate | null {
   if (templateId.startsWith("org:")) {
     const id = templateId.slice(4);
@@ -84,6 +140,8 @@ export function resolveProjectTemplate(
       name: t.name,
       description: t.description ?? "",
       milestones: t.milestones,
+      tasks: t.tasks ?? [],
+      memberSlots: t.memberSlots ?? [],
       source: "org",
     };
   }
@@ -95,6 +153,8 @@ export function resolveProjectTemplate(
     name: t.name,
     description: t.description,
     milestones: t.milestones,
+    tasks: t.tasks ?? [],
+    memberSlots: t.memberSlots ?? [],
     source: "builtin",
   };
 }
