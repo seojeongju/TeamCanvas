@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FolderKanban, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { ConvertTaskToProjectModal } from "../modals/ConvertTaskToProjectModal";
 import { TaskActivityFolder } from "./TaskActivityFolder";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -31,12 +32,14 @@ interface TaskDetailSheetProps {
 }
 
 export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps) {
+  const navigate = useNavigate();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createComment = useCreateTaskComment();
   const user = useAuthStore((s) => s.user);
   const canDeleteAny = useHasPermission("tasks:delete");
   const canWrite = useHasPermission("tasks:write");
+  const canManageProjects = useHasPermission("projects:write");
   const canDelete =
     canDeleteAny || (canWrite && !!task?.creatorId && task.creatorId === user?.id);
   const { data: membersData } = useOrgMembers();
@@ -53,6 +56,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const [projectId, setProjectId] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [commentBody, setCommentBody] = useState("");
+  const [showConvertProject, setShowConvertProject] = useState(false);
 
   const members = membersData?.members ?? [];
   const teams = teamsData?.teams ?? [];
@@ -227,9 +231,17 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
             </div>
           )}
 
-          {projects.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-navy-700">프로젝트</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-navy-700">프로젝트</label>
+            {task.projectId ? (
+              <Link
+                to={`/projects/${task.projectId}`}
+                className="inline-flex items-center gap-1.5 rounded-2xl border border-sky-100/80 bg-white/70 px-4 py-3 text-sm font-medium text-primary-600 hover:bg-sky-50/60"
+              >
+                <FolderKanban className="h-4 w-4" />
+                {task.projectName ?? "연결된 프로젝트 보기"}
+              </Link>
+            ) : projects.length > 0 ? (
               <select
                 value={projectId}
                 onChange={(e) => {
@@ -246,17 +258,19 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
                   </option>
                 ))}
               </select>
-              {task.projectId && (
-                <Link
-                  to={`/projects/${task.projectId}`}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline"
-                >
-                  <FolderKanban className="h-3.5 w-3.5" />
-                  {task.projectName ?? "프로젝트 보기"}
-                </Link>
-              )}
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-navy-500">연결된 프로젝트가 없습니다.</p>
+            )}
+            {canWrite && canManageProjects && !task.projectId && (
+              <button
+                type="button"
+                onClick={() => setShowConvertProject(true)}
+                className="self-start text-xs font-medium text-primary-600 hover:underline"
+              >
+                이 업무를 프로젝트로 전환
+              </button>
+            )}
+          </div>
         </div>
 
         <TaskLabelsSection task={task} />
@@ -328,6 +342,15 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
           </div>
         )}
       </div>
+
+      <ConvertTaskToProjectModal
+        task={showConvertProject ? task : null}
+        onClose={() => setShowConvertProject(false)}
+        onConverted={(projectId) => {
+          onClose();
+          navigate(`/projects/${projectId}`);
+        }}
+      />
     </div>
   );
 }

@@ -294,6 +294,29 @@ export function useDeleteProject() {
   });
 }
 
+export function useConvertTaskToProject() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      ...data
+    }: {
+      taskId: string;
+      name?: string;
+      includeChecklistAsMilestones?: boolean;
+    }) => api.convertTaskToProject(taskId, data),
+    onSuccess: (result, vars) => {
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project", result.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-milestones", result.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", result.projectId] });
+      qc.invalidateQueries({ queryKey: ["task-activities", vars.taskId] });
+    },
+  });
+}
+
 export function useProjectMilestones(projectId: string | undefined) {
   return useQuery({
     queryKey: ["project-milestones", projectId],

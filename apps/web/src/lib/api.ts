@@ -490,6 +490,15 @@ export const api = {
   deleteTask: (taskId: string) =>
     request<{ ok: boolean }>(`/api/tasks/${taskId}`, { method: "DELETE" }),
 
+  convertTaskToProject: (
+    taskId: string,
+    data?: { name?: string; includeChecklistAsMilestones?: boolean },
+  ) =>
+    request<{ projectId: string; projectName: string }>(`/api/tasks/${taskId}/convert-to-project`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
+
   getProjects: (orgId: string, filters?: import("./types").ProjectFilters) => {
     const params = new URLSearchParams();
     if (filters?.status) params.set("status", filters.status);

@@ -21,6 +21,7 @@ import {
   endOfDay,
   fromDateLocal,
   toDateLocal,
+  formatActivityTimeKst,
   formatEventTime,
   hashToken,
   appUrl,
@@ -682,12 +683,7 @@ app.get("/events/:eventId/comments", async (c) => {
       userName: r.user_name,
       body: r.body,
       createdAt,
-      time: new Date(createdAt).toLocaleString("ko-KR", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: formatActivityTimeKst(createdAt),
     };
   });
 
@@ -1583,12 +1579,7 @@ app.get("/tasks/:taskId/comments", async (c) => {
       userName: r.user_name,
       body: r.body,
       createdAt,
-      time: new Date(createdAt).toLocaleString("ko-KR", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: formatActivityTimeKst(createdAt),
     };
   });
 

@@ -1,4 +1,4 @@
-import { newId, now } from "./helpers";
+import { formatActivityTimeKst, formatDateOnlyKst, newId, now } from "./helpers";
 
 export type TaskActivityAction =
   | "created"
@@ -33,7 +33,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 function formatDue(ts: number | null): string {
   if (!ts) return "없음";
-  return new Date(ts).toLocaleDateString("ko-KR");
+  return formatDateOnlyKst(ts);
 }
 
 async function userName(db: D1Database, userId: string | null): Promise<string> {
@@ -235,12 +235,7 @@ export async function fetchTaskActivities(db: D1Database, taskId: string, limit 
       field: (r.field as string | null) ?? null,
       summary: r.summary as string,
       createdAt,
-      time: new Date(createdAt).toLocaleString("ko-KR", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: formatActivityTimeKst(createdAt),
     };
   });
 }

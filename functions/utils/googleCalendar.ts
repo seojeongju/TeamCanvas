@@ -1,5 +1,5 @@
 import type { Env } from "../types";
-import { newId, now } from "./helpers";
+import { formatDateOnlyKst, formatEventTime, newId, now } from "./helpers";
 
 /** 읽기·쓰기 동기화 (재연결 시 동의 필요) */
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
@@ -272,9 +272,7 @@ export async function fetchGoogleCalendarEventsForRange(
       teamId: null,
       color: "#EA4335",
       teamName: "내 Google 일정",
-      time: allDay
-        ? new Date(startAt).toLocaleDateString("ko-KR")
-        : `${new Date(startAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} – ${new Date(endAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`,
+      time: allDay ? formatDateOnlyKst(startAt) : formatEventTime(startAt, endAt, false),
       sourceType: "google" as const,
     };
   });

@@ -868,6 +868,50 @@ projectRoutes.patch("/project-templates/:templateId", async (c) => {
   return c.json({ ok: true });
 });
 
+projectRoutes.post("/tasks/:taskId/convert-to-project", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare(
+    "SELECT organization_id, project_id FROM tasks WHERE id = ?",
+  )
+    .bind(taskId)
+    .first<{ organization_id: string; project_id: string | null }>();
+  if (!task) return c.json({ error: "not found" }, 404);
+  if (task.project_id) return c.json({ error: "already_linked" }, 400);
+
+  const orgId = task.organization_id;
+  const taskPerm = await requireOrgPermission(c, user.id, orgId, "tasks:write");
+  if (taskPerm instanceof Response) return taskPerm;
+  const projectPerm = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  if (projectPerm instanceof Response) return projectPerm;
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
+
+  const body = await c.req
+    .json<{ name?: string; includeChecklistAsMilestones?: boolean }>()
+    .catch(() => ({} as { name?: string; includeChecklistAsMilestones?: boolean }));
+
+  const { convertTaskToProject } = await import("../utils/convertTaskToProject");
+  try {
+    const result = await convertTaskToProject(c.env.DB, {
+      taskId,
+      actorId: user.id,
+      name: body.name,
+      includeChecklistAsMilestones: body.includeChecklistAsMilestones,
+    });
+    return c.json(result, 201);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "convert_failed";
+    if (message === "not_found") return c.json({ error: "not found" }, 404);
+    if (message === "already_linked") return c.json({ error: "already_linked" }, 400);
+    if (message === "name_required") return c.json({ error: "name required" }, 400);
+    throw err;
+  }
+});
+
 projectRoutes.delete("/project-templates/:templateId", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;

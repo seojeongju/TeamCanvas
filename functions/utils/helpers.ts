@@ -94,6 +94,42 @@ export function formatDateKst(
   return new Intl.DateTimeFormat("ko-KR", { timeZone: KST, ...options }).format(new Date(ts));
 }
 
+/** YYYY. M. D. 형식 (toLocaleDateString ko-KR 대체) */
+export function formatDateOnlyKst(ts: number): string {
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: KST }).format(new Date(ts));
+}
+
+/** 활동 로그·댓글·검색 등 — 6월 11일 오후 3:00 */
+export function formatActivityTimeKst(ts: number): string {
+  return formatDateKst(ts, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** 시각만 — 오후 3:00 */
+export function formatTimeKst(ts: number): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ts));
+}
+
+/** 날짜+시각 기본 형식 (CSV·AI 프롬프트 등) */
+export function formatDateTimeKst(ts: number): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ts));
+}
+
 function sameDateKst(a: number, b: number): boolean {
   return dateKeyKst(a) === dateKeyKst(b);
 }

@@ -1,3 +1,5 @@
+import { formatActivityTimeKst, formatDateOnlyKst } from "./helpers";
+
 export type SearchResultItem = {
   id: string;
   type: "event" | "task" | "project" | "member";
@@ -36,10 +38,7 @@ export async function searchOrganization(
   for (const row of events ?? []) {
     const r = row as Record<string, unknown>;
     const startAt = r.start_at as number;
-    const d = new Date(startAt);
-    const dateLabel = (r.all_day as number)
-      ? d.toLocaleDateString("ko-KR")
-      : d.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const dateLabel = (r.all_day as number) ? formatDateOnlyKst(startAt) : formatActivityTimeKst(startAt);
     results.push({
       id: r.id as string,
       type: "event",

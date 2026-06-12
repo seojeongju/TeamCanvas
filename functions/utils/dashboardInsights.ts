@@ -1,4 +1,4 @@
-import { endOfDay, startOfDay } from "./helpers";
+import { endOfDay, formatDateOnlyKst, formatDateTimeKst, startOfDay } from "./helpers";
 
 export async function getDashboardInsights(db: D1Database, orgId: string) {
   const now = Date.now();
@@ -120,14 +120,14 @@ export async function buildWeeklyReportCsv(
 
   const lines: string[] = [];
   lines.push("TeamCanvas 주간 리포트");
-  lines.push(`기간,${new Date(from).toLocaleDateString("ko-KR")} ~ ${new Date(to).toLocaleDateString("ko-KR")}`);
+  lines.push(`기간,${formatDateOnlyKst(from)} ~ ${formatDateOnlyKst(to)}`);
   lines.push("");
   lines.push("[업무]");
   lines.push("제목,상태,우선순위,담당자,마감일,수정일");
   for (const row of tasks ?? []) {
     const r = row as Record<string, unknown>;
-    const due = r.due_at ? new Date(r.due_at as number).toLocaleDateString("ko-KR") : "";
-    const updated = new Date(r.updated_at as number).toLocaleDateString("ko-KR");
+    const due = r.due_at ? formatDateOnlyKst(r.due_at as number) : "";
+    const updated = formatDateOnlyKst(r.updated_at as number);
     lines.push(
       [
         csvEscape(r.title as string),
@@ -149,8 +149,8 @@ export async function buildWeeklyReportCsv(
       [
         csvEscape(r.title as string),
         csvEscape((r.team_name as string) ?? ""),
-        new Date(r.start_at as number).toLocaleString("ko-KR"),
-        new Date(r.end_at as number).toLocaleString("ko-KR"),
+        formatDateTimeKst(r.start_at as number),
+        formatDateTimeKst(r.end_at as number),
         allDay ? "Y" : "N",
       ].join(","),
     );

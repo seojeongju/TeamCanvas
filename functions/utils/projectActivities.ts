@@ -1,4 +1,4 @@
-import { newId, now } from "./helpers";
+import { formatActivityTimeKst, newId, now } from "./helpers";
 
 export type ProjectActivityAction =
   | "created"
@@ -133,12 +133,7 @@ export async function fetchProjectActivities(db: D1Database, projectId: string, 
       field: (r.field as string | null) ?? null,
       summary: r.summary as string,
       createdAt,
-      time: new Date(createdAt).toLocaleString("ko-KR", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      time: formatActivityTimeKst(createdAt),
     };
   });
 }

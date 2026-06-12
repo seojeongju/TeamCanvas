@@ -1,4 +1,5 @@
 import type { BusyBlock } from "./freeBusy";
+import { formatDateTimeKst, formatTimeKst } from "./helpers";
 import { enhanceSlotsWithoutAi } from "../shared/eventSuggestionRules";
 import { extractAiResponseText, parseAiSuggestJson } from "../shared/aiSuggestParse";
 
@@ -133,7 +134,7 @@ export async function enhanceWithAi(
     const slotList = ruleEnhanced.slots
       .map(
         (s, i) =>
-          `${i + 1}. ${new Date(s.startAt).toLocaleString("ko-KR")} ~ ${new Date(s.endAt).toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`,
+          `${i + 1}. ${formatDateTimeKst(s.startAt)} ~ ${formatTimeKst(s.endAt)}`,
       )
       .join("\n");
 
