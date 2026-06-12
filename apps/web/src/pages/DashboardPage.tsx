@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus, LogOut } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { LayoutGrid, LogOut, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import {
@@ -9,8 +9,12 @@ import {
   type ActivityFeedFilters,
 } from "../components/dashboard/ActivityFeed";
 import { DashboardInsightsPanel } from "../components/dashboard/DashboardInsights";
-import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
+import { DashboardWidgetSection } from "../components/dashboard/DashboardWidgetSection";
+import { DashboardWidgetSettingsModal } from "../components/dashboard/DashboardWidgetSettingsModal";
+import { MyTasksCard } from "../components/dashboard/MyTasksCard";
 import { ProjectsOverviewCard } from "../components/dashboard/ProjectsOverviewCard";
+import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
+import { WeekMilestonesCard } from "../components/dashboard/WeekMilestonesCard";
 import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
 import { useAuthStore } from "../stores/authStore";
@@ -24,6 +28,13 @@ import {
 } from "../hooks/useData";
 import { useOrgMembers } from "../hooks/useAdmin";
 import { useLogout } from "../hooks/useAuth";
+import {
+  getDashboardWidgetPrefs,
+  getVisibleDashboardWidgets,
+  saveDashboardWidgetPrefs,
+  type DashboardWidgetId,
+  type DashboardWidgetPrefs,
+} from "../lib/dashboardWidgetPrefs";
 import { eventsForDay } from "../lib/calendarUtils";
 import { endOfDay, fromDateLocal, startOfDay } from "../lib/dates";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
@@ -40,6 +51,8 @@ export function DashboardPage() {
   const { data: tasksData } = useTasks();
   const { data: projectsData } = useProjects();
   const { data: membersData } = useOrgMembers();
+  const [widgetPrefs, setWidgetPrefs] = useState<DashboardWidgetPrefs>(() => getDashboardWidgetPrefs());
+  const [showWidgetSettings, setShowWidgetSettings] = useState(false);
   const [activityFilters, setActivityFilters] = useState<ActivityFeedFilters>({
     actorId: "",
     dateFrom: "",
@@ -68,6 +81,14 @@ export function DashboardPage() {
   useEffect(() => {
     setActivityPage(0);
   }, [activityFilters]);
+
+  const handleWidgetPrefsChange = useCallback((prefs: DashboardWidgetPrefs) => {
+    setWidgetPrefs(prefs);
+    saveDashboardWidgetPrefs(prefs);
+  }, []);
+
+  const visibleWidgets = useMemo(() => getVisibleDashboardWidgets(widgetPrefs), [widgetPrefs]);
+
   const logout = useLogout();
   const navigate = useNavigate();
 
@@ -106,24 +127,112 @@ export function DashboardPage() {
 
   const firstName = user?.name?.replace(/^\S+\s/, "").split(" ")[0] ?? user?.name ?? "팀원";
 
+  const renderWidget = (id: DashboardWidgetId) => {
+    switch (id) {
+      case "projects":
+        return (
+          <DashboardWidgetSection key={id} title="프로젝트" linkTo="/projects">
+            <ProjectsOverviewCard />
+          </DashboardWidgetSection>
+        );
+      case "today_events":
+        return (
+          <DashboardWidgetSection key={id} title="오늘 일정" linkTo="/calendar">
+            {todayEvents.length === 0 ? (
+              <GlassCard className="p-6 text-center">
+                <p className="text-sm text-navy-600">오늘 예정된 일정이 없습니다.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatePrefillDate(new Date());
+                    setShowCreate(true);
+                  }}
+                  className="mt-3 rounded-xl bg-primary-400/10 px-4 py-2 text-sm font-medium text-primary-600 hover:bg-primary-400/20"
+                >
+                  + 일정 추가
+                </button>
+              </GlassCard>
+            ) : (
+              <TodayEventsList events={todayEvents} onEventClick={handleEventClick} />
+            )}
+          </DashboardWidgetSection>
+        );
+      case "week_milestones":
+        return (
+          <DashboardWidgetSection
+            key={id}
+            title="이번 주 마일스톤"
+            subtitle="7일 내 마감 예정"
+            linkTo="/projects"
+          >
+            <WeekMilestonesCard />
+          </DashboardWidgetSection>
+        );
+      case "my_tasks":
+        return (
+          <DashboardWidgetSection key={id} title="내 업무" subtitle="나에게 배정된 업무" linkTo="/tasks">
+            <MyTasksCard />
+          </DashboardWidgetSection>
+        );
+      case "insights":
+        return (
+          <div key={id}>
+            <DashboardInsightsPanel insights={insightsData} isLoading={insightsLoading} />
+          </div>
+        );
+      case "activity":
+        return (
+          <section key={id}>
+            <div className="mb-3">
+              <h2 className="text-lg font-semibold text-navy-900">최근 활동</h2>
+              <p className="text-xs text-navy-500">팀 업무·프로젝트·조직 변경 내역</p>
+            </div>
+            <ActivityFeed
+              items={activityData?.items ?? []}
+              total={activityData?.total ?? 0}
+              page={activityPage}
+              members={membersData?.members ?? []}
+              filters={activityFilters}
+              onFiltersChange={setActivityFilters}
+              onPageChange={setActivityPage}
+              isLoading={activityLoading}
+              isError={activityError}
+            />
+          </section>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={`안녕하세요, ${firstName}님`}
         subtitle={org?.name ?? "조직"}
         action={
-          <button
-            type="button"
-            onClick={async () => {
-              await logout.mutateAsync();
-              navigate("/login", { replace: true });
-            }}
-            disabled={logout.isPending}
-            className="glass flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-white/90 disabled:opacity-50"
-          >
-            <LogOut className="h-4 w-4" />
-            {logout.isPending ? "..." : "로그아웃"}
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowWidgetSettings(true)}
+              className="glass flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-white/90"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              위젯
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await logout.mutateAsync();
+                navigate("/login", { replace: true });
+              }}
+              disabled={logout.isPending}
+              className="glass flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-white/90 disabled:opacity-50"
+            >
+              <LogOut className="h-4 w-4" />
+              {logout.isPending ? "..." : "로그아웃"}
+            </button>
+          </div>
         }
       />
 
@@ -142,61 +251,7 @@ export function DashboardPage() {
         }}
       />
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-navy-900">프로젝트</h2>
-          <Link to="/projects" className="flex items-center gap-0.5 text-sm text-primary-500">
-            전체 보기 <ChevronRight className="h-4 w-4" />
-          </Link>
-        </div>
-        <ProjectsOverviewCard />
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-navy-900">오늘 일정</h2>
-          <Link to="/calendar" className="flex items-center gap-0.5 text-sm text-primary-500">
-            전체 보기 <ChevronRight className="h-4 w-4" />
-          </Link>
-        </div>
-        {todayEvents.length === 0 ? (
-          <GlassCard className="p-6 text-center">
-            <p className="text-sm text-navy-600">오늘 예정된 일정이 없습니다.</p>
-            <button
-              type="button"
-              onClick={() => {
-                setCreatePrefillDate(new Date());
-                setShowCreate(true);
-              }}
-              className="mt-3 rounded-xl bg-primary-400/10 px-4 py-2 text-sm font-medium text-primary-600 hover:bg-primary-400/20"
-            >
-              + 일정 추가
-            </button>
-          </GlassCard>
-        ) : (
-          <TodayEventsList events={todayEvents} onEventClick={handleEventClick} />
-        )}
-      </section>
-
-      <DashboardInsightsPanel insights={insightsData} isLoading={insightsLoading} />
-
-      <section>
-        <div className="mb-3">
-          <h2 className="text-lg font-semibold text-navy-900">최근 활동</h2>
-          <p className="text-xs text-navy-500">팀 업무·프로젝트·조직 변경 내역</p>
-        </div>
-        <ActivityFeed
-          items={activityData?.items ?? []}
-          total={activityData?.total ?? 0}
-          page={activityPage}
-          members={membersData?.members ?? []}
-          filters={activityFilters}
-          onFiltersChange={setActivityFilters}
-          onPageChange={setActivityPage}
-          isLoading={activityLoading}
-          isError={activityError}
-        />
-      </section>
+      {visibleWidgets.map((id) => renderWidget(id))}
 
       <button
         type="button"
@@ -217,6 +272,13 @@ export function DashboardPage() {
           setCreatePrefillDate(null);
         }}
         prefillDate={createPrefillDate}
+      />
+
+      <DashboardWidgetSettingsModal
+        open={showWidgetSettings}
+        prefs={widgetPrefs}
+        onClose={() => setShowWidgetSettings(false)}
+        onChange={handleWidgetPrefsChange}
       />
     </div>
   );
