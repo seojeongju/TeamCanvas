@@ -9,6 +9,7 @@ import { TaskListView } from "../tasks/TaskListView";
 import { TaskViewSwitcher } from "../tasks/TaskViewSwitcher";
 import { useTasks, useUpdateTask } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
+import { canWriteProjectContent } from "../../lib/projectUtils";
 import type { Project, Task, TaskStatus, TaskViewMode } from "../../lib/types";
 import { GlassCard } from "../ui/GlassCard";
 
@@ -19,7 +20,8 @@ type Props = {
 export function ProjectTasksSection({ project }: Props) {
   const { data, isLoading } = useTasks({ projectId: project.id });
   const updateTask = useUpdateTask();
-  const canWrite = useHasPermission("tasks:write");
+  const canWriteTasks = useHasPermission("tasks:write");
+  const canWrite = canWriteTasks && canWriteProjectContent(project.currentUserRole);
 
   const tasks = data?.tasks ?? [];
   const [viewMode, setViewMode] = useState<TaskViewMode>("list");

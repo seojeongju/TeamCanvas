@@ -294,6 +294,21 @@ export function useDeleteProject() {
   });
 }
 
+export function useTransferProjectOwnership() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ projectId, newOwnerId }: { projectId: string; newOwnerId: string }) =>
+      api.transferProjectOwnership(projectId, { newOwnerId }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-members", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
+    },
+  });
+}
+
 export function useConvertTaskToProject() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();

@@ -12,8 +12,7 @@ import {
   useUpdateProjectMilestone,
 } from "../../hooks/useData";
 import { ProjectGanttChart } from "./ProjectGanttChart";
-import { useHasPermission } from "../../hooks/usePermissions";
-import { formatMilestoneDue, MILESTONE_STATUS_OPTIONS } from "../../lib/projectUtils";
+import { canWriteProjectContent, formatMilestoneDue, MILESTONE_STATUS_OPTIONS } from "../../lib/projectUtils";
 import { ProjectTimeline } from "./ProjectTimeline";
 import type { Project, ProjectMilestone } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -29,7 +28,7 @@ export function ProjectMilestonesSection({ project }: Props) {
   const createMilestone = useCreateProjectMilestone();
   const updateMilestone = useUpdateProjectMilestone();
   const deleteMilestone = useDeleteProjectMilestone();
-  const canWrite = useHasPermission("projects:write");
+  const canWrite = canWriteProjectContent(project.currentUserRole);
 
   const milestones = data?.milestones ?? [];
   const [title, setTitle] = useState("");

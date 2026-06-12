@@ -5,8 +5,7 @@ import { GlassCard } from "../ui/GlassCard";
 import { Button } from "../ui/Button";
 import { useAddProjectMember, useProjectMembers, useRemoveProjectMember } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
-import { useHasPermission } from "../../hooks/usePermissions";
-import { PROJECT_MEMBER_ROLE_LABELS } from "../../lib/projectUtils";
+import { canManageProjectMembers, PROJECT_MEMBER_ROLE_LABELS } from "../../lib/projectUtils";
 import type { Project, ProjectMember } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -22,7 +21,8 @@ export function ProjectMembersSection({ project }: Props) {
   const { data: orgMembersData } = useOrgMembers();
   const addMember = useAddProjectMember();
   const removeMember = useRemoveProjectMember();
-  const canWrite = useHasPermission("projects:write");
+  const canManage = canManageProjectMembers(project.currentUserRole);
+  const isOwner = project.currentUserRole === "owner";
 
   const members = data?.members ?? [];
   const orgMembers = orgMembersData?.members ?? [];
@@ -67,8 +67,10 @@ export function ProjectMembersSection({ project }: Props) {
               </div>
               <button
                 type="button"
-                disabled={!canWrite || m.role === "owner"}
-                onClick={() => canWrite && m.role !== "owner" && setEditMember(m)}
+                disabled={!canManage || m.role === "owner" || (m.role === "manager" && !isOwner)}
+                onClick={() =>
+                  canManage && m.role !== "owner" && !(m.role === "manager" && !isOwner) && setEditMember(m)
+                }
                 className="min-w-0 flex-1 text-left disabled:cursor-default"
               >
                 <p className="font-medium text-navy-900">{m.name}</p>
@@ -77,7 +79,7 @@ export function ProjectMembersSection({ project }: Props) {
                   {m.email ? ` · ${m.email}` : ""}
                 </p>
               </button>
-              {canWrite && m.role !== "owner" && (
+              {canManage && m.role !== "owner" && !(m.role === "manager" && !isOwner) && (
                 <>
                   <button
                     type="button"
@@ -102,7 +104,7 @@ export function ProjectMembersSection({ project }: Props) {
         </div>
       )}
 
-      {canWrite && available.length > 0 && (
+      {canManage && available.length > 0 && (
         <GlassCard className="space-y-2 p-3">
           <p className="text-xs font-medium text-navy-700">멤버 추가</p>
           <select value={userId} onChange={(e) => setUserId(e.target.value)} className={selectClass}>
@@ -114,7 +116,7 @@ export function ProjectMembersSection({ project }: Props) {
             ))}
           </select>
           <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClass}>
-            <option value="manager">매니저</option>
+            {isOwner && <option value="manager">매니저</option>}
             <option value="member">멤버</option>
             <option value="viewer">뷰어</option>
           </select>
@@ -128,6 +130,7 @@ export function ProjectMembersSection({ project }: Props) {
       <EditProjectMemberModal
         projectId={project.id}
         member={editMember}
+        isOwner={isOwner}
         onClose={() => setEditMember(null)}
       />
     </section>

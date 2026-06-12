@@ -527,6 +527,12 @@ export const api = {
   deleteProject: (projectId: string) =>
     request<{ ok: boolean }>(`/api/projects/${projectId}`, { method: "DELETE" }),
 
+  transferProjectOwnership: (projectId: string, data: { newOwnerId: string }) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}/transfer-ownership`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   getProjectMilestones: (projectId: string) =>
     request<{ milestones: import("./types").ProjectMilestone[] }>(`/api/projects/${projectId}/milestones`),
 

@@ -38,6 +38,18 @@ export const PROJECT_MEMBER_ROLE_LABELS: Record<string, string> = {
   viewer: "뷰어",
 };
 
+export function canEditProjectMeta(role?: string | null): boolean {
+  return role === "owner" || role === "manager";
+}
+
+export function canWriteProjectContent(role?: string | null): boolean {
+  return role === "owner" || role === "manager" || role === "member";
+}
+
+export function canManageProjectMembers(role?: string | null): boolean {
+  return role === "owner" || role === "manager";
+}
+
 export function formatProjectDateRange(startAt: number | null, endAt: number | null): string {
   if (!startAt && !endAt) return "기간 미정";
   const fmt = (ts: number) => {

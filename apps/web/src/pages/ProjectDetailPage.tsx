@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, FolderKanban, LayoutTemplate, Trash2 } from "lucide-react";
+import { ArrowLeft, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
 import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
+import { TransferProjectOwnershipModal } from "../components/modals/TransferProjectOwnershipModal";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
 import { EntityFilesSection } from "../components/ui/EntityFilesSection";
 import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
@@ -13,6 +14,7 @@ import { Button } from "../components/ui/Button";
 import { useDeleteProject, useProject, useTeams, useUpdateProject } from "../hooks/useData";
 import { useHasPermission } from "../hooks/usePermissions";
 import {
+  canEditProjectMeta,
   formatProjectDateRange,
   parseDateInputEnd,
   parseDateInputStart,
@@ -45,12 +47,12 @@ export function ProjectDetailPage() {
   const updateProject = useUpdateProject();
   const teams = teamsData?.teams ?? [];
   const deleteProject = useDeleteProject();
-  const canWrite = useHasPermission("projects:write");
   const canDelete = useHasPermission("projects:delete");
 
   const project = data?.project;
   const [tab, setTab] = useState<TabId>("overview");
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -276,29 +278,39 @@ export function ProjectDetailPage() {
             )}
           </div>
 
-          {canWrite && (
+          {(canEditProjectMeta(project.currentUserRole) || project.isOwner || canDelete) && (
             <div className="mt-5 flex flex-wrap gap-2">
-              {editing ? (
+              {canEditProjectMeta(project.currentUserRole) && (
                 <>
-                  <Button onClick={handleSave} disabled={updateProject.isPending || !name.trim()}>
-                    {updateProject.isPending ? "저장 중..." : "저장"}
-                  </Button>
-                  <Button variant="ghost" onClick={() => setEditing(false)}>
-                    취소
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="secondary" onClick={startEdit}>
-                    수정
-                  </Button>
-                  <Button variant="secondary" onClick={() => setShowSaveTemplate(true)}>
-                    <LayoutTemplate className="mr-1.5 h-4 w-4" />
-                    템플릿으로 저장
-                  </Button>
+                  {editing ? (
+                    <>
+                      <Button onClick={handleSave} disabled={updateProject.isPending || !name.trim()}>
+                        {updateProject.isPending ? "저장 중..." : "저장"}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setEditing(false)}>
+                        취소
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="secondary" onClick={startEdit}>
+                        수정
+                      </Button>
+                      <Button variant="secondary" onClick={() => setShowSaveTemplate(true)}>
+                        <LayoutTemplate className="mr-1.5 h-4 w-4" />
+                        템플릿으로 저장
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
-              {canDelete && (
+              {project.isOwner && (
+                <Button variant="secondary" onClick={() => setShowTransfer(true)}>
+                  <UserCog className="mr-1.5 h-4 w-4" />
+                  소유권 이전
+                </Button>
+              )}
+              {canDelete && (project.isOwner || project.currentUserRole === "owner") && (
                 <button
                   type="button"
                   onClick={handleDelete}
@@ -328,6 +340,12 @@ export function ProjectDetailPage() {
         open={showSaveTemplate}
         onClose={() => setShowSaveTemplate(false)}
         project={project}
+      />
+
+      <TransferProjectOwnershipModal
+        project={project}
+        open={showTransfer}
+        onClose={() => setShowTransfer(false)}
       />
     </div>
   );

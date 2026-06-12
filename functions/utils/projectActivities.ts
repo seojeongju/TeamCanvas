@@ -8,7 +8,8 @@ export type ProjectActivityAction =
   | "milestone_done"
   | "milestone_removed"
   | "member_added"
-  | "member_removed";
+  | "member_removed"
+  | "ownership_transferred";
 
 const STATUS_LABELS: Record<string, string> = {
   planning: "계획",

@@ -6,8 +6,14 @@ import { requireOrgFeature } from "../utils/subscriptions";
 import { newId, now } from "../utils/helpers";
 import {
   assertProjectAccess,
+  canDeleteProject,
+  canProjectEditMeta,
+  canProjectManageMembers,
+  canProjectWriteContent,
+  getProjectMemberRole,
   orgRoleSeesAllProjects,
   PROJECT_MEMBER_ACCESS_SQL,
+  type ProjectMemberRole,
 } from "../utils/projectAccess";
 
 export const projectRoutes = new Hono<{ Bindings: Env }>();
@@ -22,6 +28,20 @@ async function requireProjectAccess(
   const ok = await assertProjectAccess(c.env.DB, userId, orgRole, projectId, orgId);
   if (!ok) return c.json({ error: "not found" }, 404);
   return null;
+}
+
+async function requireProjectRole(
+  c: { env: Env; json: (data: unknown, status?: number) => Response },
+  userId: string,
+  orgRole: string,
+  projectId: string,
+  orgId: string,
+  allowed: (role: ProjectMemberRole) => boolean,
+): Promise<ProjectMemberRole | Response> {
+  const role = await getProjectMemberRole(c.env.DB, userId, orgRole, projectId, orgId);
+  if (role === null) return c.json({ error: "not found" }, 404);
+  if (!allowed(role)) return c.json({ error: "forbidden" }, 403);
+  return role;
 }
 
 const PROJECT_STATUSES = ["planning", "active", "on_hold", "done"] as const;
@@ -211,7 +231,15 @@ projectRoutes.get("/projects/:projectId", async (c) => {
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
 
-  return c.json({ project: mapProjectRow(row) });
+  const currentUserRole = await getProjectMemberRole(c.env.DB, user.id, member.role, projectId, orgId);
+
+  return c.json({
+    project: {
+      ...mapProjectRow(row),
+      currentUserRole,
+      isOwner: row.owner_id === user.id,
+    },
+  });
 });
 
 projectRoutes.patch("/projects/:projectId", async (c) => {
@@ -223,11 +251,18 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
   if (!existing) return c.json({ error: "not found" }, 404);
 
   const orgId = existing.organization_id as string;
-  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
-  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
-  if (access) return access;
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectEditMeta,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
 
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
@@ -320,10 +355,79 @@ projectRoutes.delete("/projects/:projectId", async (c) => {
   const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
   if (access) return access;
 
+  const canDelete = await canDeleteProject(c.env.DB, user.id, member.role, projectId);
+  if (!canDelete) return c.json({ error: "forbidden" }, 403);
+
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;
 
   await c.env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(projectId).run();
+
+  return c.json({ ok: true });
+});
+
+projectRoutes.post("/projects/:projectId/transfer-ownership", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const existing = await getProjectOr404(c.env.DB, projectId);
+  if (!existing) return c.json({ error: "not found" }, 404);
+
+  const orgId = existing.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  if (existing.owner_id !== user.id) return c.json({ error: "forbidden" }, 403);
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
+
+  const body = await c.req.json<{ newOwnerId: string }>();
+  if (!body.newOwnerId) return c.json({ error: "newOwnerId required" }, 400);
+  if (body.newOwnerId === user.id) return c.json({ error: "already owner" }, 400);
+
+  const orgMember = await c.env.DB.prepare(
+    "SELECT 1 FROM memberships WHERE organization_id = ? AND user_id = ? AND status = 'active'",
+  )
+    .bind(orgId, body.newOwnerId)
+    .first();
+  if (!orgMember) return c.json({ error: "User not in organization" }, 400);
+
+  const projectMember = await c.env.DB.prepare(
+    "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?",
+  )
+    .bind(projectId, body.newOwnerId)
+    .first<{ role: string }>();
+  if (!projectMember) return c.json({ error: "User is not a project member" }, 400);
+
+  const newOwner = await c.env.DB.prepare("SELECT name FROM users WHERE id = ?")
+    .bind(body.newOwnerId)
+    .first<{ name: string }>();
+
+  const ts = now();
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE projects SET owner_id = ?, updated_at = ? WHERE id = ?").bind(
+      body.newOwnerId,
+      ts,
+      projectId,
+    ),
+    c.env.DB.prepare(
+      "UPDATE project_members SET role = 'owner' WHERE project_id = ? AND user_id = ?",
+    ).bind(projectId, body.newOwnerId),
+    c.env.DB.prepare(
+      "UPDATE project_members SET role = 'manager' WHERE project_id = ? AND user_id = ?",
+    ).bind(projectId, user.id),
+  ]);
+
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  await insertProjectActivity(c.env.DB, {
+    projectId,
+    organizationId: orgId,
+    actorId: user.id,
+    action: "ownership_transferred",
+    summary: `소유권 이전 · ${newOwner?.name ?? body.newOwnerId}`,
+  });
 
   return c.json({ ok: true });
 });
@@ -364,11 +468,18 @@ projectRoutes.post("/projects/:projectId/milestones", async (c) => {
   if (!project) return c.json({ error: "not found" }, 404);
 
   const orgId = project.organization_id as string;
-  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
-  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
-  if (access) return access;
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
 
   const body = await c.req.json<{
     title: string;
@@ -430,11 +541,18 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
 
   const orgId = existing.organization_id as string;
   const projectId = existing.project_id as string;
-  const member = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
-  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
-  if (access) return access;
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
 
   const body = await c.req.json<{
     title?: string;
@@ -517,17 +635,18 @@ projectRoutes.delete("/milestones/:milestoneId", async (c) => {
     .first<{ id: string; title: string; project_id: string; organization_id: string }>();
   if (!existing) return c.json({ error: "not found" }, 404);
 
-  const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:write");
+  const member = await requireOrgPermission(c, user.id, existing.organization_id, "projects:read");
   if (member instanceof Response) return member;
 
-  const access = await requireProjectAccess(
+  const roleCheck = await requireProjectRole(
     c,
     user.id,
     member.role,
     existing.project_id,
     existing.organization_id,
+    canProjectWriteContent,
   );
-  if (access) return access;
+  if (roleCheck instanceof Response) return roleCheck;
 
   await c.env.DB.prepare("DELETE FROM project_milestones WHERE id = ?").bind(milestoneId).run();
 
@@ -583,11 +702,18 @@ projectRoutes.post("/projects/:projectId/members", async (c) => {
   if (!project) return c.json({ error: "not found" }, 404);
 
   const orgId = project.organization_id as string;
-  const perm = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  const perm = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (perm instanceof Response) return perm;
 
-  const access = await requireProjectAccess(c, user.id, perm.role, projectId, orgId);
-  if (access) return access;
+  const actorRole = await requireProjectRole(
+    c,
+    user.id,
+    perm.role,
+    projectId,
+    orgId,
+    canProjectManageMembers,
+  );
+  if (actorRole instanceof Response) return actorRole;
 
   const body = await c.req.json<{ userId: string; role?: string }>();
   if (!body.userId) return c.json({ error: "userId required" }, 400);
@@ -603,6 +729,21 @@ projectRoutes.post("/projects/:projectId/members", async (c) => {
     ? body.role
     : "member";
   if (role === "owner") return c.json({ error: "Cannot assign owner role" }, 400);
+  if (role === "manager" && actorRole !== "owner") {
+    return c.json({ error: "forbidden" }, 403);
+  }
+
+  const existingMember = await c.env.DB.prepare(
+    "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?",
+  )
+    .bind(projectId, body.userId)
+    .first<{ role: string }>();
+  if (existingMember?.role === "owner") {
+    return c.json({ error: "Cannot change owner role" }, 400);
+  }
+  if (existingMember?.role === "manager" && actorRole !== "owner") {
+    return c.json({ error: "forbidden" }, 403);
+  }
 
   const ts = now();
   await c.env.DB.prepare(
@@ -638,11 +779,18 @@ projectRoutes.delete("/projects/:projectId/members/:userId", async (c) => {
   if (!project) return c.json({ error: "not found" }, 404);
 
   const orgId = project.organization_id as string;
-  const perm = await requireOrgPermission(c, user.id, orgId, "projects:write");
+  const perm = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (perm instanceof Response) return perm;
 
-  const access = await requireProjectAccess(c, user.id, perm.role, projectId, orgId);
-  if (access) return access;
+  const actorRole = await requireProjectRole(
+    c,
+    user.id,
+    perm.role,
+    projectId,
+    orgId,
+    canProjectManageMembers,
+  );
+  if (actorRole instanceof Response) return actorRole;
 
   const target = await c.env.DB.prepare(
     `SELECT pm.role, u.name FROM project_members pm
@@ -653,6 +801,9 @@ projectRoutes.delete("/projects/:projectId/members/:userId", async (c) => {
     .first<{ role: string; name: string }>();
   if (!target) return c.json({ error: "not found" }, 404);
   if (target.role === "owner") return c.json({ error: "Cannot remove project owner" }, 400);
+  if (target.role === "manager" && actorRole !== "owner") {
+    return c.json({ error: "forbidden" }, 403);
+  }
 
   await c.env.DB.prepare("DELETE FROM project_members WHERE project_id = ? AND user_id = ?")
     .bind(projectId, targetUserId)

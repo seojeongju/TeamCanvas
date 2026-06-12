@@ -34,6 +34,11 @@ import {
   parseExcludedDatesJson,
   validateExcludedDates,
 } from "../utils/eventExcludedDates";
+import {
+  assertProjectAccess,
+  canProjectWriteContent,
+  getProjectMemberRole,
+} from "../utils/projectAccess";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
@@ -1149,6 +1154,14 @@ app.get("/organizations/:orgId/tasks", async (c) => {
     binds.push(teamId);
   }
   if (projectId) {
+    const projectAccess = await assertProjectAccess(
+      c.env.DB,
+      user.id,
+      member.role,
+      projectId,
+      orgId,
+    );
+    if (!projectAccess) return c.json({ error: "not found" }, 404);
     sql += " AND t.project_id = ?";
     binds.push(projectId);
   }
@@ -1258,12 +1271,10 @@ app.post("/organizations/:orgId/tasks", async (c) => {
   if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
 
   if (body.projectId) {
-    const project = await c.env.DB.prepare(
-      "SELECT id FROM projects WHERE id = ? AND organization_id = ?",
-    )
-      .bind(body.projectId, orgId)
-      .first();
-    if (!project) return c.json({ error: "Invalid project" }, 400);
+    const role = await getProjectMemberRole(c.env.DB, user.id, member.role, body.projectId, orgId);
+    if (role === null || !canProjectWriteContent(role)) {
+      return c.json({ error: "forbidden" }, 403);
+    }
   }
 
   const priority = ["low", "medium", "high"].includes(body.priority ?? "")
@@ -1395,12 +1406,16 @@ app.patch("/tasks/:taskId", async (c) => {
 
   if (body.projectId !== undefined) {
     if (body.projectId) {
-      const project = await c.env.DB.prepare(
-        "SELECT id FROM projects WHERE id = ? AND organization_id = ?",
-      )
-        .bind(body.projectId, existing.organization_id)
-        .first();
-      if (!project) return c.json({ error: "Invalid project" }, 400);
+      const role = await getProjectMemberRole(
+        c.env.DB,
+        user.id,
+        member.role,
+        body.projectId,
+        existing.organization_id,
+      );
+      if (role === null || !canProjectWriteContent(role)) {
+        return c.json({ error: "forbidden" }, 403);
+      }
     }
     updates.push("project_id = ?");
     values.push(body.projectId);

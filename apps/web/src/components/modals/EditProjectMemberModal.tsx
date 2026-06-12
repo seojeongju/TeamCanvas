@@ -13,10 +13,11 @@ const EDITABLE_ROLES = ["manager", "member", "viewer"] as const;
 type Props = {
   projectId: string;
   member: ProjectMember | null;
+  isOwner?: boolean;
   onClose: () => void;
 };
 
-export function EditProjectMemberModal({ projectId, member, onClose }: Props) {
+export function EditProjectMemberModal({ projectId, member, isOwner = false, onClose }: Props) {
   const addMember = useAddProjectMember();
   const [role, setRole] = useState("member");
 
@@ -48,7 +49,7 @@ export function EditProjectMemberModal({ projectId, member, onClose }: Props) {
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-navy-700">역할</label>
           <select value={role} onChange={(e) => setRole(e.target.value)} className={selectClass}>
-            {EDITABLE_ROLES.map((r) => (
+            {EDITABLE_ROLES.filter((r) => isOwner || r !== "manager").map((r) => (
               <option key={r} value={r}>
                 {PROJECT_MEMBER_ROLE_LABELS[r] ?? r}
               </option>
