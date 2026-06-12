@@ -110,15 +110,26 @@ export function ProjectsPage() {
         subtitle={projects.length > 0 ? `총 ${projects.length}개` : "팀 프로젝트를 계획하고 추적하세요"}
         action={
           canWrite ? (
-            <button
-              type="button"
-              onClick={() => navigate("/settings/project-templates")}
-              className="glass flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-primary-600"
-              aria-label="프로젝트 템플릿 설정"
-            >
-              <LayoutTemplate className="h-4 w-4" />
-              템플릿
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => navigate("/settings/project-templates")}
+                className="glass flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-primary-600 hover:bg-white/90"
+                aria-label="프로젝트 템플릿 설정"
+              >
+                <LayoutTemplate className="h-4 w-4" />
+                템플릿
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="glass flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-primary-600 hover:bg-white/90"
+                aria-label="프로젝트 추가"
+              >
+                <Plus className="h-4 w-4" />
+                프로젝트 추가
+              </button>
+            </div>
           ) : undefined
         }
       />
@@ -209,7 +220,7 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {canWrite && filtered.length > 0 && (
+      {canWrite && (
         <button
           type="button"
           onClick={() => setShowCreate(true)}

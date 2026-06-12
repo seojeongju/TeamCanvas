@@ -75,6 +75,19 @@ export function TasksPage() {
       <PageHeader
         title="업무"
         subtitle={hasTasks ? `총 ${allTasks.length}건` : "팀 업무를 관리하세요"}
+        action={
+          canWrite ? (
+            <button
+              type="button"
+              onClick={() => openCreate("todo")}
+              className="glass flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-xs font-medium text-primary-600 hover:bg-white/90"
+              aria-label="업무 추가"
+            >
+              <Plus className="h-4 w-4" />
+              업무 추가
+            </button>
+          ) : undefined
+        }
       />
 
       {hasTasks && (
@@ -131,14 +144,16 @@ export function TasksPage() {
         />
       )}
 
-      <button
-        type="button"
-        onClick={() => openCreate("todo")}
-        className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-400 text-white shadow-glow transition hover:bg-primary-500 active:scale-95"
-        aria-label="업무 추가"
-      >
-        <Plus className="h-6 w-6" strokeWidth={2.25} />
-      </button>
+      {canWrite && (
+        <button
+          type="button"
+          onClick={() => openCreate("todo")}
+          className="fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-400 text-white shadow-glow transition hover:bg-primary-500 active:scale-95"
+          aria-label="업무 추가"
+        >
+          <Plus className="h-6 w-6" strokeWidth={2.25} />
+        </button>
+      )}
 
       <CreateTaskModal
         open={showCreate}
