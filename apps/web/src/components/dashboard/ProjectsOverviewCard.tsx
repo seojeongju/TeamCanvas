@@ -3,6 +3,7 @@ import { ChevronRight, FolderKanban, Plus } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { useProjects } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
+import { ProjectProgressBadge } from "../projects/ProjectProgressBadge";
 import { formatProjectDateRange, projectStatusLabel, projectStatusTone } from "../../lib/projectUtils";
 import { cn } from "../../lib/cn";
 
@@ -60,6 +61,7 @@ export function ProjectsOverviewCard() {
                 >
                   {projectStatusLabel(p.status)}
                 </span>
+                <ProjectProgressBadge percent={p.progressPercent} />
               </div>
               <p className="truncate text-xs text-navy-500">
                 {formatProjectDateRange(p.startAt, p.endAt)}

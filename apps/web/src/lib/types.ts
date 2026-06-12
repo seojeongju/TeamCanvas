@@ -389,6 +389,9 @@ export type Project = {
   endAt: number | null;
   taskCount?: number;
   openTaskCount?: number;
+  milestoneCount?: number;
+  doneMilestoneCount?: number;
+  progressPercent?: number | null;
   currentUserRole?: string | null;
   isOwner?: boolean;
   createdAt: number;

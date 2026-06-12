@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, User } from "lucide-react";
 import { cn } from "../../lib/cn";
-import type { TaskFilters, TaskLabel, Team } from "../../lib/types";
+import type { Project, TaskFilters, TaskLabel, Team } from "../../lib/types";
 
 interface TaskFilterBarProps {
   filters: TaskFilters;
   teams: Team[];
+  projects?: Project[];
   labels?: TaskLabel[];
   onChange: (filters: TaskFilters) => void;
 }
@@ -76,13 +77,14 @@ function FilterSelect({
   );
 }
 
-export function TaskFilterBar({ filters, teams, labels = [], onChange }: TaskFilterBarProps) {
+export function TaskFilterBar({ filters, teams, projects = [], labels = [], onChange }: TaskFilterBarProps) {
   const mine = filters.assignee === "me";
   const hasActiveFilter =
     filters.assignee === "me" ||
     filters.overdue ||
     filters.dueToday ||
     !!filters.teamId ||
+    !!filters.projectId ||
     !!filters.labelId ||
     !!filters.status;
 
@@ -113,6 +115,15 @@ export function TaskFilterBar({ filters, teams, labels = [], onChange }: TaskFil
           placeholder="전체 팀"
           options={teams.map((t) => ({ value: t.id, label: t.name }))}
           onChange={(teamId) => onChange({ ...filters, teamId: teamId || undefined })}
+        />
+      )}
+
+      {projects.length > 0 && (
+        <FilterSelect
+          value={filters.projectId ?? ""}
+          placeholder="전체 프로젝트"
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+          onChange={(projectId) => onChange({ ...filters, projectId: projectId || undefined })}
         />
       )}
 

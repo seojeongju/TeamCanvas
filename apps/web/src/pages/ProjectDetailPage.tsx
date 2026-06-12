@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
 import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
 import { TransferProjectOwnershipModal } from "../components/modals/TransferProjectOwnershipModal";
@@ -24,6 +24,7 @@ import {
   projectStatusTone,
   toDateInputValue,
 } from "../lib/projectUtils";
+import { ProjectProgressBar } from "../components/projects/ProjectProgressBadge";
 import { cn } from "../lib/cn";
 import type { ProjectStatus } from "../lib/types";
 
@@ -42,6 +43,7 @@ type TabId = (typeof TABS)[number]["id"];
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data, isLoading, isError } = useProject(projectId);
   const { data: teamsData } = useTeams();
   const updateProject = useUpdateProject();
@@ -51,6 +53,11 @@ export function ProjectDetailPage() {
 
   const project = data?.project;
   const [tab, setTab] = useState<TabId>("overview");
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && TABS.some((x) => x.id === t)) setTab(t as TabId);
+  }, [searchParams]);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -139,6 +146,7 @@ export function ProjectDetailPage() {
               {projectStatusLabel(project.status)}
               {project.teamName ? ` · ${project.teamName}` : ""}
               {project.taskCount ? ` · 업무 ${project.taskCount}건` : ""}
+              {project.progressPercent != null ? ` · ${project.progressPercent}%` : ""}
             </p>
           </div>
         </div>
@@ -177,6 +185,12 @@ export function ProjectDetailPage() {
               </span>
             )}
           </div>
+
+          {project.progressPercent != null && (
+            <div className="mt-4">
+              <ProjectProgressBar percent={project.progressPercent} color={project.color} />
+            </div>
+          )}
 
           <div className="mt-4 space-y-3 border-t border-sky-100/80 pt-4 text-sm">
             <div className="flex justify-between gap-4">

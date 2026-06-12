@@ -6,6 +6,7 @@ import { GlassCard } from "../components/ui/GlassCard";
 import { CreateProjectModal } from "../components/modals/CreateProjectModal";
 import { useProjects } from "../hooks/useData";
 import { useHasPermission } from "../hooks/usePermissions";
+import { ProjectProgressBadge } from "../components/projects/ProjectProgressBadge";
 import {
   formatProjectDateRange,
   PROJECT_STATUS_OPTIONS,
@@ -36,6 +37,7 @@ function ProjectCard({ project }: { project: Project }) {
             >
               {projectStatusLabel(project.status)}
             </span>
+            <ProjectProgressBadge percent={project.progressPercent} />
           </div>
           <p className="mt-0.5 truncate text-xs text-navy-500">
             {project.teamName ? `${project.teamName} · ` : ""}

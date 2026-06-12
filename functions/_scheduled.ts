@@ -1,4 +1,5 @@
 import type { Env } from "./types";
+import { processMilestoneDueReminders } from "./utils/milestoneReminders";
 import { processDueReminders } from "./utils/reminders";
 
 type ScheduledContext = {
@@ -6,11 +7,14 @@ type ScheduledContext = {
   waitUntil: (promise: Promise<unknown>) => void;
 };
 
-/** Cloudflare Pages Cron — 5분마다 일정 리마인더 발송 */
+/** Cloudflare Pages Cron — 5분마다 일정·마일스톤 리마인더 발송 */
 export async function onSchedule(context: ScheduledContext): Promise<Response> {
   const { env } = context;
   context.waitUntil(
-    processDueReminders(env.DB, env).catch(() => {
+    Promise.all([
+      processDueReminders(env.DB, env),
+      processMilestoneDueReminders(env.DB, env),
+    ]).catch(() => {
       /* 로그만 — Cron 응답은 성공 유지 */
     }),
   );

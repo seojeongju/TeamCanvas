@@ -1,5 +1,5 @@
 import type { Env } from "../types";
-import { formatDateKst, formatEventDateTimeKst, newId, now } from "./helpers";
+import { formatDateKst, formatDateOnlyKst, formatEventDateTimeKst, newId, now } from "./helpers";
 import { sendNotificationEmail } from "./email";
 import { sendPushToUser } from "./push";
 
@@ -9,6 +9,10 @@ export function eventDetailLink(eventId: string): string {
 
 export function taskDetailLink(taskId: string): string {
   return `/tasks?task=${encodeURIComponent(taskId)}`;
+}
+
+export function projectMilestonesLink(projectId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}?tab=milestones`;
 }
 
 export async function createNotification(
@@ -220,6 +224,30 @@ export async function notifyEventReminder(
     title: "일정이 곧 시작됩니다",
     body: `「${opts.eventTitle}」 · ${startLabel} (${lead} 알림)`,
     link: eventDetailLink(opts.eventId),
+  });
+}
+
+export async function notifyMilestoneDue(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    userId: string;
+    organizationId: string;
+    projectId: string;
+    projectName: string;
+    milestoneTitle: string;
+    dueAt: number;
+  },
+) {
+  if (!opts.userId) return;
+  const dueLabel = formatDateOnlyKst(opts.dueAt);
+  await createNotification(db, env, {
+    userId: opts.userId,
+    organizationId: opts.organizationId,
+    type: "milestone_due",
+    title: "마일스톤 마감이 다가옵니다",
+    body: `${opts.projectName} · ${opts.milestoneTitle} (${dueLabel} 마감)`,
+    link: projectMilestonesLink(opts.projectId),
   });
 }
 

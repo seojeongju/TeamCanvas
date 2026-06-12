@@ -64,6 +64,7 @@ export function filterTasks(tasks: Task[], filters: TaskFilters, userId?: string
       if (task.dueAt < todayStart || task.dueAt > todayEnd) return false;
     }
     if (filters.labelId && !task.labels?.some((l) => l.id === filters.labelId)) return false;
+    if (filters.projectId && task.projectId !== filters.projectId) return false;
     return true;
   });
 }

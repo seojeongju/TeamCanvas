@@ -2733,6 +2733,13 @@ app.get("/notifications", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;
 
+  try {
+    const { processMilestoneDueReminders } = await import("../utils/milestoneReminders");
+    await processMilestoneDueReminders(c.env.DB, c.env);
+  } catch {
+    /* due_reminder_sent_at 컬럼 미적용 등 */
+  }
+
   const { results } = await c.env.DB.prepare(
     `SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
   )

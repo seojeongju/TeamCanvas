@@ -1,5 +1,14 @@
-import { useState } from "react";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Plus } from "lucide-react";
 import { EditMilestoneModal } from "../modals/EditMilestoneModal";
 import { GlassCard } from "../ui/GlassCard";
 import { Input } from "../ui/Input";
@@ -12,10 +21,10 @@ import {
   useUpdateProjectMilestone,
 } from "../../hooks/useData";
 import { ProjectGanttChart } from "./ProjectGanttChart";
-import { canWriteProjectContent, formatMilestoneDue, MILESTONE_STATUS_OPTIONS } from "../../lib/projectUtils";
+import { SortableMilestoneRow } from "./SortableMilestoneRow";
+import { canWriteProjectContent } from "../../lib/projectUtils";
 import { ProjectTimeline } from "./ProjectTimeline";
 import type { Project, ProjectMilestone } from "../../lib/types";
-import { cn } from "../../lib/cn";
 
 type Props = {
   project: Project;
@@ -30,10 +39,20 @@ export function ProjectMilestonesSection({ project }: Props) {
   const deleteMilestone = useDeleteProjectMilestone();
   const canWrite = canWriteProjectContent(project.currentUserRole);
 
-  const milestones = data?.milestones ?? [];
+  const milestones = useMemo(
+    () =>
+      [...(data?.milestones ?? [])].sort(
+        (a, b) => a.sortOrder - b.sortOrder || (a.dueAt ?? 0) - (b.dueAt ?? 0),
+      ),
+    [data?.milestones],
+  );
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [editMilestone, setEditMilestone] = useState<ProjectMilestone | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +74,20 @@ export function ProjectMilestonesSection({ project }: Props) {
   const handleDelete = (milestoneId: string, name: string) => {
     if (!window.confirm(`"${name}" 마일스톤을 삭제할까요?`)) return;
     deleteMilestone.mutate({ milestoneId, projectId: project.id });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = milestones.findIndex((m) => m.id === active.id);
+    const newIndex = milestones.findIndex((m) => m.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(milestones, oldIndex, newIndex);
+    reordered.forEach((m, idx) => {
+      if (m.sortOrder !== idx) {
+        updateMilestone.mutate({ milestoneId: m.id, projectId: project.id, sortOrder: idx });
+      }
+    });
   };
 
   const doneCount = milestones.filter((m) => m.status === "done").length;
@@ -92,69 +125,22 @@ export function ProjectMilestonesSection({ project }: Props) {
         ) : milestones.length === 0 ? (
           <GlassCard className="p-4 text-sm text-navy-500">등록된 마일스톤이 없습니다.</GlassCard>
         ) : (
-          <div className="space-y-2">
-            {milestones.map((m) => (
-              <GlassCard key={m.id} className="flex items-center gap-3 p-3">
-                <button
-                  type="button"
-                  disabled={!canWrite}
-                  onClick={() => toggleDone(m.id, m.status)}
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition",
-                    m.status === "done"
-                      ? "border-emerald-200 bg-emerald-500/15 text-emerald-600"
-                      : "border-sky-200 bg-white/60 text-navy-400 hover:border-primary-300",
-                    !canWrite && "opacity-60",
-                  )}
-                  aria-label={m.status === "done" ? "완료 취소" : "완료"}
-                >
-                  <Check className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={!canWrite}
-                  onClick={() => canWrite && setEditMilestone(m)}
-                  className="min-w-0 flex-1 text-left disabled:cursor-default"
-                >
-                  <p
-                    className={cn(
-                      "font-medium text-navy-900",
-                      m.status === "done" && "text-navy-500 line-through",
-                    )}
-                  >
-                    {m.title}
-                  </p>
-                  <p className="text-xs text-navy-500">
-                    {MILESTONE_STATUS_OPTIONS.find((o) => o.value === m.status)?.label} ·{" "}
-                    {formatMilestoneDue(m.dueAt)}
-                  </p>
-                  {m.description?.trim() && (
-                    <p className="mt-0.5 line-clamp-2 text-xs text-navy-400">{m.description}</p>
-                  )}
-                </button>
-                {canWrite && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setEditMilestone(m)}
-                      className="rounded-lg p-2 text-navy-500 hover:bg-sky-50 hover:text-primary-600"
-                      aria-label="수정"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(m.id, m.title)}
-                      className="rounded-lg p-2 text-navy-400 hover:bg-red-50 hover:text-red-600"
-                      aria-label="삭제"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
-              </GlassCard>
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={milestones.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {milestones.map((m) => (
+                  <SortableMilestoneRow
+                    key={m.id}
+                    milestone={m}
+                    canWrite={canWrite}
+                    onToggleDone={toggleDone}
+                    onEdit={setEditMilestone}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         {canWrite && (

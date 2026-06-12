@@ -73,7 +73,25 @@ function mapProjectMemberRow(row: Record<string, unknown>) {
   };
 }
 
+function computeProjectProgress(row: Record<string, unknown>) {
+  const taskCount = Number(row.task_count ?? 0);
+  const openTaskCount = Number(row.open_task_count ?? 0);
+  const doneTaskCount = taskCount - openTaskCount;
+  const milestoneCount = Number(row.milestone_count ?? 0);
+  const doneMilestoneCount = Number(row.done_milestone_count ?? 0);
+
+  const rates: number[] = [];
+  if (taskCount > 0) rates.push((doneTaskCount / taskCount) * 100);
+  if (milestoneCount > 0) rates.push((doneMilestoneCount / milestoneCount) * 100);
+
+  const progressPercent =
+    rates.length > 0 ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : null;
+
+  return { progressPercent, milestoneCount, doneMilestoneCount };
+}
+
 function mapProjectRow(row: Record<string, unknown>) {
+  const progress = computeProjectProgress(row);
   return {
     id: row.id as string,
     organizationId: row.organization_id as string,
@@ -89,6 +107,9 @@ function mapProjectRow(row: Record<string, unknown>) {
     endAt: (row.end_at as number | null) ?? null,
     taskCount: Number(row.task_count ?? 0),
     openTaskCount: Number(row.open_task_count ?? 0),
+    milestoneCount: progress.milestoneCount,
+    doneMilestoneCount: progress.doneMilestoneCount,
+    progressPercent: progress.progressPercent,
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
   };
@@ -97,7 +118,9 @@ function mapProjectRow(row: Record<string, unknown>) {
 const PROJECT_SELECT = `
   SELECT p.*, u.name as owner_name, tm.name as team_name,
     (SELECT COUNT(*) FROM tasks WHERE project_id = p.id) as task_count,
-    (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'done') as open_task_count
+    (SELECT COUNT(*) FROM tasks WHERE project_id = p.id AND status != 'done') as open_task_count,
+    (SELECT COUNT(*) FROM project_milestones WHERE project_id = p.id) as milestone_count,
+    (SELECT COUNT(*) FROM project_milestones WHERE project_id = p.id AND status = 'done') as done_milestone_count
   FROM projects p
   LEFT JOIN users u ON u.id = p.owner_id
   LEFT JOIN teams tm ON tm.id = p.team_id
@@ -577,6 +600,7 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
   if (body.dueAt !== undefined) {
     updates.push("due_at = ?");
     binds.push(body.dueAt);
+    updates.push("due_reminder_sent_at = NULL");
   }
   if (body.status !== undefined) {
     if (!MILESTONE_STATUSES.includes(body.status as (typeof MILESTONE_STATUSES)[number])) {
