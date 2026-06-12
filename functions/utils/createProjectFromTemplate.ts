@@ -10,7 +10,7 @@ import {
 } from "./projectTemplateData";
 import { newId, now } from "./helpers";
 
-const PROJECT_STATUSES = ["planning", "active", "on_hold", "done"] as const;
+const PROJECT_STATUSES = ["planning", "active", "on_hold", "done", "archived"] as const;
 
 export type CreateProjectFromTemplateInput = {
   orgId: string;
@@ -169,6 +169,14 @@ export async function createProjectFromTemplate(
   }
 
   await logProjectCreated(db, input.orgId, projectId, input.userId, input.name.trim());
+
+  const { syncProjectTeamMembers } = await import("./projectTeamSync");
+  await syncProjectTeamMembers(db, {
+    projectId,
+    orgId: input.orgId,
+    teamId: input.teamId ?? null,
+    actorId: input.userId,
+  });
 
   return {
     id: projectId,

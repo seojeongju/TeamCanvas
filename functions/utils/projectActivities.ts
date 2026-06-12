@@ -11,11 +11,12 @@ export type ProjectActivityAction =
   | "member_removed"
   | "ownership_transferred";
 
-const STATUS_LABELS: Record<string, string> = {
+export const PROJECT_STATUS_LABELS: Record<string, string> = {
   planning: "계획",
   active: "진행 중",
   on_hold: "보류",
   done: "완료",
+  archived: "보관됨",
 };
 
 export async function insertProjectActivity(
@@ -92,7 +93,7 @@ export async function logProjectUpdated(
   }
   if (body.status !== undefined && body.status !== before.status) {
     logs.push(
-      `상태: ${STATUS_LABELS[before.status] ?? before.status} → ${STATUS_LABELS[body.status] ?? body.status}`,
+      `상태: ${PROJECT_STATUS_LABELS[before.status] ?? before.status} → ${PROJECT_STATUS_LABELS[body.status] ?? body.status}`,
     );
   }
   if (body.teamId !== undefined) logs.push("팀 변경");

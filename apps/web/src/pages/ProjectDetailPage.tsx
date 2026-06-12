@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Copy, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
+import { Archive, ArrowLeft, Copy, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
 import { DuplicateProjectModal } from "../components/modals/DuplicateProjectModal";
 import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
 import { TransferProjectOwnershipModal } from "../components/modals/TransferProjectOwnershipModal";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
+import { ProjectCommentsSection } from "../components/projects/ProjectCommentsSection";
 import { ProjectActivitySection } from "../components/projects/ProjectActivitySection";
 import { EntityFilesSection } from "../components/ui/EntityFilesSection";
 import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
@@ -105,6 +106,14 @@ export function ProjectDetailPage() {
     if (!window.confirm(`"${project.name}" 프로젝트를 삭제할까요?`)) return;
     await deleteProject.mutateAsync(project.id);
     navigate("/projects", { replace: true });
+  };
+
+  const handleArchive = async () => {
+    if (!project) return;
+    const next = project.status === "archived" ? "done" : "archived";
+    const label = next === "archived" ? "보관" : "보관 해제";
+    if (!window.confirm(`"${project.name}" 프로젝트를 ${label}할까요?`)) return;
+    await updateProject.mutateAsync({ id: project.id, status: next });
   };
 
   if (isLoading) {
@@ -322,6 +331,10 @@ export function ProjectDetailPage() {
                         <Copy className="mr-1.5 h-4 w-4" />
                         복제
                       </Button>
+                      <Button variant="secondary" onClick={handleArchive} disabled={updateProject.isPending}>
+                        <Archive className="mr-1.5 h-4 w-4" />
+                        {project.status === "archived" ? "보관 해제" : "보관"}
+                      </Button>
                     </>
                   )}
                 </>
@@ -347,6 +360,8 @@ export function ProjectDetailPage() {
           )}
 
           <EntityFilesSection entityType="project" entityId={project.id} />
+
+          <ProjectCommentsSection project={project} />
 
           <div className="mt-5">
             <ProjectActivityFolder projectId={project.id} />

@@ -43,6 +43,7 @@ export async function searchOrganization(
     active: "진행 중",
     on_hold: "보류",
     done: "완료",
+    archived: "보관됨",
   };
 
   if (types.includes("event")) {

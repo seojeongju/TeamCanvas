@@ -66,10 +66,16 @@ export function ProjectsPage() {
   const userId = useAuthStore((s) => s.user?.id);
   const { data: teamsData } = useTeams();
   const [teamFilter, setTeamFilter] = useState("");
-  const { data, isLoading } = useProjects(teamFilter ? { teamId: teamFilter } : undefined);
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const projectFilters = useMemo(() => {
+    const f: import("../lib/types").ProjectFilters = {};
+    if (teamFilter) f.teamId = teamFilter;
+    if (statusFilter !== "all") f.status = statusFilter;
+    return Object.keys(f).length > 0 ? f : undefined;
+  }, [teamFilter, statusFilter]);
+  const { data, isLoading } = useProjects(projectFilters);
   const updateProject = useUpdateProject();
   const canWrite = useHasPermission("projects:write");
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [viewMode, setViewMode] = useState<ProjectViewMode>("list");
   const [showCreate, setShowCreate] = useState(false);
   const [sortKey, setSortKey] = useState<ProjectSortKey>("updated");

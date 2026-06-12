@@ -15,6 +15,183 @@ export function projectMilestonesLink(projectId: string): string {
   return `/projects/${encodeURIComponent(projectId)}?tab=milestones`;
 }
 
+export function projectDetailLink(projectId: string, tab?: string): string {
+  const base = `/projects/${encodeURIComponent(projectId)}`;
+  return tab ? `${base}?tab=${encodeURIComponent(tab)}` : base;
+}
+
+async function notifyProjectMemberIds(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    userIds: string[];
+    actorId: string;
+    organizationId: string;
+    type: string;
+    title: string;
+    body?: string;
+    link?: string;
+  },
+) {
+  const sent = new Set<string>();
+  for (const userId of opts.userIds) {
+    if (!userId || userId === opts.actorId || sent.has(userId)) continue;
+    sent.add(userId);
+    await createNotification(db, env, {
+      userId,
+      organizationId: opts.organizationId,
+      type: opts.type,
+      title: opts.title,
+      body: opts.body,
+      link: opts.link,
+    });
+  }
+}
+
+export async function notifyProjectMembers(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    projectId: string;
+    actorId: string;
+    organizationId: string;
+    type: string;
+    title: string;
+    body?: string;
+    link?: string;
+  },
+) {
+  const { results } = await db
+    .prepare(
+      `SELECT user_id FROM project_members WHERE project_id = ?
+       UNION
+       SELECT owner_id AS user_id FROM projects WHERE id = ?`,
+    )
+    .bind(opts.projectId, opts.projectId)
+    .all();
+
+  const userIds = (results ?? []).map((r) => (r as { user_id: string }).user_id);
+  await notifyProjectMemberIds(db, env, { ...opts, userIds });
+}
+
+export async function notifyProjectComment(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    projectId: string;
+    projectName: string;
+    actorId: string;
+    organizationId: string;
+    preview: string;
+    mentionedIds?: string[];
+  },
+) {
+  const link = projectDetailLink(opts.projectId);
+  const body = `${opts.projectName}: ${opts.preview}`;
+
+  if (opts.mentionedIds?.length) {
+    await notifyProjectMemberIds(db, env, {
+      userIds: opts.mentionedIds,
+      actorId: opts.actorId,
+      organizationId: opts.organizationId,
+      type: "project_mention",
+      title: "프로젝트 댓글에서 멘션되었습니다",
+      body,
+      link,
+    });
+  }
+
+  const { results } = await db
+    .prepare(
+      `SELECT user_id FROM project_members WHERE project_id = ?
+       UNION SELECT owner_id AS user_id FROM projects WHERE id = ?`,
+    )
+    .bind(opts.projectId, opts.projectId)
+    .all();
+
+  const mentioned = new Set(opts.mentionedIds ?? []);
+  const recipients = (results ?? [])
+    .map((r) => (r as { user_id: string }).user_id)
+    .filter((id) => id !== opts.actorId && !mentioned.has(id));
+
+  await notifyProjectMemberIds(db, env, {
+    userIds: recipients,
+    actorId: opts.actorId,
+    organizationId: opts.organizationId,
+    type: "project_comment",
+    title: "프로젝트에 댓글이 달렸습니다",
+    body,
+    link,
+  });
+}
+
+export async function notifyProjectMemberAdded(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    userId: string;
+    actorId: string;
+    organizationId: string;
+    projectId: string;
+    projectName: string;
+    actorName: string;
+  },
+) {
+  if (!opts.userId || opts.userId === opts.actorId) return;
+  await createNotification(db, env, {
+    userId: opts.userId,
+    organizationId: opts.organizationId,
+    type: "project_member_added",
+    title: "프로젝트에 초대되었습니다",
+    body: `${opts.actorName}님이 「${opts.projectName}」 프로젝트에 추가했습니다`,
+    link: projectDetailLink(opts.projectId),
+  });
+}
+
+export async function notifyProjectStatusChanged(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    projectId: string;
+    projectName: string;
+    actorId: string;
+    organizationId: string;
+    statusLabel: string;
+  },
+) {
+  await notifyProjectMembers(db, env, {
+    projectId: opts.projectId,
+    actorId: opts.actorId,
+    organizationId: opts.organizationId,
+    type: "project_status",
+    title: "프로젝트 상태가 변경되었습니다",
+    body: `「${opts.projectName}」 → ${opts.statusLabel}`,
+    link: projectDetailLink(opts.projectId),
+  });
+}
+
+export async function notifyMilestoneCompleted(
+  db: D1Database,
+  env: Env | undefined,
+  opts: {
+    projectId: string;
+    projectName: string;
+    milestoneTitle: string;
+    actorId: string;
+    organizationId: string;
+  },
+) {
+  await notifyProjectMembers(db, env, {
+    projectId: opts.projectId,
+    actorId: opts.actorId,
+    organizationId: opts.organizationId,
+    type: "milestone_done",
+    title: "마일스톤이 완료되었습니다",
+    body: `「${opts.projectName}」 · ${opts.milestoneTitle}`,
+    link: projectMilestonesLink(opts.projectId),
+  });
+}
+
 export async function createNotification(
   db: D1Database,
   env: Env | undefined,

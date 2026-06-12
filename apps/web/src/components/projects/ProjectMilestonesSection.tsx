@@ -8,7 +8,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { CalendarPlus, Plus } from "lucide-react";
 import { EditMilestoneModal } from "../modals/EditMilestoneModal";
 import { GlassCard } from "../ui/GlassCard";
 import { Input } from "../ui/Input";
@@ -18,6 +18,7 @@ import {
   useDeleteProjectMilestone,
   useProjectMilestones,
   useTasks,
+  useSyncProjectMilestonesCalendar,
   useUpdateProjectMilestone,
 } from "../../hooks/useData";
 import { ProjectGanttChart } from "./ProjectGanttChart";
@@ -37,6 +38,7 @@ export function ProjectMilestonesSection({ project }: Props) {
   const createMilestone = useCreateProjectMilestone();
   const updateMilestone = useUpdateProjectMilestone();
   const deleteMilestone = useDeleteProjectMilestone();
+  const syncCalendar = useSyncProjectMilestonesCalendar();
   const canWrite = canWriteProjectContent(project.currentUserRole);
 
   const milestones = useMemo(
@@ -91,9 +93,24 @@ export function ProjectMilestonesSection({ project }: Props) {
   };
 
   const doneCount = milestones.filter((m) => m.status === "done").length;
+  const syncableCount = milestones.filter((m) => m.dueAt && !m.calendarEventId).length;
 
   return (
     <section className="space-y-4">
+      {canWrite && syncableCount > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => syncCalendar.mutate(project.id)}
+            disabled={syncCalendar.isPending}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-xs font-medium text-primary-600 ring-1 ring-sky-100/90 hover:bg-white disabled:opacity-50"
+          >
+            <CalendarPlus className="h-3.5 w-3.5" />
+            {syncCalendar.isPending ? "동기화 중..." : `캘린더에 마일스톤 ${syncableCount}건 추가`}
+          </button>
+        </div>
+      )}
+
       <div>
         <h2 className="text-sm font-semibold text-navy-800">타임라인</h2>
         <GlassCard className="mt-2 p-4">

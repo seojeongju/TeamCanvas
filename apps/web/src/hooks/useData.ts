@@ -306,6 +306,36 @@ export function useDuplicateProject() {
   });
 }
 
+export function useProjectComments(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-comments", projectId],
+    queryFn: () => api.getProjectComments(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateProjectComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, body }: { projectId: string; body: string }) =>
+      api.createProjectComment(projectId, body),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-comments", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
+    },
+  });
+}
+
+export function useSyncProjectMilestonesCalendar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (projectId: string) => api.syncProjectMilestonesCalendar(projectId),
+    onSuccess: (_, projectId) => {
+      qc.invalidateQueries({ queryKey: ["project-milestones", projectId] });
+    },
+  });
+}
+
 export function useLinkTasksToProject() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();

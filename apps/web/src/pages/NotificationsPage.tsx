@@ -21,6 +21,12 @@ const TYPE_LABELS: Record<string, string> = {
   event_reminder: "일정 알림",
   event_comment: "일정 댓글",
   event_mention: "일정 멘션",
+  project_comment: "프로젝트 댓글",
+  project_mention: "프로젝트 멘션",
+  project_member_added: "프로젝트 초대",
+  project_status: "프로젝트 상태",
+  milestone_done: "마일스톤 완료",
+  milestone_due: "마일스톤 마감",
 };
 
 function typeLabel(type?: string) {

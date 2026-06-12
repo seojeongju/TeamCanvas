@@ -548,6 +548,21 @@ export const api = {
       body: JSON.stringify({ taskIds }),
     }),
 
+  getProjectComments: (projectId: string) =>
+    request<{ comments: import("./types").ProjectComment[] }>(`/api/projects/${projectId}/comments`),
+
+  createProjectComment: (projectId: string, body: string) =>
+    request<{ id: string }>(`/api/projects/${projectId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+
+  syncProjectMilestonesCalendar: (projectId: string) =>
+    request<{ created: number; skipped: number }>(
+      `/api/projects/${projectId}/sync-milestones-calendar`,
+      { method: "POST" },
+    ),
+
   updateProject: (projectId: string, data: Omit<import("./types").UpdateProjectPayload, "id">) =>
     request<{ ok: boolean }>(`/api/projects/${projectId}`, {
       method: "PATCH",

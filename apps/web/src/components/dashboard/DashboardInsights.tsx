@@ -15,7 +15,7 @@ const STATUS_LABELS: Record<string, string> = {
   done: "완료",
 };
 
-const PROJECT_STATUS_KEYS = ["planning", "active", "on_hold", "done"] as const;
+const PROJECT_STATUS_KEYS = ["planning", "active", "on_hold", "done", "archived"] as const;
 
 export function DashboardInsightsPanel({
   insights,
@@ -135,9 +135,9 @@ export function DashboardInsightsPanel({
                 전체 보기
               </Link>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {PROJECT_STATUS_KEYS.map((key) => {
-                const count = insights.projectsByStatus![key];
+                const count = insights.projectsByStatus![key] ?? 0;
                 const pct = projectTotal > 0 ? Math.round((count / projectTotal) * 100) : 0;
                 return (
                   <div key={key} className="rounded-xl bg-white/60 px-3 py-2 text-center">

@@ -5,6 +5,7 @@ const PROJECT_STATUS_LABELS: Record<string, string> = {
   active: "진행 중",
   on_hold: "보류",
   done: "완료",
+  archived: "보관됨",
 };
 
 function computeProgressPercent(taskCount: number, openTaskCount: number, milestoneCount: number, doneMilestoneCount: number): number | null {
@@ -100,7 +101,7 @@ export async function getDashboardInsights(db: D1Database, orgId: string) {
     .bind(orgId)
     .all<{ status: string; cnt: number }>();
 
-  const projectsByStatus = { planning: 0, active: 0, on_hold: 0, done: 0 };
+  const projectsByStatus = { planning: 0, active: 0, on_hold: 0, done: 0, archived: 0 };
   for (const row of projectStatusRows.results ?? []) {
     if (row.status in projectsByStatus) {
       projectsByStatus[row.status as keyof typeof projectsByStatus] = row.cnt;

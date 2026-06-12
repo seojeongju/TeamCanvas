@@ -7,9 +7,10 @@ export const PROJECT_STATUS_OPTIONS: { value: ProjectStatus; label: string }[] =
   { value: "active", label: "진행 중" },
   { value: "on_hold", label: "보류" },
   { value: "done", label: "완료" },
+  { value: "archived", label: "보관됨" },
 ];
 
-export const PROJECT_BOARD_COLUMNS = PROJECT_STATUS_OPTIONS.map((o) => ({
+export const PROJECT_BOARD_COLUMNS = PROJECT_STATUS_OPTIONS.filter((o) => o.value !== "archived").map((o) => ({
   id: o.value,
   label: o.label,
   color:
@@ -36,6 +37,8 @@ export function projectStatusTone(status: ProjectStatus | string): string {
       return "bg-amber-500/10 text-amber-700";
     case "done":
       return "bg-navy-500/10 text-navy-600";
+    case "archived":
+      return "bg-navy-400/10 text-navy-500";
     default:
       return "bg-primary-400/10 text-primary-700";
   }

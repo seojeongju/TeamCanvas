@@ -51,7 +51,7 @@ async function requireProjectRole(
   return role;
 }
 
-const PROJECT_STATUSES = ["planning", "active", "on_hold", "done"] as const;
+const PROJECT_STATUSES = ["planning", "active", "on_hold", "done", "archived"] as const;
 const MILESTONE_STATUSES = ["pending", "done"] as const;
 const MEMBER_ROLES = ["owner", "manager", "member", "viewer"] as const;
 
@@ -62,6 +62,7 @@ function mapMilestoneRow(row: Record<string, unknown>) {
     title: row.title as string,
     description: (row.description as string | null) ?? null,
     dueAt: (row.due_at as number | null) ?? null,
+    calendarEventId: (row.calendar_event_id as string | null) ?? null,
     status: row.status as string,
     sortOrder: Number(row.sort_order ?? 0),
     createdAt: row.created_at as number,
@@ -170,6 +171,8 @@ projectRoutes.get("/organizations/:orgId/projects", async (c) => {
   if (teamId) {
     sql += " AND p.team_id = ?";
     binds.push(teamId);
+  } else if (!status) {
+    sql += " AND p.status != 'archived'";
   }
 
   sql += " ORDER BY p.updated_at DESC";
@@ -257,6 +260,14 @@ projectRoutes.post("/organizations/:orgId/projects", async (c) => {
   const { logProjectCreated } = await import("../utils/projectActivities");
   await logProjectCreated(c.env.DB, orgId, id, user.id, body.name.trim());
 
+  const { syncProjectTeamMembers } = await import("../utils/projectTeamSync");
+  await syncProjectTeamMembers(c.env.DB, {
+    projectId: id,
+    orgId,
+    teamId: body.teamId ?? null,
+    actorId: user.id,
+  });
+
   return c.json({ id }, 201);
 });
 
@@ -299,6 +310,14 @@ projectRoutes.post("/organizations/:orgId/projects/from-template", async (c) => 
       startAt: body.startAt,
       endAt: body.endAt,
     });
+    const { syncProjectTeamMembers } = await import("../utils/projectTeamSync");
+    await syncProjectTeamMembers(c.env.DB, {
+      projectId: result.id,
+      orgId,
+      teamId: body.teamId ?? null,
+      actorId: user.id,
+    });
+
     return c.json(result, 201);
   } catch (err) {
     const message = err instanceof Error ? err.message : "create_failed";
@@ -430,6 +449,28 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
       status: existing.status as string,
     },
   );
+
+  if (body.teamId !== undefined && body.teamId !== existing.team_id) {
+    const { syncProjectTeamMembers } = await import("../utils/projectTeamSync");
+    await syncProjectTeamMembers(c.env.DB, {
+      projectId,
+      orgId,
+      teamId: body.teamId,
+      actorId: user.id,
+    });
+  }
+
+  if (body.status !== undefined && body.status !== existing.status) {
+    const { notifyProjectStatusChanged } = await import("../utils/notifications");
+    const { PROJECT_STATUS_LABELS } = await import("../utils/projectActivities");
+    await notifyProjectStatusChanged(c.env.DB, c.env, {
+      projectId,
+      projectName: (body.name?.trim() || existing.name) as string,
+      actorId: user.id,
+      organizationId: orgId,
+      statusLabel: PROJECT_STATUS_LABELS[body.status] ?? body.status,
+    });
+  }
 
   return c.json({ ok: true });
 });
@@ -704,6 +745,17 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
       action: "milestone_done",
       summary: `마일스톤 완료 · ${title}`,
     });
+    const project = await c.env.DB.prepare("SELECT name FROM projects WHERE id = ?")
+      .bind(projectId)
+      .first<{ name: string }>();
+    const { notifyMilestoneCompleted } = await import("../utils/notifications");
+    await notifyMilestoneCompleted(c.env.DB, c.env, {
+      projectId,
+      projectName: project?.name ?? "프로젝트",
+      milestoneTitle: title,
+      actorId: user.id,
+      organizationId: orgId,
+    });
   } else {
     await insertProjectActivity(c.env.DB, {
       projectId,
@@ -840,6 +892,7 @@ projectRoutes.post("/projects/:projectId/members", async (c) => {
     return c.json({ error: "forbidden" }, 403);
   }
 
+  const isNewMember = !existingMember;
   const ts = now();
   await c.env.DB.prepare(
     `INSERT INTO project_members (project_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)
@@ -860,6 +913,21 @@ projectRoutes.post("/projects/:projectId/members", async (c) => {
     action: "member_added",
     summary: `멤버 추가 · ${added?.name ?? body.userId}`,
   });
+
+  if (isNewMember) {
+    const actor = await c.env.DB.prepare("SELECT name FROM users WHERE id = ?")
+      .bind(user.id)
+      .first<{ name: string }>();
+    const { notifyProjectMemberAdded } = await import("../utils/notifications");
+    await notifyProjectMemberAdded(c.env.DB, c.env, {
+      userId: body.userId,
+      actorId: user.id,
+      organizationId: orgId,
+      projectId,
+      projectName: project.name as string,
+      actorName: actor?.name ?? "팀원",
+    });
+  }
 
   return c.json({ ok: true }, 201);
 });
@@ -975,6 +1043,161 @@ projectRoutes.get("/projects/:projectId/files", async (c) => {
   });
 
   return c.json({ files });
+});
+
+// ── Comments ──
+
+projectRoutes.get("/projects/:projectId/comments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT c.id, c.project_id, c.user_id, c.body, c.created_at, u.name as user_name
+     FROM project_comments c
+     JOIN users u ON u.id = c.user_id
+     WHERE c.project_id = ?
+     ORDER BY c.created_at ASC`,
+  )
+    .bind(projectId)
+    .all();
+
+  const { formatActivityTimeKst } = await import("../utils/helpers");
+  const comments = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const createdAt = r.created_at as number;
+    return {
+      id: r.id,
+      projectId: r.project_id,
+      userId: r.user_id,
+      userName: r.user_name,
+      body: r.body,
+      createdAt,
+      time: formatActivityTimeKst(createdAt),
+    };
+  });
+
+  return c.json({ comments });
+});
+
+projectRoutes.post("/projects/:projectId/comments", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
+
+  const body = await c.req.json<{ body?: string }>();
+  if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const id = newId();
+  const ts = now();
+  const trimmedBody = body.body.trim();
+  const preview = trimmedBody.slice(0, 80);
+
+  await c.env.DB.prepare(
+    `INSERT INTO project_comments (id, project_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(id, projectId, user.id, trimmedBody, ts)
+    .run();
+
+  const { insertProjectActivity } = await import("../utils/projectActivities");
+  await insertProjectActivity(c.env.DB, {
+    projectId,
+    organizationId: orgId,
+    actorId: user.id,
+    action: "updated",
+    field: "comment",
+    summary: `댓글: ${trimmedBody.slice(0, 60)}${trimmedBody.length > 60 ? "…" : ""}`,
+  });
+
+  const { notifyProjectComment } = await import("../utils/notifications");
+  const { parseMentionedUserIds } = await import("../utils/mentions");
+  const { results: memberRows } = await c.env.DB.prepare(
+    `SELECT u.id, u.name FROM memberships m JOIN users u ON u.id = m.user_id
+     WHERE m.organization_id = ? AND m.status = 'active'`,
+  )
+    .bind(orgId)
+    .all();
+  const members = (memberRows ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    return { id: row.id as string, name: row.name as string };
+  });
+  const mentionedIds = parseMentionedUserIds(trimmedBody, members);
+
+  await notifyProjectComment(c.env.DB, c.env, {
+    projectId,
+    projectName: project.name as string,
+    actorId: user.id,
+    organizationId: orgId,
+    preview,
+    mentionedIds,
+  });
+
+  return c.json({ id }, 201);
+});
+
+projectRoutes.post("/projects/:projectId/sync-milestones-calendar", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
+
+  const feature = await requireOrgFeature(c, orgId, "calendar");
+  if (feature instanceof Response) return feature;
+
+  const { syncProjectMilestonesToCalendar } = await import("../utils/syncMilestonesToCalendar");
+  const result = await syncProjectMilestonesToCalendar(c.env.DB, {
+    projectId,
+    orgId,
+    userId: user.id,
+    teamId: (project.team_id as string | null) ?? null,
+    projectName: project.name as string,
+    projectColor: (project.color as string) ?? "#4A9FE8",
+  });
+
+  return c.json(result);
 });
 
 // ── Org project templates ──

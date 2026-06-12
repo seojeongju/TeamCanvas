@@ -190,6 +190,7 @@ export type DashboardInsights = {
     active: number;
     on_hold: number;
     done: number;
+    archived?: number;
   };
   activeProjectWorkload: {
     id: string;
@@ -405,7 +406,7 @@ export type Task = {
   labels?: TaskLabel[];
 };
 
-export type ProjectStatus = "planning" | "active" | "on_hold" | "done";
+export type ProjectStatus = "planning" | "active" | "on_hold" | "done" | "archived";
 
 export type Project = {
   id: string;
@@ -465,10 +466,21 @@ export type ProjectMilestone = {
   title: string;
   description: string | null;
   dueAt: number | null;
+  calendarEventId?: string | null;
   status: MilestoneStatus;
   sortOrder: number;
   createdAt: number;
   updatedAt: number;
+};
+
+export type ProjectComment = {
+  id: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  body: string;
+  createdAt: number;
+  time: string;
 };
 
 export type ProjectMember = {
