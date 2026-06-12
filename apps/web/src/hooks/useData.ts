@@ -858,11 +858,11 @@ export function useMarkNotificationRead() {
   });
 }
 
-export function useSearch(q: string) {
+export function useSearch(q: string, type?: import("../lib/types").SearchResultType) {
   const orgId = useCurrentOrgId();
   return useQuery({
-    queryKey: ["search", orgId, q],
-    queryFn: () => api.searchOrg(orgId!, q),
+    queryKey: ["search", orgId, q, type],
+    queryFn: () => api.searchOrg(orgId!, q, type ? { type } : undefined),
     enabled: !!orgId && q.length >= 1,
   });
 }

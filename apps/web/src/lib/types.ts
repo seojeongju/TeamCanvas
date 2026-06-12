@@ -549,9 +549,11 @@ export type Notification = {
   time: string;
 };
 
+export type SearchResultType = "event" | "task" | "project" | "milestone" | "member";
+
 export type SearchResult = {
   id: string;
-  type: "event" | "task" | "project" | "member";
+  type: SearchResultType;
   title: string;
   subtitle: string;
   link: string;

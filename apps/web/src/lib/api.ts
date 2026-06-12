@@ -629,10 +629,17 @@ export const api = {
   markAllNotificationsRead: () =>
     request<{ ok: boolean }>("/api/notifications/read-all", { method: "PATCH" }),
 
-  searchOrg: (orgId: string, q: string, limit = 20) =>
-    request<{ results: import("./types").SearchResult[] }>(
-      `/api/organizations/${orgId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-    ),
+  searchOrg: (
+    orgId: string,
+    q: string,
+    opts?: { limit?: number; type?: import("./types").SearchResultType },
+  ) => {
+    const params = new URLSearchParams({ q, limit: String(opts?.limit ?? 20) });
+    if (opts?.type) params.set("type", opts.type);
+    return request<{ results: import("./types").SearchResult[] }>(
+      `/api/organizations/${orgId}/search?${params}`,
+    );
+  },
 
   getEntityFiles: (entityType: "task" | "event" | "project", entityId: string) =>
     request<{ files: import("./types").TaskFile[] }>(

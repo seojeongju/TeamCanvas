@@ -6,8 +6,11 @@ import { GlassCard } from "../components/ui/GlassCard";
 import { CreateProjectModal } from "../components/modals/CreateProjectModal";
 import { ProjectBoardView } from "../components/projects/ProjectBoardView";
 import { ProjectViewSwitcher } from "../components/projects/ProjectViewSwitcher";
-import { useProjects, useUpdateProject } from "../hooks/useData";
+import { ProjectListFilters } from "../components/projects/ProjectListFilters";
+import { useProjects, useTeams, useUpdateProject } from "../hooks/useData";
 import { useHasPermission } from "../hooks/usePermissions";
+import { useAuthStore } from "../stores/authStore";
+import { filterProjectsList, sortProjects, type ProjectSortKey } from "../lib/projectListUtils";
 import { ProjectProgressBadge } from "../components/projects/ProjectProgressBadge";
 import {
   canEditProjectMeta,
@@ -60,18 +63,30 @@ function ProjectCard({ project }: { project: Project }) {
 
 export function ProjectsPage() {
   const navigate = useNavigate();
-  const { data, isLoading } = useProjects();
+  const userId = useAuthStore((s) => s.user?.id);
+  const { data: teamsData } = useTeams();
+  const [teamFilter, setTeamFilter] = useState("");
+  const { data, isLoading } = useProjects(teamFilter ? { teamId: teamFilter } : undefined);
   const updateProject = useUpdateProject();
   const canWrite = useHasPermission("projects:write");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [viewMode, setViewMode] = useState<ProjectViewMode>("list");
   const [showCreate, setShowCreate] = useState(false);
+  const [sortKey, setSortKey] = useState<ProjectSortKey>("updated");
+  const [mineOnly, setMineOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
+  const teams = teamsData?.teams ?? [];
   const projects = data?.projects ?? [];
-  const filtered = useMemo(
-    () => (statusFilter === "all" ? projects : projects.filter((p) => p.status === statusFilter)),
-    [projects, statusFilter],
-  );
+  const filtered = useMemo(() => {
+    const list = filterProjectsList(projects, {
+      status: statusFilter,
+      mineOnly,
+      userId,
+      query: searchQuery,
+    });
+    return sortProjects(list, sortKey);
+  }, [projects, statusFilter, mineOnly, userId, searchQuery, sortKey]);
 
   const canDragBoard = useMemo(
     () => filtered.some((p) => canEditProjectMeta(p.currentUserRole)),
@@ -101,6 +116,20 @@ export function ProjectsPage() {
           ) : undefined
         }
       />
+
+      {projects.length > 0 && (
+        <ProjectListFilters
+          teams={teams}
+          teamId={teamFilter}
+          sort={sortKey}
+          mineOnly={mineOnly}
+          query={searchQuery}
+          onTeamChange={setTeamFilter}
+          onSortChange={setSortKey}
+          onMineToggle={() => setMineOnly((v) => !v)}
+          onQueryChange={setSearchQuery}
+        />
+      )}
 
       {projects.length > 0 && (
         <div className="flex items-center justify-between gap-2">

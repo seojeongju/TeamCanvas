@@ -1751,10 +1751,19 @@ app.get("/organizations/:orgId/search", async (c) => {
   if (!q) return c.json({ results: [] });
 
   const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
+  const typeParam = c.req.query("type")?.trim();
+  const validTypes = ["event", "task", "project", "milestone", "member"] as const;
+  const types = typeParam
+    ? typeParam.split(",").filter((t): t is (typeof validTypes)[number] =>
+        validTypes.includes(t as (typeof validTypes)[number]),
+      )
+    : undefined;
+
   const { searchOrganization } = await import("../utils/search");
   const results = await searchOrganization(c.env.DB, orgId, q, limit, {
     userId: user.id,
     orgRole: member.role,
+    types: types?.length ? types : undefined,
   });
   return c.json({ results });
 });
