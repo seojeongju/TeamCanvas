@@ -18,7 +18,7 @@ function activityLink(entityType: string | null, entityId: string | null): strin
   if (entityType === "task") return `/tasks?task=${encodeURIComponent(entityId)}`;
   if (entityType === "event") return `/calendar?event=${encodeURIComponent(entityId)}`;
   if (entityType === "team") return `/settings/teams`;
-  if (entityType === "project") return `/projects/${encodeURIComponent(entityId)}`;
+  if (entityType === "project") return `/projects/${encodeURIComponent(entityId)}?tab=activity`;
   return null;
 }
 
@@ -58,7 +58,7 @@ export type OrgActivityQuery = {
 
 export type OrgActivityItem = {
   id: string;
-  kind: "audit" | "task";
+  kind: "audit" | "task" | "project";
   actorName: string;
   summary: string;
   link: string | null;
@@ -95,6 +95,21 @@ const ACTIVITY_SUBQUERY = `
   FROM task_activities t
   LEFT JOIN users u ON u.id = t.actor_id
   WHERE t.organization_id = ?
+  UNION ALL
+  SELECT
+    'project' AS kind,
+    pa.id,
+    pa.actor_id,
+    u.name AS actor_name,
+    pa.action,
+    'project' AS entity_type,
+    pa.project_id AS entity_id,
+    NULL AS metadata_json,
+    pa.summary,
+    pa.created_at
+  FROM project_activities pa
+  LEFT JOIN users u ON u.id = pa.actor_id
+  WHERE pa.organization_id = ?
 `;
 
 function buildActivityFilter(actorId?: string, from?: number, to?: number) {
@@ -122,12 +137,12 @@ function mapActivityRows(rows: OrgActivityRow[]): OrgActivityItem[] {
   return rows.map((row) => {
     const actorName = row.actor_name ?? "시스템";
     const summary =
-      row.kind === "task" && row.summary
+      (row.kind === "task" || row.kind === "project") && row.summary
         ? row.summary
         : formatAuditSummary(row.action, row.metadata_json);
     return {
       id: `${row.kind}:${row.id}`,
-      kind: row.kind as "audit" | "task",
+      kind: row.kind as "audit" | "task" | "project",
       actorName,
       summary,
       link: activityLink(row.entity_type, row.entity_id),
@@ -152,7 +167,7 @@ export async function fetchOrgActivity(
 
   const countRow = await db
     .prepare(`SELECT COUNT(*) AS total FROM (${ACTIVITY_SUBQUERY}) combined ${where}`)
-    .bind(orgId, orgId, ...filterBinds)
+    .bind(orgId, orgId, orgId, ...filterBinds)
     .first<{ total: number }>();
 
   const total = countRow?.total ?? 0;
@@ -163,7 +178,7 @@ export async function fetchOrgActivity(
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
     )
-    .bind(orgId, orgId, ...filterBinds, limit, offset)
+    .bind(orgId, orgId, orgId, ...filterBinds, limit, offset)
     .all<OrgActivityRow>();
 
   return {

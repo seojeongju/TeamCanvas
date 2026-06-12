@@ -168,7 +168,24 @@ projectRoutes.get("/organizations/:orgId/projects", async (c) => {
   sql += " ORDER BY p.updated_at DESC";
 
   const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
-  const projects = (results ?? []).map((row) => mapProjectRow(row as Record<string, unknown>));
+  const projects = await Promise.all(
+    (results ?? []).map(async (row) => {
+      const r = row as Record<string, unknown>;
+      const mapped = mapProjectRow(r);
+      const currentUserRole = await getProjectMemberRole(
+        c.env.DB,
+        user.id,
+        member.role,
+        mapped.id,
+        orgId,
+      );
+      return {
+        ...mapped,
+        currentUserRole,
+        isOwner: r.owner_id === user.id,
+      };
+    }),
+  );
 
   return c.json({ projects });
 });

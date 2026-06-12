@@ -183,7 +183,7 @@ export function DashboardPage() {
       <section>
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-navy-900">최근 활동</h2>
-          <p className="text-xs text-navy-500">팀 업무·조직 변경 내역</p>
+          <p className="text-xs text-navy-500">팀 업무·프로젝트·조직 변경 내역</p>
         </div>
         <ActivityFeed
           items={activityData?.items ?? []}

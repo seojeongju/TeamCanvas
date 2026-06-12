@@ -62,6 +62,37 @@ export async function getDashboardInsights(db: D1Database, orgId: string) {
     .bind(orgId)
     .all();
 
+  const { results: dueSoonMilestones } = await db
+    .prepare(
+      `SELECT m.id, m.title, m.due_at, p.id AS project_id, p.name AS project_name
+       FROM project_milestones m
+       JOIN projects p ON p.id = m.project_id
+       WHERE p.organization_id = ?
+         AND m.status = 'pending'
+         AND m.due_at IS NOT NULL
+         AND m.due_at >= ?
+         AND m.due_at <= ?
+       ORDER BY m.due_at ASC
+       LIMIT 6`,
+    )
+    .bind(orgId, now, weekEnd)
+    .all();
+
+  const { results: overdueProjects } = await db
+    .prepare(
+      `SELECT p.id, p.name, p.end_at, p.status, u.name AS owner_name
+       FROM projects p
+       LEFT JOIN users u ON u.id = p.owner_id
+       WHERE p.organization_id = ?
+         AND p.end_at IS NOT NULL
+         AND p.end_at < ?
+         AND p.status IN ('planning', 'active', 'on_hold')
+       ORDER BY p.end_at ASC
+       LIMIT 6`,
+    )
+    .bind(orgId, now)
+    .all();
+
   return {
     tasksByStatus,
     dueSoonTasks: (dueSoon ?? []).map((r) => {
@@ -83,6 +114,26 @@ export async function getDashboardInsights(db: D1Database, orgId: string) {
         todo: Number(row.todo ?? 0),
         doing: Number(row.doing ?? 0),
         done: Number(row.done ?? 0),
+      };
+    }),
+    dueSoonMilestones: (dueSoonMilestones ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        id: row.id as string,
+        title: row.title as string,
+        dueAt: row.due_at as number,
+        projectId: row.project_id as string,
+        projectName: row.project_name as string,
+      };
+    }),
+    overdueProjects: (overdueProjects ?? []).map((r) => {
+      const row = r as Record<string, unknown>;
+      return {
+        id: row.id as string,
+        name: row.name as string,
+        endAt: row.end_at as number,
+        status: row.status as string,
+        ownerName: (row.owner_name as string | null) ?? "",
       };
     }),
   };

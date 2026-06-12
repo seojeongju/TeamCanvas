@@ -4,14 +4,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { CreateProjectModal } from "../components/modals/CreateProjectModal";
-import { useProjects } from "../hooks/useData";
+import { ProjectBoardView } from "../components/projects/ProjectBoardView";
+import { ProjectViewSwitcher } from "../components/projects/ProjectViewSwitcher";
+import { useProjects, useUpdateProject } from "../hooks/useData";
 import { useHasPermission } from "../hooks/usePermissions";
 import { ProjectProgressBadge } from "../components/projects/ProjectProgressBadge";
 import {
+  canEditProjectMeta,
   formatProjectDateRange,
   PROJECT_STATUS_OPTIONS,
   projectStatusLabel,
   projectStatusTone,
+  type ProjectViewMode,
 } from "../lib/projectUtils";
 import { cn } from "../lib/cn";
 import type { Project, ProjectStatus } from "../lib/types";
@@ -57,8 +61,10 @@ function ProjectCard({ project }: { project: Project }) {
 export function ProjectsPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useProjects();
+  const updateProject = useUpdateProject();
   const canWrite = useHasPermission("projects:write");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [viewMode, setViewMode] = useState<ProjectViewMode>("list");
   const [showCreate, setShowCreate] = useState(false);
 
   const projects = data?.projects ?? [];
@@ -66,6 +72,15 @@ export function ProjectsPage() {
     () => (statusFilter === "all" ? projects : projects.filter((p) => p.status === statusFilter)),
     [projects, statusFilter],
   );
+
+  const canDragBoard = useMemo(
+    () => filtered.some((p) => canEditProjectMeta(p.currentUserRole)),
+    [filtered],
+  );
+
+  const handleStatusChange = (projectId: string, status: ProjectStatus) => {
+    updateProject.mutate({ id: projectId, status });
+  };
 
   return (
     <div className="space-y-3 pb-4">
@@ -88,34 +103,37 @@ export function ProjectsPage() {
       />
 
       {projects.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setStatusFilter("all")}
-            className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
-              statusFilter === "all"
-                ? "bg-primary-400/15 text-primary-700"
-                : "bg-white/60 text-navy-600 hover:bg-white/90",
-            )}
-          >
-            전체
-          </button>
-          {PROJECT_STATUS_OPTIONS.map((o) => (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
             <button
-              key={o.value}
               type="button"
-              onClick={() => setStatusFilter(o.value)}
+              onClick={() => setStatusFilter("all")}
               className={cn(
                 "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
-                statusFilter === o.value
+                statusFilter === "all"
                   ? "bg-primary-400/15 text-primary-700"
                   : "bg-white/60 text-navy-600 hover:bg-white/90",
               )}
             >
-              {o.label}
+              전체
             </button>
-          ))}
+            {PROJECT_STATUS_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setStatusFilter(o.value)}
+                className={cn(
+                  "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
+                  statusFilter === o.value
+                    ? "bg-primary-400/15 text-primary-700"
+                    : "bg-white/60 text-navy-600 hover:bg-white/90",
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <ProjectViewSwitcher value={viewMode} onChange={setViewMode} />
         </div>
       )}
 
@@ -142,6 +160,12 @@ export function ProjectsPage() {
             </button>
           )}
         </GlassCard>
+      ) : viewMode === "board" && statusFilter === "all" ? (
+        <ProjectBoardView
+          projects={filtered}
+          onStatusChange={handleStatusChange}
+          canWrite={canDragBoard}
+        />
       ) : (
         <div className="space-y-2">
           {filtered.map((project) => (

@@ -3,17 +3,21 @@ import { ChevronRight, FolderKanban, Plus } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { useProjects } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
+import { useAuthStore } from "../../stores/authStore";
 import { ProjectProgressBadge } from "../projects/ProjectProgressBadge";
 import { formatProjectDateRange, projectStatusLabel, projectStatusTone } from "../../lib/projectUtils";
 import { cn } from "../../lib/cn";
 
 export function ProjectsOverviewCard() {
+  const userId = useAuthStore((s) => s.user?.id);
   const { data, isLoading } = useProjects();
   const canWrite = useHasPermission("projects:write");
 
-  const projects = (data?.projects ?? [])
-    .filter((p) => p.status === "active" || p.status === "planning")
-    .slice(0, 4);
+  const activeProjects = (data?.projects ?? []).filter(
+    (p) => p.status === "active" || p.status === "planning",
+  );
+  const mine = userId ? activeProjects.filter((p) => p.ownerId === userId || p.isOwner) : [];
+  const projects = (mine.length > 0 ? mine : activeProjects).slice(0, 4);
 
   if (isLoading) {
     return (

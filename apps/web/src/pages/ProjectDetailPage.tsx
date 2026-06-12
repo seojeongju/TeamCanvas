@@ -4,6 +4,7 @@ import { ArrowLeft, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide
 import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
 import { TransferProjectOwnershipModal } from "../components/modals/TransferProjectOwnershipModal";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
+import { ProjectActivitySection } from "../components/projects/ProjectActivitySection";
 import { EntityFilesSection } from "../components/ui/EntityFilesSection";
 import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
 import { ProjectMilestonesSection } from "../components/projects/ProjectMilestonesSection";
@@ -36,6 +37,7 @@ const TABS = [
   { id: "tasks", label: "업무" },
   { id: "milestones", label: "마일스톤" },
   { id: "members", label: "멤버" },
+  { id: "activity", label: "활동" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -349,6 +351,7 @@ export function ProjectDetailPage() {
       {tab === "tasks" && <ProjectTasksSection project={project} />}
       {tab === "milestones" && <ProjectMilestonesSection project={project} />}
       {tab === "members" && <ProjectMembersSection project={project} />}
+      {tab === "activity" && <ProjectActivitySection projectId={project.id} />}
 
       <SaveProjectAsTemplateModal
         open={showSaveTemplate}

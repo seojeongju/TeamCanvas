@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlertCircle, BarChart3, Calendar, Download } from "lucide-react";
+import { AlertCircle, BarChart3, Calendar, Download, FolderKanban, Flag } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { Button } from "../ui/Button";
 import type { DashboardInsights as Insights } from "../../lib/types";
@@ -100,6 +100,57 @@ export function DashboardInsightsPanel({
           </Link>
         </GlassCard>
       </div>
+
+      {insights.dueSoonMilestones?.length > 0 && (
+        <GlassCard className="p-4">
+          <div className="mb-2 flex items-center gap-2 text-violet-600">
+            <Flag className="h-4 w-4" />
+            <span className="text-xs font-medium">마일스톤 마감 (7일)</span>
+          </div>
+          <ul className="space-y-2">
+            {insights.dueSoonMilestones.map((m) => (
+              <li key={m.id}>
+                <Link
+                  to={`/projects/${m.projectId}?tab=milestones`}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-violet-50/60 px-3 py-2 text-sm transition hover:bg-violet-50"
+                >
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium text-navy-800">{m.title}</span>
+                    <span className="text-navy-500"> · {m.projectName}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-navy-500">
+                    {new Date(m.dueAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
+
+      {insights.overdueProjects?.length > 0 && (
+        <GlassCard className="p-4">
+          <div className="mb-2 flex items-center gap-2 text-red-600">
+            <FolderKanban className="h-4 w-4" />
+            <span className="text-xs font-medium">기한 지난 프로젝트</span>
+          </div>
+          <ul className="space-y-2">
+            {insights.overdueProjects.map((p) => (
+              <li key={p.id}>
+                <Link
+                  to={`/projects/${p.id}`}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-red-50/60 px-3 py-2 text-sm transition hover:bg-red-50"
+                >
+                  <span className="truncate font-medium text-navy-800">{p.name}</span>
+                  <span className="shrink-0 text-xs text-navy-500">
+                    {new Date(p.endAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
 
       {insights.dueSoonTasks.length > 0 && (
         <GlassCard className="p-4">

@@ -171,6 +171,20 @@ export type DashboardInsights = {
     doing: number;
     done: number;
   }[];
+  dueSoonMilestones: {
+    id: string;
+    title: string;
+    dueAt: number;
+    projectId: string;
+    projectName: string;
+  }[];
+  overdueProjects: {
+    id: string;
+    name: string;
+    endAt: number;
+    status: string;
+    ownerName: string;
+  }[];
 };
 
 export type OrgWebhook = {
@@ -215,7 +229,7 @@ export type SharedEventView = {
 
 export type OrgActivityItem = {
   id: string;
-  kind: "audit" | "task";
+  kind: "audit" | "task" | "project";
   actorName: string;
   summary: string;
   link: string | null;

@@ -9,6 +9,21 @@ export const PROJECT_STATUS_OPTIONS: { value: ProjectStatus; label: string }[] =
   { value: "done", label: "완료" },
 ];
 
+export const PROJECT_BOARD_COLUMNS = PROJECT_STATUS_OPTIONS.map((o) => ({
+  id: o.value,
+  label: o.label,
+  color:
+    o.value === "active"
+      ? "border-emerald-400"
+      : o.value === "on_hold"
+        ? "border-amber-400"
+        : o.value === "done"
+          ? "border-navy-400"
+          : "border-primary-400",
+}));
+
+export type ProjectViewMode = "list" | "board";
+
 export function projectStatusLabel(status: ProjectStatus | string): string {
   return PROJECT_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
 }
