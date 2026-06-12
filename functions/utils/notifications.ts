@@ -1,5 +1,5 @@
 import type { Env } from "../types";
-import { newId, now } from "./helpers";
+import { formatDateKst, formatEventDateTimeKst, newId, now } from "./helpers";
 import { sendNotificationEmail } from "./email";
 import { sendPushToUser } from "./push";
 
@@ -111,10 +111,7 @@ export async function notifyTaskDueSoon(
   },
 ) {
   if (!opts.assigneeId) return;
-  const dueLabel = new Date(opts.dueAt).toLocaleDateString("ko-KR", {
-    month: "long",
-    day: "numeric",
-  });
+  const dueLabel = formatDateKst(opts.dueAt);
   await createNotification(db, env, {
     userId: opts.assigneeId,
     organizationId: opts.organizationId,
@@ -185,12 +182,7 @@ export async function notifyEventAttendee(
   },
 ) {
   if (!opts.attendeeId || opts.attendeeId === opts.actorId) return;
-  const when = new Date(opts.startAt).toLocaleString("ko-KR", {
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const when = formatEventDateTimeKst(opts.startAt);
   await createNotification(db, env, {
     userId: opts.attendeeId,
     organizationId: opts.organizationId,
@@ -214,12 +206,7 @@ export async function notifyEventReminder(
   },
 ) {
   if (!opts.userId) return;
-  const startLabel = new Date(opts.startAt).toLocaleString("ko-KR", {
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const startLabel = formatEventDateTimeKst(opts.startAt);
   const lead =
     opts.reminderMinutes >= 1440
       ? `${Math.round(opts.reminderMinutes / 1440)}일 전`

@@ -76,6 +76,24 @@ export function formatEventTime(start: number, end: number, allDay: boolean): st
   return `${formatClockKst(start)} - ${formatClockKst(end)}`;
 }
 
+/** 알림·이메일 등 서버(Workers)에서 한국 시각으로 표시할 때 사용 */
+export function formatEventDateTimeKst(ts: number): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ts));
+}
+
+export function formatDateKst(
+  ts: number,
+  options: Intl.DateTimeFormatOptions = { month: "long", day: "numeric" },
+): string {
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: KST, ...options }).format(new Date(ts));
+}
+
 function sameDateKst(a: number, b: number): boolean {
   return dateKeyKst(a) === dateKeyKst(b);
 }
