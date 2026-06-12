@@ -185,6 +185,25 @@ export type DashboardInsights = {
     status: string;
     ownerName: string;
   }[];
+  projectsByStatus: {
+    planning: number;
+    active: number;
+    on_hold: number;
+    done: number;
+  };
+  activeProjectWorkload: {
+    id: string;
+    name: string;
+    status: string;
+    taskCount: number;
+    openTaskCount: number;
+    progressPercent: number | null;
+  }[];
+  weekStats: {
+    tasksCompleted: number;
+    milestonesCompleted: number;
+    projectsUpdated: number;
+  };
 };
 
 export type OrgWebhook = {

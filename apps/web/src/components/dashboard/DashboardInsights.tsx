@@ -1,17 +1,21 @@
 import { Link } from "react-router-dom";
-import { AlertCircle, BarChart3, Calendar, Download, FolderKanban, Flag } from "lucide-react";
+import { AlertCircle, BarChart3, Calendar, CheckCircle2, Download, FolderKanban, Flag } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { Button } from "../ui/Button";
+import { ProjectProgressBadge } from "../projects/ProjectProgressBadge";
 import type { DashboardInsights as Insights } from "../../lib/types";
 import { useCurrentOrgId } from "../../stores/orgStore";
 import { api } from "../../lib/api";
 import { useHasPermission } from "../../hooks/usePermissions";
+import { projectStatusLabel } from "../../lib/projectUtils";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "할 일",
   doing: "진행 중",
   done: "완료",
 };
+
+const PROJECT_STATUS_KEYS = ["planning", "active", "on_hold", "done"] as const;
 
 export function DashboardInsightsPanel({
   insights,
@@ -50,13 +54,17 @@ export function DashboardInsightsPanel({
 
   const total =
     insights.tasksByStatus.todo + insights.tasksByStatus.doing + insights.tasksByStatus.done;
+  const projectTotal = insights.projectsByStatus
+    ? PROJECT_STATUS_KEYS.reduce((sum, k) => sum + (insights.projectsByStatus?.[k] ?? 0), 0)
+    : 0;
+  const weekStats = insights.weekStats;
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-navy-900">팀 인사이트</h2>
-          <p className="text-xs text-navy-500">이번 주 업무·일정 요약</p>
+          <p className="text-xs text-navy-500">이번 주 업무·일정·프로젝트 요약</p>
         </div>
         {canExport && (
           <Button variant="secondary" className="!min-h-9 text-xs" onClick={handleExport}>
@@ -65,6 +73,22 @@ export function DashboardInsightsPanel({
           </Button>
         )}
       </div>
+
+      {weekStats && (
+        <GlassCard className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
+          <div className="flex items-center gap-2 text-emerald-600">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="text-xs font-medium">이번 주 완료</span>
+          </div>
+          <p className="text-xs text-navy-600">
+            업무 <span className="font-semibold text-navy-800">{weekStats.tasksCompleted}</span>건
+            <span className="mx-2 text-navy-300">·</span>
+            마일스톤 <span className="font-semibold text-navy-800">{weekStats.milestonesCompleted}</span>건
+            <span className="mx-2 text-navy-300">·</span>
+            프로젝트 갱신 <span className="font-semibold text-navy-800">{weekStats.projectsUpdated}</span>건
+          </p>
+        </GlassCard>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <GlassCard className="p-4">
@@ -99,7 +123,61 @@ export function DashboardInsightsPanel({
             캘린더 보기
           </Link>
         </GlassCard>
+
+        {insights.projectsByStatus && projectTotal > 0 && (
+          <GlassCard className="col-span-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sky-600">
+                <FolderKanban className="h-4 w-4" />
+                <span className="text-xs font-medium">프로젝트 상태</span>
+              </div>
+              <Link to="/projects" className="text-xs text-primary-500 hover:underline">
+                전체 보기
+              </Link>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {PROJECT_STATUS_KEYS.map((key) => {
+                const count = insights.projectsByStatus![key];
+                const pct = projectTotal > 0 ? Math.round((count / projectTotal) * 100) : 0;
+                return (
+                  <div key={key} className="rounded-xl bg-white/60 px-3 py-2 text-center">
+                    <p className="text-lg font-bold text-navy-900">{count}</p>
+                    <p className="text-[11px] text-navy-500">{projectStatusLabel(key)} ({pct}%)</p>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassCard>
+        )}
       </div>
+
+      {insights.activeProjectWorkload?.length > 0 && (
+        <GlassCard className="p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-navy-700">진행 중 프로젝트 업무량</p>
+            <Link to="/projects" className="text-xs text-primary-500 hover:underline">
+              프로젝트
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {insights.activeProjectWorkload.map((p) => (
+              <Link
+                key={p.id}
+                to={`/projects/${p.id}?tab=tasks`}
+                className="flex items-center gap-3 rounded-xl bg-white/60 px-3 py-2 transition hover:bg-white/90"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-navy-800">{p.name}</p>
+                  <p className="text-xs text-navy-500">
+                    미완료 {p.openTaskCount}건 / 전체 {p.taskCount}건
+                  </p>
+                </div>
+                <ProjectProgressBadge percent={p.progressPercent} />
+              </Link>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       {insights.dueSoonMilestones?.length > 0 && (
         <GlassCard className="p-4">
