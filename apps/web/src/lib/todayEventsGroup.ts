@@ -2,9 +2,13 @@ import { isPersonalGoogleEvent } from "./calendarEventSources";
 import { formatEventTimeRange } from "./dates";
 import type { CalendarEvent } from "./types";
 
-/** 이모지 접두어 제거 후 그룹 키 */
+/** 이모지·마일스톤 접두어 제거 후 표시용 제목 */
 export function normalizeEventGroupTitle(title: string): string {
-  return title.replace(/^📋\s*/, "").replace(/^📅\s*/, "").trim();
+  return title
+    .replace(/^\[마일스톤\]\s*/i, "")
+    .replace(/^📋\s*/, "")
+    .replace(/^📅\s*/, "")
+    .trim();
 }
 
 /** 개인 Google 일정과 팀 일정은 절대 같은 그룹으로 묶지 않음 */

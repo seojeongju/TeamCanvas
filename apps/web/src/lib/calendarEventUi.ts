@@ -72,9 +72,10 @@ export function calendarEventInteractionClassName(): string {
 
 export function monthGridEventLabel(event: CalendarEvent, showTitle: boolean): string {
   if (!showTitle) return "\u00a0";
-  if (event.sourceType === "task") return `마감 ${event.title}`;
-  if (isPersonalGoogleEvent(event)) return `개인 ${event.title}`;
-  return event.title;
+  const title = eventPreviewTitle(event);
+  if (event.sourceType === "task") return `마감 ${title}`;
+  if (isPersonalGoogleEvent(event)) return `개인 ${title}`;
+  return title;
 }
 
 export type EventPreviewMeta = {

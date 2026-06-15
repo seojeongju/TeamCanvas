@@ -1,3 +1,34 @@
+export const KST_TIMEZONE = "Asia/Seoul";
+
+export function dateKeyKst(ts: number): string {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: KST_TIMEZONE }).format(new Date(ts));
+}
+
+export function fromDateKeyKst(dateKey: string): number {
+  return new Date(`${dateKey}T00:00:00+09:00`).getTime();
+}
+
+export function endOfDateKeyKst(dateKey: string): number {
+  return new Date(`${dateKey}T23:59:59.999+09:00`).getTime();
+}
+
+export function startOfDayKst(ts: number): number {
+  return fromDateKeyKst(dateKeyKst(ts));
+}
+
+export function endOfDayKst(ts: number): number {
+  return endOfDateKeyKst(dateKeyKst(ts));
+}
+
+export function allDaySpanKst(ts: number): { dateKey: string; startAt: number; endAt: number } {
+  const dateKey = dateKeyKst(ts);
+  return {
+    dateKey,
+    startAt: fromDateKeyKst(dateKey),
+    endAt: endOfDateKeyKst(dateKey),
+  };
+}
+
 export function startOfDay(ts: number): number {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
@@ -16,10 +47,9 @@ export function toDatetimeLocal(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 종일·마감일 등 달력 날짜 키 — 한국 시간 기준 */
 export function toDateLocal(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return dateKeyKst(ts);
 }
 
 export function fromDatetimeLocal(value: string): number {
@@ -27,7 +57,7 @@ export function fromDatetimeLocal(value: string): number {
 }
 
 export function fromDateLocal(value: string): number {
-  return new Date(`${value}T00:00:00`).getTime();
+  return fromDateKeyKst(value);
 }
 
 /** 종일 일정의 마지막 포함 날짜 (YYYY-MM-DD). UTC endOfDay 타임존 넘침 보정 */

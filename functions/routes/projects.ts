@@ -766,6 +766,26 @@ projectRoutes.patch("/milestones/:milestoneId", async (c) => {
     });
   }
 
+  if (
+    existing.calendar_event_id &&
+    (body.dueAt !== undefined || body.title !== undefined)
+  ) {
+    const project = await c.env.DB.prepare(
+      "SELECT name, team_id, color FROM projects WHERE id = ?",
+    )
+      .bind(projectId)
+      .first<{ name: string; team_id: string | null; color: string | null }>();
+    const { syncMilestoneCalendarEvent } = await import("../utils/syncMilestonesToCalendar");
+    await syncMilestoneCalendarEvent(c.env.DB, milestoneId, {
+      projectId,
+      orgId,
+      userId: user.id,
+      teamId: project?.team_id ?? null,
+      projectName: project?.name ?? "프로젝트",
+      projectColor: project?.color ?? "#4A9FE8",
+    });
+  }
+
   return c.json({ ok: true });
 });
 

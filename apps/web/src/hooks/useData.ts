@@ -584,7 +584,25 @@ export function useCreateTaskLabel() {
   const orgId = useCurrentOrgId();
   return useMutation({
     mutationFn: (data: { name: string; color?: string }) => api.createTaskLabel(orgId!, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["task-labels", orgId] }),
+    onSuccess: (created) => {
+      if (!orgId) return;
+      qc.setQueryData<{ labels: import("../lib/types").TaskLabel[] }>(
+        ["task-labels", orgId],
+        (prev) => {
+          const labels = [...(prev?.labels ?? [])];
+          if (!labels.some((l) => l.id === created.id)) {
+            labels.push({
+              id: created.id,
+              name: created.name,
+              color: created.color,
+              createdAt: Date.now(),
+            });
+            labels.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+          }
+          return { labels };
+        },
+      );
+    },
   });
 }
 

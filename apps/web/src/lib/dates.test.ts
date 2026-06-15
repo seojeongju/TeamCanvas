@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  allDaySpanKst,
+  endOfDateKeyKst,
   eventIncludesCalendarDay,
   formatEventTimeRange,
   formatRecurrenceRule,
@@ -7,6 +9,7 @@ import {
   normalizeTimedEventEnd,
   toDateLocal,
 } from "./dates";
+import { enumerateDateKeysInAllDayRange } from "./eventExcludedDates";
 
 describe("dates", () => {
   it("formats recurrence labels", () => {
@@ -38,8 +41,14 @@ describe("dates", () => {
     ).toBe(true);
   });
 
-  it("toDateLocal", () => {
-    expect(toDateLocal(new Date("2026-06-09T15:00:00").getTime())).toMatch(/2026-06-09/);
+  it("all-day span stays single day in KST for milestone-style due dates", () => {
+    const dueAt = endOfDateKeyKst("2026-06-24");
+    const { startAt, endAt } = allDaySpanKst(dueAt);
+    expect(toDateLocal(startAt)).toBe("2026-06-24");
+    expect(toDateLocal(endAt)).toBe("2026-06-24");
+    expect(enumerateDateKeysInAllDayRange(toDateLocal(startAt), toDateLocal(endAt))).toEqual([
+      "2026-06-24",
+    ]);
   });
 
   it("formatEventTimeRange shows same-day 1 hour span", () => {

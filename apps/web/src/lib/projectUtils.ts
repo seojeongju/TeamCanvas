@@ -1,4 +1,5 @@
 import type { ProjectStatus } from "./types";
+import { dateKeyKst, endOfDateKeyKst, fromDateKeyKst } from "./dates";
 
 export const PROJECT_COLORS = ["#4A9FE8", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899"];
 
@@ -87,19 +88,15 @@ export function formatMilestoneDue(dueAt: number | null): string {
 
 export function toDateInputValue(ts: number | null): string {
   if (!ts) return "";
-  const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return dateKeyKst(ts);
 }
 
 export function parseDateInputStart(value: string): number | null {
   if (!value) return null;
-  return new Date(`${value}T00:00:00`).getTime();
+  return fromDateKeyKst(value);
 }
 
 export function parseDateInputEnd(value: string): number | null {
   if (!value) return null;
-  return new Date(`${value}T23:59:59`).getTime();
+  return endOfDateKeyKst(value);
 }

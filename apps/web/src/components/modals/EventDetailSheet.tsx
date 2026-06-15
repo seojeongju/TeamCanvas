@@ -137,7 +137,7 @@ export function EventDetailSheet({
   if (!displayEvent) return null;
 
   const isGoogleEvent = displayEvent.sourceType === "google";
-  const displayTitle = isGoogleEvent ? eventPreviewTitle(displayEvent) : displayEvent.title;
+  const displayTitle = eventPreviewTitle(displayEvent);
 
   const canCopy = canCopyCalendarEvent(displayEvent) && canWrite && !!onCopy;
 

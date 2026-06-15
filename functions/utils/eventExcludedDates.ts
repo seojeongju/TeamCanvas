@@ -1,11 +1,9 @@
-import { endOfDay, startOfDay } from "./helpers";
+import { dateKeyKst, fromDateKeyKst } from "./helpers";
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function toDateLocal(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return dateKeyKst(ts);
 }
 
 export function parseExcludedDatesJson(json: string | null | undefined): string[] {
@@ -23,13 +21,11 @@ export function parseExcludedDatesJson(json: string | null | undefined): string[
 
 export function enumerateCalendarDaysInRange(startAt: number, endAt: number): string[] {
   const keys: string[] = [];
-  let cursor = startOfDay(startAt);
-  const end = startOfDay(endAt);
-  while (cursor <= end) {
-    keys.push(toDateLocal(cursor));
-    const next = new Date(cursor);
-    next.setDate(next.getDate() + 1);
-    cursor = startOfDay(next.getTime());
+  let cursorKey = dateKeyKst(startAt);
+  const endKey = dateKeyKst(endAt);
+  while (cursorKey <= endKey) {
+    keys.push(cursorKey);
+    cursorKey = dateKeyKst(fromDateKeyKst(cursorKey) + 86400000);
   }
   return keys;
 }

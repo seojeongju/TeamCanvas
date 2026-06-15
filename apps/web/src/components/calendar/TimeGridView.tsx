@@ -13,6 +13,7 @@ import {
   timestampToSlotIndex,
 } from "../../lib/calendarUtils";
 import { isPersonalGoogleEvent } from "../../lib/calendarEventSources";
+import { eventPreviewTitle } from "../../lib/calendarEventUi";
 import type { CalendarEvent } from "../../lib/types";
 import { CalendarEventTrigger } from "./CalendarEventTrigger";
 
@@ -138,7 +139,7 @@ export function TimeGridView({
                       event={event}
                       day={day}
                       variant="block"
-                      label={isPersonalGoogleEvent(event) ? `개인 ${event.title}` : event.title}
+                      label={isPersonalGoogleEvent(event) ? `개인 ${eventPreviewTitle(event)}` : eventPreviewTitle(event)}
                       onClick={() => onEventClick(event, day)}
                       style={{ top: style.top, height: style.height, minHeight: SLOT_HEIGHT }}
                     />

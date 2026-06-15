@@ -21,6 +21,7 @@ import {
   endOfDay,
   fromDateLocal,
   toDateLocal,
+  allDaySpanKst,
   formatActivityTimeKst,
   formatEventTime,
   hashToken,
@@ -281,15 +282,13 @@ app.get("/organizations/:orgId/events", async (c) => {
     for (const row of taskRows ?? []) {
       const r = row as Record<string, unknown>;
       const dueAt = r.due_at as number;
-      const dueDateKey = toDateLocal(dueAt);
-      const dayStart = fromDateLocal(dueDateKey);
-      const dayEndExclusive = dayStart + 86400000;
+      const { startAt: dayStart, endAt: dayEnd } = allDaySpanKst(dueAt);
       events.push({
         id: `task-due:${r.id}`,
         title: `📋 ${r.title}`,
         description: "업무 마감",
         startAt: dayStart,
-        endAt: dayEndExclusive,
+        endAt: dayEnd,
         allDay: true,
         visibility: "org",
         recurrenceRule: null,
@@ -297,7 +296,7 @@ app.get("/organizations/:orgId/events", async (c) => {
         teamId: r.team_id ?? null,
         color: "#F97316",
         teamName: (r.team_name as string) ?? "업무",
-        time: formatEventTime(dayStart, dayEndExclusive, true),
+        time: formatEventTime(dayStart, dayEnd, true),
         sourceType: "task" as const,
         taskId: r.id,
       });

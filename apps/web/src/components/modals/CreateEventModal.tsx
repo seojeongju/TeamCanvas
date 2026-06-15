@@ -30,6 +30,8 @@ import {
   normalizeTimedEventEnd,
   setDateKeepTime,
   toDatetimeLocal,
+  fromDateKeyKst,
+  endOfDateKeyKst,
 } from "../../lib/dates";
 import {
   REMINDER_OPTIONS,
@@ -45,6 +47,7 @@ import { EventDateTimePicker } from "../calendar/EventDateTimePicker";
 import { EventExcludedDatesPicker } from "../calendar/EventExcludedDatesPicker";
 import { copyEventTitle } from "../../lib/eventCopy";
 import { parseExcludedDates, pruneExcludedDates } from "../../lib/eventExcludedDates";
+import { normalizeEventGroupTitle } from "../../lib/todayEventsGroup";
 
 interface CreateEventModalProps {
   open: boolean;
@@ -141,13 +144,15 @@ export function CreateEventModal({
   const labels = labelsData?.labels ?? [];
   const selectedLabel = labels.find((l) => l.id === selectedLabelId) ?? null;
   const typeConfig = getEventType(eventType);
-  const eventColor = selectedLabel?.color ?? typeConfig.color;
+  const persistedEventColor = editEvent?.color ?? copyEvent?.color;
+  const eventColor = selectedLabel?.color ?? persistedEventColor ?? typeConfig.color;
   const createInitializedRef = useRef(false);
+  const labelSessionRef = useRef<string | null>(null);
 
   const applyEventToForm = (event: CalendarEvent, opts: { copy: boolean }) => {
     const dateStr = toDatetimeLocal(event.startAt).slice(0, 10);
     setEventType(getEventTypeByColor(event.color));
-    setTitle(opts.copy ? copyEventTitle(event.title) : event.title);
+    setTitle(opts.copy ? copyEventTitle(event.title) : normalizeEventGroupTitle(event.title));
     setStart(toDatetimeLocal(event.startAt));
     setEnd(toDatetimeLocal(event.endAt));
     setAllDay(event.allDay);
@@ -168,6 +173,8 @@ export function CreateEventModal({
   useEffect(() => {
     if (!open) {
       createInitializedRef.current = false;
+      labelSessionRef.current = null;
+      setSelectedLabelId(null);
     }
   }, [open]);
 
@@ -219,15 +226,20 @@ export function CreateEventModal({
   useEffect(() => {
     if (!open || labels.length === 0) return;
 
+    const sessionKey = editEvent?.id ?? (copyEvent ? `copy:${copyEvent.id}` : "create");
+    if (labelSessionRef.current === sessionKey) return;
+
+    labelSessionRef.current = sessionKey;
+
     const colorSource = editEvent ?? copyEvent;
     if (colorSource) {
-      setSelectedLabelId(findLabelIdByColor(labels, colorSource.color) ?? labels[0].id);
+      setSelectedLabelId(findLabelIdByColor(labels, colorSource.color));
       return;
     }
 
     setSelectedLabelId((prev) => {
       if (prev && labels.some((l) => l.id === prev)) return prev;
-      return labels[0].id;
+      return labels[0]?.id ?? null;
     });
   }, [open, editEvent, copyEvent, labels]);
 
@@ -348,8 +360,8 @@ export function CreateEventModal({
     let endAt: number;
 
     if (allDay) {
-      startAt = new Date(`${allDayStart}T00:00:00`).getTime();
-      endAt = new Date(`${allDayEnd}T23:59:59`).getTime();
+      startAt = fromDateKeyKst(allDayStart);
+      endAt = endOfDateKeyKst(allDayEnd);
       if (endAt < startAt) {
         setTimeError("종료일은 시작일보다 이후여야 합니다.");
         return;
@@ -418,8 +430,8 @@ export function CreateEventModal({
   const currentStartEnd = (() => {
     if (allDay) {
       return {
-        start: new Date(`${allDayStart}T00:00:00`).getTime(),
-        end: new Date(`${allDayEnd}T23:59:59`).getTime(),
+        start: fromDateKeyKst(allDayStart),
+        end: endOfDateKeyKst(allDayEnd),
       };
     }
     if (!start || !end) return null;
@@ -439,7 +451,7 @@ export function CreateEventModal({
   const isPending = createEvent.isPending || updateEvent.isPending;
 
   const labelBlockReason =
-    labels.length > 0 && !selectedLabelId ? "라벨을 선택해 주세요." : null;
+    !isEdit && labels.length > 0 && !selectedLabelId ? "라벨을 선택해 주세요." : null;
   const saveBlockReason = !title.trim()
     ? "제목을 입력하면 저장할 수 있습니다."
     : labelBlockReason

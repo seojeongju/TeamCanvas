@@ -23,7 +23,7 @@ import {
 } from "../../hooks/useData";
 import { ProjectGanttChart } from "./ProjectGanttChart";
 import { SortableMilestoneRow } from "./SortableMilestoneRow";
-import { canWriteProjectContent } from "../../lib/projectUtils";
+import { canWriteProjectContent, parseDateInputEnd } from "../../lib/projectUtils";
 import { ProjectTimeline } from "./ProjectTimeline";
 import type { Project, ProjectMilestone } from "../../lib/types";
 
@@ -59,7 +59,7 @@ export function ProjectMilestonesSection({ project }: Props) {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    const dueAt = dueDate ? new Date(`${dueDate}T23:59:59`).getTime() : null;
+    const dueAt = dueDate ? parseDateInputEnd(dueDate) : null;
     await createMilestone.mutateAsync({ projectId: project.id, title: title.trim(), dueAt });
     setTitle("");
     setDueDate("");
@@ -93,11 +93,11 @@ export function ProjectMilestonesSection({ project }: Props) {
   };
 
   const doneCount = milestones.filter((m) => m.status === "done").length;
-  const syncableCount = milestones.filter((m) => m.dueAt && !m.calendarEventId).length;
+  const calendarSyncCount = milestones.filter((m) => m.dueAt).length;
 
   return (
     <section className="space-y-4">
-      {canWrite && syncableCount > 0 && (
+      {canWrite && calendarSyncCount > 0 && (
         <div className="flex justify-end">
           <button
             type="button"
@@ -106,7 +106,7 @@ export function ProjectMilestonesSection({ project }: Props) {
             className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-xs font-medium text-primary-600 ring-1 ring-sky-100/90 hover:bg-white disabled:opacity-50"
           >
             <CalendarPlus className="h-3.5 w-3.5" />
-            {syncCalendar.isPending ? "동기화 중..." : `캘린더에 마일스톤 ${syncableCount}건 추가`}
+            {syncCalendar.isPending ? "동기화 중..." : `캘린더에 마일스톤 ${calendarSyncCount}건 동기화`}
           </button>
         </div>
       )}

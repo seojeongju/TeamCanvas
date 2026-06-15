@@ -9,7 +9,7 @@ import {
   splitCalendarEvents,
 } from "../../lib/calendarEventSources";
 import { eventListSubtitle, type EventDisplayContext } from "../../lib/todayEventsGroup";
-import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
+import { calendarEventAriaLabel, eventPreviewTitle } from "../../lib/calendarEventUi";
 import type { CalendarEvent, OrgHoliday } from "../../lib/types";
 import { cn } from "../../lib/cn";
 import { useMemberNameMap } from "../../hooks/useAdmin";
@@ -64,7 +64,7 @@ function DayEventRow({
           )}
         />
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-navy-900">{event.title}</p>
+          <p className="font-medium text-navy-900">{eventPreviewTitle(event)}</p>
           <p className="text-xs text-navy-600">{eventListSubtitle(event, displayCtx)}</p>
           {event.recurrenceRule && (
             <p className="mt-0.5 text-[10px] text-primary-600">

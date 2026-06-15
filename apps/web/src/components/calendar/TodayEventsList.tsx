@@ -16,7 +16,7 @@ import {
 } from "../../lib/todayEventsGroup";
 import type { CalendarEvent } from "../../lib/types";
 import { cn } from "../../lib/cn";
-import { calendarEventAriaLabel } from "../../lib/calendarEventUi";
+import { calendarEventAriaLabel, eventPreviewTitle } from "../../lib/calendarEventUi";
 import { useMemberNameMap } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
 import { useEventPreviewTooltip } from "./EventPreviewTooltip";
@@ -75,7 +75,7 @@ function TodayEventRow({
           )}
         />
         <div className="min-w-0 flex-1">
-          <p className={cn("font-medium text-navy-900", compact && "text-sm")}>{event.title}</p>
+          <p className={cn("font-medium text-navy-900", compact && "text-sm")}>{eventPreviewTitle(event)}</p>
           <p className="text-xs text-navy-600">{eventListSubtitle(event, displayCtx)}</p>
           {event.recurrenceRule && (
             <p className="mt-0.5 text-[11px] text-primary-600">
