@@ -6,7 +6,6 @@ import { requireOrgFeature } from "../utils/subscriptions";
 import { newId, now } from "../utils/helpers";
 import {
   assertProjectAccess,
-  canDeleteProject,
   canProjectEditMeta,
   canProjectManageMembers,
   canProjectWriteContent,
@@ -484,14 +483,23 @@ projectRoutes.delete("/projects/:projectId", async (c) => {
   if (!existing) return c.json({ error: "not found" }, 404);
 
   const orgId = existing.organization_id as string;
-  const member = await requireOrgPermission(c, user.id, orgId, "projects:delete");
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
   if (member instanceof Response) return member;
 
   const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
   if (access) return access;
 
-  const canDelete = await canDeleteProject(c.env.DB, user.id, member.role, projectId);
-  if (!canDelete) return c.json({ error: "forbidden" }, 403);
+  const { authorizeProjectDelete, isOrgAdmin } = await import("../utils/deleteGuards");
+  const auth = await authorizeProjectDelete(c.env.DB, user.id, member.role, {
+    id: projectId,
+    owner_id: existing.owner_id as string,
+  });
+  if (!auth.allowed) return c.json({ error: auth.error }, auth.status);
+
+  if (!isOrgAdmin(member.role)) {
+    const canWrite = await requireOrgPermission(c, user.id, orgId, "projects:write");
+    if (canWrite instanceof Response) return canWrite;
+  }
 
   const feature = await requireOrgFeature(c, orgId, "tasks");
   if (feature instanceof Response) return feature;

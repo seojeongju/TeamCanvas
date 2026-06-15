@@ -232,6 +232,7 @@ export type LinkedTaskSummary = {
   status: TaskStatus;
   priority: string;
   dueAt: number | null;
+  assigneeId?: string | null;
   assignee: string;
 };
 

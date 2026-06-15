@@ -2,18 +2,26 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FolderKanban, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 import { ConvertTaskToProjectModal } from "../modals/ConvertTaskToProjectModal";
+import {
+  canDeleteEntity,
+  isOrgAdminRole,
+  taskHasCollaborationLinks,
+} from "../../lib/deletePermissions";
 import { TaskActivityFolder } from "./TaskActivityFolder";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
   useCreateTaskComment,
   useDeleteTask,
-  useTaskComments,
+  useEvent,
+  useEventAttendees,
+  useProjectMembers,
   useProjects,
+  useTaskComments,
   useTeams,
   useUpdateTask,
 } from "../../hooks/useData";
-import { useHasPermission } from "../../hooks/usePermissions";
+import { useCurrentOrgRole, useHasPermission } from "../../hooks/usePermissions";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
@@ -38,14 +46,39 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const createComment = useCreateTaskComment();
   const user = useAuthStore((s) => s.user);
   const canDeleteAny = useHasPermission("tasks:delete");
+  const orgRole = useCurrentOrgRole();
+  const isAdmin = isOrgAdminRole(orgRole);
   const canWrite = useHasPermission("tasks:write");
   const canManageProjects = useHasPermission("projects:write");
-  const canDelete =
-    canDeleteAny || (canWrite && !!task?.creatorId && task.creatorId === user?.id);
   const { data: membersData } = useOrgMembers();
   const { data: teamsData } = useTeams();
   const { data: projectsData } = useProjects();
   const { data: commentsData } = useTaskComments(task?.id);
+  const { data: projectMembersData } = useProjectMembers(task?.projectId ?? undefined);
+  const { data: eventAttendeesData } = useEventAttendees(task?.eventId ?? undefined);
+  const { data: linkedEventData } = useEvent(task?.eventId ?? undefined);
+  const projects = projectsData?.projects ?? [];
+  const linkedProject = projects.find((p) => p.id === task?.projectId);
+  const projectOtherMemberCount = (projectMembersData?.members ?? []).filter(
+    (m) => m.userId !== linkedProject?.ownerId,
+  ).length;
+  const hasCollaboration = task
+    ? taskHasCollaborationLinks(task, {
+        projectOtherMemberCount,
+        eventAttendeeUserIds: eventAttendeesData?.attendees.map((a) => a.user_id),
+        eventCreatorId: linkedEventData?.event.creatorId ?? null,
+        linkedEventIsMilestone: linkedEventData?.event.description?.startsWith("프로젝트:"),
+      })
+    : false;
+  const canDelete =
+    !!task &&
+    canDeleteEntity({
+      isOrgAdmin: isAdmin,
+      hasAdminDeletePermission: canDeleteAny,
+      isCreator: !!task.creatorId && task.creatorId === user?.id,
+      hasCollaborationLinks: hasCollaboration,
+    }) &&
+    (isAdmin || canDeleteAny || (canWrite && task.creatorId === user?.id));
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -60,7 +93,6 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
 
   const members = membersData?.members ?? [];
   const teams = teamsData?.teams ?? [];
-  const projects = projectsData?.projects ?? [];
   const comments = commentsData?.comments ?? [];
 
   useEffect(() => {

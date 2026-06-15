@@ -1069,9 +1069,17 @@ app.delete("/events/:eventId", async (c) => {
     .first<{ organization_id: string; creator_id: string }>();
   if (!event) return c.json({ error: "Not found" }, 404);
 
-  const canDeleteAny = await requireOrgPermission(c, user.id, event.organization_id, "events:delete");
-  if (canDeleteAny instanceof Response) {
-    if (event.creator_id !== user.id) return canDeleteAny;
+  const member = await requireOrgPermission(c, user.id, event.organization_id, "events:read");
+  if (member instanceof Response) return member;
+
+  const { authorizeEventDelete, isOrgAdmin } = await import("../utils/deleteGuards");
+  const auth = await authorizeEventDelete(c.env.DB, user.id, member.role, {
+    id: eventId,
+    creator_id: event.creator_id,
+  });
+  if (!auth.allowed) return c.json({ error: auth.error }, auth.status);
+
+  if (!isOrgAdmin(member.role)) {
     const canWrite = await requireOrgPermission(c, user.id, event.organization_id, "events:write");
     if (canWrite instanceof Response) return canWrite;
   }
@@ -1697,9 +1705,17 @@ app.delete("/tasks/:taskId", async (c) => {
     .first<{ organization_id: string; creator_id: string }>();
   if (!task) return c.json({ error: "Not found" }, 404);
 
-  const canDeleteAny = await requireOrgPermission(c, user.id, task.organization_id, "tasks:delete");
-  if (canDeleteAny instanceof Response) {
-    if (task.creator_id !== user.id) return canDeleteAny;
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { authorizeTaskDelete, isOrgAdmin } = await import("../utils/deleteGuards");
+  const auth = await authorizeTaskDelete(c.env.DB, user.id, member.role, {
+    id: taskId,
+    creator_id: task.creator_id,
+  });
+  if (!auth.allowed) return c.json({ error: auth.error }, auth.status);
+
+  if (!isOrgAdmin(member.role)) {
     const canWrite = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
     if (canWrite instanceof Response) return canWrite;
   }

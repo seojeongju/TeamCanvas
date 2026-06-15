@@ -14,8 +14,14 @@ import { ProjectMembersSection } from "../components/projects/ProjectMembersSect
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
-import { useDeleteProject, useProject, useTeams, useUpdateProject } from "../hooks/useData";
-import { useHasPermission } from "../hooks/usePermissions";
+import { useDeleteProject, useProject, useProjectMembers, useTasks, useTeams, useUpdateProject } from "../hooks/useData";
+import { useCurrentOrgRole, useHasPermission } from "../hooks/usePermissions";
+import { useAuthStore } from "../stores/authStore";
+import {
+  canDeleteEntity,
+  isOrgAdminRole,
+  projectHasCollaborationLinks,
+} from "../lib/deletePermissions";
 import {
   canEditProjectMeta,
   formatProjectDateRange,
@@ -53,9 +59,32 @@ export function ProjectDetailPage() {
   const updateProject = useUpdateProject();
   const teams = teamsData?.teams ?? [];
   const deleteProject = useDeleteProject();
-  const canDelete = useHasPermission("projects:delete");
+  const canDeletePerm = useHasPermission("projects:delete");
+  const orgRole = useCurrentOrgRole();
+  const isAdmin = isOrgAdminRole(orgRole);
+  const user = useAuthStore((s) => s.user);
+  const { data: membersData } = useProjectMembers(projectId);
 
   const project = data?.project;
+  const { data: tasksData } = useTasks(project ? { projectId: project.id } : undefined);
+  const hasCollaboration = project
+    ? projectHasCollaborationLinks(
+        project,
+        (membersData?.members ?? []).map((m) => m.userId),
+        (tasksData?.tasks ?? []).map((t) => ({
+          assigneeId: t.assigneeId,
+          creatorId: t.creatorId,
+        })),
+      )
+    : false;
+  const canDelete = project
+    ? canDeleteEntity({
+        isOrgAdmin: isAdmin,
+        hasAdminDeletePermission: canDeletePerm,
+        isCreator: project.isOwner ?? project.ownerId === user?.id,
+        hasCollaborationLinks: hasCollaboration,
+      })
+    : false;
   const [tab, setTab] = useState<TabId>("overview");
 
   useEffect(() => {
@@ -345,7 +374,7 @@ export function ProjectDetailPage() {
                   소유권 이전
                 </Button>
               )}
-              {canDelete && (project.isOwner || project.currentUserRole === "owner") && (
+              {canDelete && (
                 <button
                   type="button"
                   onClick={handleDelete}

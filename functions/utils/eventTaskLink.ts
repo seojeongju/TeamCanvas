@@ -24,6 +24,7 @@ export type LinkedTaskRow = {
   status: string;
   priority: string;
   dueAt: number | null;
+  assigneeId: string | null;
   assignee: string;
 };
 
@@ -34,7 +35,7 @@ export async function fetchLinkedTasks(
 ): Promise<LinkedTaskRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT t.id, t.title, t.status, t.priority, t.due_at, u.name as assignee_name
+      `SELECT t.id, t.title, t.status, t.priority, t.due_at, t.assignee_id, u.name as assignee_name
        FROM tasks t
        LEFT JOIN users u ON u.id = t.assignee_id
        WHERE t.event_id = ? AND t.organization_id = ?
@@ -51,6 +52,7 @@ export async function fetchLinkedTasks(
       status: r.status as string,
       priority: (r.priority as string) ?? "medium",
       dueAt: (r.due_at as number | null) ?? null,
+      assigneeId: (r.assignee_id as string | null) ?? null,
       assignee: (r.assignee_name as string) ?? "미배정",
     };
   });

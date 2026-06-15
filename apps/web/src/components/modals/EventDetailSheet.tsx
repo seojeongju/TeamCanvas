@@ -32,11 +32,12 @@ import {
   useEvent,
   useEventAttendees,
   useEventComments,
+  useEventLinkedTasks,
   useUpdateEvent,
   useUpdateEventRsvp,
 } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
-import { useHasPermission } from "../../hooks/usePermissions";
+import { useCurrentOrgRole, useHasPermission } from "../../hooks/usePermissions";
 import { useTeamDetail } from "../../hooks/useOrgSettings";
 import { useAuthStore } from "../../stores/authStore";
 import type { CalendarEvent } from "../../lib/types";
@@ -45,6 +46,11 @@ import { eventPreviewTitle } from "../../lib/calendarEventUi";
 import { formatEventCreatorLabel } from "../../lib/todayEventsGroup";
 import { googleCalendarOpenUrl, personalGoogleEventClassName } from "../../lib/calendarEventSources";
 import { canCopyCalendarEvent } from "../../lib/eventCopy";
+import {
+  canDeleteEntity,
+  eventHasCollaborationLinks,
+  isOrgAdminRole,
+} from "../../lib/deletePermissions";
 
 const VISIBILITY_LABELS: Record<string, string> = {
   private: "나만 보기",
@@ -71,6 +77,8 @@ export function EventDetailSheet({
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const canDeleteAny = useHasPermission("events:delete");
+  const orgRole = useCurrentOrgRole();
+  const isAdmin = isOrgAdminRole(orgRole);
   const canWrite = useHasPermission("events:write");
   const isGoogle = event?.sourceType === "google";
   const teamEventId = event?.id && !isGoogle ? event.id : undefined;
@@ -83,6 +91,7 @@ export function EventDetailSheet({
   const { data: freshEventData } = useEvent(teamEventId);
   const { data: membersData } = useOrgMembers();
   const { data: attendeesData } = useEventAttendees(teamEventId);
+  const { data: linkedTasksData } = useEventLinkedTasks(teamEventId);
   const { data: commentsData } = useEventComments(teamEventId);
   const attendees = attendeesData?.attendees ?? [];
   const comments = commentsData?.comments ?? [];
@@ -141,11 +150,22 @@ export function EventDetailSheet({
 
   const canCopy = canCopyCalendarEvent(displayEvent) && canWrite && !!onCopy;
 
+  const hasCollaboration = eventHasCollaborationLinks(
+    displayEvent,
+    attendees.map((a) => a.user_id),
+    linkedTasksData?.tasks ?? [],
+  );
+
   const canDelete =
     !isGoogleEvent &&
     displayEvent.sourceType !== "task" &&
-    (canDeleteAny ||
-      (canWrite && !!displayEvent.creatorId && displayEvent.creatorId === user?.id));
+    canDeleteEntity({
+      isOrgAdmin: isAdmin,
+      hasAdminDeletePermission: canDeleteAny,
+      isCreator: !!displayEvent.creatorId && displayEvent.creatorId === user?.id,
+      hasCollaborationLinks: hasCollaboration,
+    }) &&
+    (isAdmin || canDeleteAny || (canWrite && displayEvent.creatorId === user?.id));
 
   const handleExcludedChange = (dates: string[]) => {
     setExcludedDates(pruneExcludedDates(dates, startDate, endDate));
