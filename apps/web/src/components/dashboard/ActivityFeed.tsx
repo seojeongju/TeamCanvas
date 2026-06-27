@@ -1,5 +1,5 @@
-import { Link } from "react-router-dom";
 import { Activity, ChevronRight, RotateCcw } from "lucide-react";
+import { ActivityListItem } from "../ui/ActivityListItem";
 import { GlassCard } from "../ui/GlassCard";
 import { ListPagination } from "../tasks/ListPagination";
 import { cn } from "../../lib/cn";
@@ -143,41 +143,23 @@ export function ActivityFeed({
       ) : (
         <>
           <GlassCard className="divide-y divide-sky-100/80 p-0">
-            {items.map((item) => {
-              const inner = (
-                <div className="flex items-start gap-3 px-4 py-3">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-500">
-                    <Activity className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-navy-800">
-                      <span className="font-medium">{item.actorName}</span>
-                      <span className="text-navy-600"> · {item.summary}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-navy-500">{formatRelativeTime(item.createdAt)}</p>
-                  </div>
-                  {item.link && <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-navy-400" />}
-                </div>
-              );
-
-              if (item.link) {
-                return (
-                  <Link
-                    key={item.id}
-                    to={item.link}
-                    className="block transition hover:bg-sky-50/60"
-                  >
-                    {inner}
-                  </Link>
-                );
-              }
-
-              return (
-                <div key={item.id} className="block">
-                  {inner}
-                </div>
-              );
-            })}
+            {items.map((item) => (
+              <ActivityListItem
+                key={item.id}
+                actorName={item.actorName}
+                summary={item.summary}
+                time={formatRelativeTime(item.createdAt)}
+                action={item.action}
+                kind={item.kind}
+                href={item.link}
+                className="px-2"
+                trailing={
+                  item.link ? (
+                    <ChevronRight className="mt-3 mr-2 h-4 w-4 shrink-0 text-navy-400" />
+                  ) : undefined
+                }
+              />
+            ))}
           </GlassCard>
 
           <ListPagination

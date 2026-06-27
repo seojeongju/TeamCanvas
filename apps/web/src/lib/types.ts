@@ -252,6 +252,7 @@ export type OrgActivityItem = {
   id: string;
   kind: "audit" | "task" | "project";
   actorName: string;
+  action: string;
   summary: string;
   link: string | null;
   createdAt: number;

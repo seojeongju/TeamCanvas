@@ -3,6 +3,11 @@ import { CSS } from "@dnd-kit/utilities";
 import { Check, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { formatMilestoneDue, MILESTONE_STATUS_OPTIONS } from "../../lib/projectUtils";
+import {
+  milestoneWorkTone,
+  workToneAccentClass,
+  workToneTitleClass,
+} from "../../lib/statusVisuals";
 import type { ProjectMilestone } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
@@ -32,9 +37,13 @@ export function SortableMilestoneRow({
     opacity: isDragging ? 0.6 : 1,
   };
 
+  const workTone = milestoneWorkTone(m.status);
+
   return (
     <div ref={setNodeRef} style={style}>
-      <GlassCard className="flex items-center gap-2 p-3">
+      <GlassCard className="flex overflow-hidden p-0">
+        <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
+        <div className="flex min-w-0 flex-1 items-center gap-2 p-3">
         {canWrite && (
           <button
             type="button"
@@ -68,10 +77,7 @@ export function SortableMilestoneRow({
           className="min-w-0 flex-1 text-left disabled:cursor-default"
         >
           <p
-            className={cn(
-              "font-medium text-navy-900",
-              m.status === "done" && "text-navy-500 line-through",
-            )}
+            className={cn("font-medium", workToneTitleClass(workTone))}
           >
             {m.title}
           </p>
@@ -103,6 +109,7 @@ export function SortableMilestoneRow({
             </button>
           </>
         )}
+        </div>
       </GlassCard>
     </div>
   );

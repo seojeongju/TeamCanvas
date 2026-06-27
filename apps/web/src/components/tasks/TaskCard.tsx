@@ -7,6 +7,15 @@ import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
 
 import {
+  taskStatusLabel,
+  taskWorkTone,
+  workToneAccentClass,
+  workToneBadgeClass,
+  workToneCardClass,
+  workToneTitleClass,
+} from "../../lib/statusVisuals";
+
+import {
 
   advanceStatus,
 
@@ -48,20 +57,6 @@ interface TaskCardProps {
 
 const SWIPE_THRESHOLD = 72;
 
-
-
-const STATUS_ACCENT: Record<TaskStatus, string> = {
-
-  todo: "bg-sky-400",
-
-  doing: "bg-primary-400",
-
-  done: "bg-emerald-400",
-
-};
-
-
-
 export function TaskCard({
 
   task,
@@ -85,6 +80,8 @@ export function TaskCard({
   const [offsetX, setOffsetX] = useState(0);
 
   const [swiping, setSwiping] = useState(false);
+
+  const workTone = taskWorkTone(task);
 
 
 
@@ -150,7 +147,7 @@ export function TaskCard({
 
 
 
-      <GlassCard className={cn("relative overflow-hidden p-0 transition-transform", compact && "shadow-sm")}>
+      <GlassCard className={cn("relative overflow-hidden p-0 transition-transform", compact && "shadow-sm", workToneCardClass(workTone))}>
 
         <div
 
@@ -168,7 +165,7 @@ export function TaskCard({
 
         >
 
-          <div className={cn("w-1 shrink-0", STATUS_ACCENT[task.status])} aria-hidden />
+          <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
 
 
 
@@ -189,6 +186,15 @@ export function TaskCard({
                 <div className="min-w-0 flex-1">
 
                   <div className="flex flex-wrap items-center gap-1.5">
+
+                    <span
+                      className={cn(
+                        "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                        workToneBadgeClass(workTone),
+                      )}
+                    >
+                      {taskStatusLabel(task.status)}
+                    </span>
 
                     <span
 
@@ -224,11 +230,11 @@ export function TaskCard({
 
                     className={cn(
 
-                      "mt-1.5 font-semibold leading-snug text-navy-900",
+                      "mt-1.5 font-semibold leading-snug",
 
                       compact ? "text-sm" : "text-[15px]",
 
-                      task.status === "done" && "text-navy-500 line-through",
+                      workToneTitleClass(workTone),
 
                     )}
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { History } from "lucide-react";
+import { ActivityListItem } from "../ui/ActivityListItem";
 import { GlassCard } from "../ui/GlassCard";
 import { useProjectActivities } from "../../hooks/useData";
 import { cn } from "../../lib/cn";
@@ -70,14 +71,17 @@ export function ProjectActivitySection({ projectId }: { projectId: string }) {
           {filter === "all" ? "아직 기록된 활동이 없습니다." : "해당 유형의 활동이 없습니다."}
         </GlassCard>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1">
           {activities.map((a: ProjectActivity) => (
-            <GlassCard key={a.id} className="px-4 py-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-navy-800">{a.actorName}</span>
-                <span className="text-[10px] text-navy-500">{a.time}</span>
-              </div>
-              <p className="mt-1 text-sm text-navy-700">{a.summary}</p>
+            <GlassCard key={a.id} className="p-0">
+              <ActivityListItem
+                actorName={a.actorName}
+                summary={a.summary}
+                time={a.time}
+                action={a.action}
+                kind="project"
+                className="px-2"
+              />
             </GlassCard>
           ))}
         </div>

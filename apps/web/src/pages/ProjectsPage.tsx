@@ -21,12 +21,26 @@ import {
   type ProjectViewMode,
 } from "../lib/projectUtils";
 import { cn } from "../lib/cn";
+import {
+  projectWorkTone,
+  workToneAccentClass,
+  workToneCardClass,
+  workToneTitleClass,
+} from "../lib/statusVisuals";
 import type { Project, ProjectStatus } from "../lib/types";
 
 function ProjectCard({ project }: { project: Project }) {
+  const workTone = projectWorkTone(project.status);
   return (
     <Link to={`/projects/${project.id}`} className="block">
-      <GlassCard className="flex items-center gap-3 p-4 transition hover:bg-white/90 active:scale-[0.99]">
+      <GlassCard
+        className={cn(
+          "flex overflow-hidden p-0 transition hover:bg-white/90 active:scale-[0.99]",
+          workToneCardClass(workTone),
+        )}
+      >
+        <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
+        <div className="flex min-w-0 flex-1 items-center gap-3 p-4">
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
           style={{ backgroundColor: `${project.color}22` }}
@@ -35,7 +49,7 @@ function ProjectCard({ project }: { project: Project }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate font-semibold text-navy-900">{project.name}</p>
+            <p className={cn("truncate font-semibold", workToneTitleClass(workTone))}>{project.name}</p>
             <span
               className={cn(
                 "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
@@ -56,6 +70,7 @@ function ProjectCard({ project }: { project: Project }) {
           </p>
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-navy-400" />
+        </div>
       </GlassCard>
     </Link>
   );

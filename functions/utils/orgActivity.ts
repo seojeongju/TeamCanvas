@@ -60,6 +60,7 @@ export type OrgActivityItem = {
   id: string;
   kind: "audit" | "task" | "project";
   actorName: string;
+  action: string;
   summary: string;
   link: string | null;
   createdAt: number;
@@ -144,6 +145,7 @@ function mapActivityRows(rows: OrgActivityRow[]): OrgActivityItem[] {
       id: `${row.kind}:${row.id}`,
       kind: row.kind as "audit" | "task" | "project",
       actorName,
+      action: row.action,
       summary,
       link: activityLink(row.entity_type, row.entity_id),
       createdAt: row.created_at,
