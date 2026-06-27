@@ -8,6 +8,8 @@ import { useCurrentOrgId } from "../../stores/orgStore";
 import { api } from "../../lib/api";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { projectStatusLabel } from "../../lib/projectUtils";
+import { cn } from "../../lib/cn";
+import type { DashboardProjectFilter, DashboardTaskFilter } from "../../lib/dashboardStatusFilters";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "할 일",
@@ -20,9 +22,17 @@ const PROJECT_STATUS_KEYS = ["planning", "active", "on_hold", "done", "archived"
 export function DashboardInsightsPanel({
   insights,
   isLoading,
+  taskFilter = "all",
+  projectFilter = "all",
+  onTaskFilterChange,
+  onProjectFilterChange,
 }: {
   insights?: Insights;
   isLoading?: boolean;
+  taskFilter?: DashboardTaskFilter;
+  projectFilter?: DashboardProjectFilter;
+  onTaskFilterChange?: (filter: DashboardTaskFilter) => void;
+  onProjectFilterChange?: (filter: DashboardProjectFilter) => void;
 }) {
   const orgId = useCurrentOrgId();
   const canExport = useHasPermission("org:read");
@@ -100,13 +110,26 @@ export function DashboardInsightsPanel({
             {(["todo", "doing", "done"] as const).map((key) => {
               const count = insights.tasksByStatus[key];
               const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              const isActive = taskFilter === key;
+              const interactive = Boolean(onTaskFilterChange);
               return (
-                <div key={key} className="flex items-center justify-between text-xs">
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!interactive}
+                  onClick={() => onTaskFilterChange?.(isActive ? "all" : key)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg px-2 py-1 text-xs transition",
+                    interactive && "hover:bg-sky-50/80",
+                    isActive && "bg-primary-400/10 ring-1 ring-primary-200/80",
+                    !interactive && "cursor-default",
+                  )}
+                >
                   <span className="text-navy-600">{STATUS_LABELS[key]}</span>
                   <span className="font-medium text-navy-800">
                     {count}건 ({pct}%)
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -139,11 +162,26 @@ export function DashboardInsightsPanel({
               {PROJECT_STATUS_KEYS.map((key) => {
                 const count = insights.projectsByStatus![key] ?? 0;
                 const pct = projectTotal > 0 ? Math.round((count / projectTotal) * 100) : 0;
+                const isActive = projectFilter === key;
+                const interactive = Boolean(onProjectFilterChange);
                 return (
-                  <div key={key} className="rounded-xl bg-white/60 px-3 py-2 text-center">
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={!interactive}
+                    onClick={() => onProjectFilterChange?.(isActive ? "all" : key)}
+                    className={cn(
+                      "rounded-xl bg-white/60 px-3 py-2 text-center transition",
+                      interactive && "hover:bg-white/90",
+                      isActive && "bg-primary-400/10 ring-1 ring-primary-200/80",
+                      !interactive && "cursor-default",
+                    )}
+                  >
                     <p className="text-lg font-bold text-navy-900">{count}</p>
-                    <p className="text-[11px] text-navy-500">{projectStatusLabel(key)} ({pct}%)</p>
-                  </div>
+                    <p className="text-[11px] text-navy-500">
+                      {projectStatusLabel(key)} ({pct}%)
+                    </p>
+                  </button>
                 );
               })}
             </div>

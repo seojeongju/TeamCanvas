@@ -9,6 +9,7 @@ import {
   type ActivityFeedFilters,
 } from "../components/dashboard/ActivityFeed";
 import { DashboardInsightsPanel } from "../components/dashboard/DashboardInsights";
+import { DashboardStatusFilterBar } from "../components/dashboard/DashboardStatusFilterBar";
 import { DashboardWidgetSection } from "../components/dashboard/DashboardWidgetSection";
 import { DashboardWidgetSettingsModal } from "../components/dashboard/DashboardWidgetSettingsModal";
 import { MyTasksCard } from "../components/dashboard/MyTasksCard";
@@ -40,6 +41,13 @@ import { endOfDay, fromDateLocal, startOfDay } from "../lib/dates";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
 import { expandCalendarEvents, resolveParentEventId } from "../lib/recurrence";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
+import {
+  countDashboardProjects,
+  countDashboardTasks,
+  getDashboardStatusFilters,
+  saveDashboardStatusFilters,
+  type DashboardStatusFilters,
+} from "../lib/dashboardStatusFilters";
 import type { CalendarEvent } from "../lib/types";
 
 export function DashboardPage() {
@@ -52,6 +60,9 @@ export function DashboardPage() {
   const { data: projectsData } = useProjects();
   const { data: membersData } = useOrgMembers();
   const [widgetPrefs, setWidgetPrefs] = useState<DashboardWidgetPrefs>(() => getDashboardWidgetPrefs());
+  const [statusFilters, setStatusFilters] = useState<DashboardStatusFilters>(() =>
+    getDashboardStatusFilters(),
+  );
   const [showWidgetSettings, setShowWidgetSettings] = useState(false);
   const [activityFilters, setActivityFilters] = useState<ActivityFeedFilters>({
     actorId: "",
@@ -87,6 +98,11 @@ export function DashboardPage() {
     saveDashboardWidgetPrefs(prefs);
   }, []);
 
+  const handleStatusFiltersChange = useCallback((filters: DashboardStatusFilters) => {
+    setStatusFilters(filters);
+    saveDashboardStatusFilters(filters);
+  }, []);
+
   const visibleWidgets = useMemo(() => getVisibleDashboardWidgets(widgetPrefs), [widgetPrefs]);
 
   const logout = useLogout();
@@ -95,6 +111,12 @@ export function DashboardPage() {
   const org = orgData?.organization;
   const stats = orgData?.stats;
   const tasks = tasksData?.tasks ?? [];
+  const projects = projectsData?.projects ?? [];
+  const taskFilterCounts = useMemo(
+    () => countDashboardTasks(tasks, user?.id),
+    [tasks, user?.id],
+  );
+  const projectFilterCounts = useMemo(() => countDashboardProjects(projects), [projects]);
   const todayEvents = useMemo(() => {
     const calendarEvents = eventsData?.events ?? [];
     const taskEvents = tasksToCalendarEvents(tasks, from, to);
@@ -132,7 +154,7 @@ export function DashboardPage() {
       case "projects":
         return (
           <DashboardWidgetSection key={id} title="프로젝트" linkTo="/projects">
-            <ProjectsOverviewCard />
+            <ProjectsOverviewCard projectFilter={statusFilters.project} />
           </DashboardWidgetSection>
         );
       case "today_events":
@@ -171,13 +193,24 @@ export function DashboardPage() {
       case "my_tasks":
         return (
           <DashboardWidgetSection key={id} title="내 업무" subtitle="나에게 배정된 업무" linkTo="/tasks">
-            <MyTasksCard />
+            <MyTasksCard taskFilter={statusFilters.task} />
           </DashboardWidgetSection>
         );
       case "insights":
         return (
           <div key={id}>
-            <DashboardInsightsPanel insights={insightsData} isLoading={insightsLoading} />
+            <DashboardInsightsPanel
+              insights={insightsData}
+              isLoading={insightsLoading}
+              taskFilter={statusFilters.task}
+              projectFilter={statusFilters.project}
+              onTaskFilterChange={(task) =>
+                handleStatusFiltersChange({ ...statusFilters, task })
+              }
+              onProjectFilterChange={(project) =>
+                handleStatusFiltersChange({ ...statusFilters, project })
+              }
+            />
           </div>
         );
       case "activity":
@@ -249,6 +282,13 @@ export function DashboardPage() {
           setCreatePrefillDate(new Date());
           setShowCreate(true);
         }}
+      />
+
+      <DashboardStatusFilterBar
+        filters={statusFilters}
+        taskCounts={taskFilterCounts}
+        projectCounts={projectFilterCounts}
+        onChange={handleStatusFiltersChange}
       />
 
       {visibleWidgets.map((id) => renderWidget(id))}

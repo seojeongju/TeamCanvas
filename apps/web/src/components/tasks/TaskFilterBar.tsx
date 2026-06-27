@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, User } from "lucide-react";
 import { cn } from "../../lib/cn";
+import { taskStatusLabel } from "../../lib/statusVisuals";
+import { TASK_COLUMNS } from "../../lib/taskUtils";
 import type { Project, TaskFilters, TaskLabel, Team } from "../../lib/types";
 
 interface TaskFilterBarProps {
@@ -102,12 +104,29 @@ export function TaskFilterBar({ filters, teams, projects = [], labels = [], onCh
         active={!!filters.overdue}
         activeClass="!bg-red-500"
         onClick={() =>
-          onChange({ ...filters, overdue: !filters.overdue, dueToday: false })
+          onChange({ ...filters, overdue: !filters.overdue, dueToday: false, status: undefined })
         }
       >
         <AlertTriangle className="h-3.5 w-3.5" />
         지연
       </QuickChip>
+
+      {TASK_COLUMNS.map((col) => (
+        <QuickChip
+          key={col.id}
+          active={filters.status === col.id}
+          onClick={() =>
+            onChange({
+              ...filters,
+              status: filters.status === col.id ? undefined : col.id,
+              overdue: false,
+              dueToday: false,
+            })
+          }
+        >
+          {taskStatusLabel(col.id)}
+        </QuickChip>
+      ))}
 
       {teams.length > 0 && (
         <FilterSelect

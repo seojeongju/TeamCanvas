@@ -22,6 +22,8 @@ interface TaskListViewProps {
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onCreate?: () => void;
   canWrite?: boolean;
+  statusTab?: TaskStatus;
+  onStatusTabChange?: (status: TaskStatus) => void;
 }
 
 function clampPage(page: number, totalPages: number): number {
@@ -52,8 +54,12 @@ export function TaskListView({
   onStatusChange,
   onCreate,
   canWrite = true,
+  statusTab,
+  onStatusTabChange,
 }: TaskListViewProps) {
-  const [activeTab, setActiveTab] = useState<TaskStatus>("todo");
+  const [internalTab, setInternalTab] = useState<TaskStatus>("todo");
+  const activeTab = statusTab ?? internalTab;
+  const setActiveTab = onStatusTabChange ?? setInternalTab;
   const [sectionPages, setSectionPages] = useState<Partial<Record<TaskStatus, number>>>({});
 
   const counts = useMemo(() => taskCountsByStatus(tasks), [tasks]);
@@ -61,14 +67,19 @@ export function TaskListView({
   const activeTasks = useMemo(() => tasksForStatus(tasks, activeTab), [tasks, activeTab]);
 
   useEffect(() => {
+    if (statusTab) setInternalTab(statusTab);
+  }, [statusTab]);
+
+  useEffect(() => {
     setSectionPages({});
   }, [tasks]);
 
   useEffect(() => {
+    if (statusTab) return;
     if (counts[activeTab] > 0) return;
     const fallback = TASK_COLUMNS.find((c) => counts[c.id] > 0);
     if (fallback) setActiveTab(fallback.id);
-  }, [counts, activeTab]);
+  }, [counts, activeTab, statusTab, setActiveTab]);
 
   if (tasks.length === 0) {
     return <TaskEmptyState onCreate={onCreate} />;

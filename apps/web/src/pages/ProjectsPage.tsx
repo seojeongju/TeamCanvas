@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, FolderKanban, LayoutTemplate, Plus } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { CreateProjectModal } from "../components/modals/CreateProjectModal";
@@ -78,10 +78,12 @@ function ProjectCard({ project }: { project: Project }) {
 
 export function ProjectsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const userId = useAuthStore((s) => s.user?.id);
   const { data: teamsData } = useTeams();
   const [teamFilter, setTeamFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [statusReady, setStatusReady] = useState(false);
   const projectFilters = useMemo(() => {
     const f: import("../lib/types").ProjectFilters = {};
     if (teamFilter) f.teamId = teamFilter;
@@ -96,6 +98,33 @@ export function ProjectsPage() {
   const [sortKey, setSortKey] = useState<ProjectSortKey>("updated");
   const [mineOnly, setMineOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (
+      status === "planning" ||
+      status === "active" ||
+      status === "on_hold" ||
+      status === "done" ||
+      status === "archived"
+    ) {
+      setStatusFilter(status);
+    }
+    setStatusReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!statusReady) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (statusFilter === "all") next.delete("status");
+        else next.set("status", statusFilter);
+        return next;
+      },
+      { replace: true },
+    );
+  }, [statusFilter, statusReady, setSearchParams]);
 
   const teams = teamsData?.teams ?? [];
   const projects = data?.projects ?? [];

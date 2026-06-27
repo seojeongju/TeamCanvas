@@ -28,6 +28,7 @@ export function TasksPage() {
 
   const [viewMode, setViewMode] = useState<TaskViewMode>("list");
   const [filters, setFilters] = useState<TaskFilters>({ assignee: "all" });
+  const [filtersReady, setFiltersReady] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [createStatus, setCreateStatus] = useState<TaskStatus>("todo");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -56,6 +57,38 @@ export function TasksPage() {
     next.delete("task");
     setSearchParams(next, { replace: true });
   }, [searchParams, allTasks, setSearchParams]);
+
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const overdue = searchParams.get("overdue");
+    setFilters((f) => ({
+      ...f,
+      status:
+        status === "todo" || status === "doing" || status === "done" ? status : undefined,
+      overdue: overdue === "1",
+      dueToday: overdue === "1" ? false : f.dueToday,
+    }));
+    setFiltersReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (filters.status) next.set("status", filters.status);
+        else next.delete("status");
+        if (filters.overdue) next.set("overdue", "1");
+        else next.delete("overdue");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [filters.status, filters.overdue, filtersReady, setSearchParams]);
+
+  const handleStatusTabChange = (status: TaskStatus) => {
+    setFilters((f) => ({ ...f, status, overdue: false, dueToday: false }));
+  };
 
   const handleStatusChange = (task: Task, status: TaskStatus) => {
     if (task.status === status) return;
@@ -132,6 +165,8 @@ export function TasksPage() {
           onMove={handleMove}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
+          statusTab={filters.status}
+          onStatusTabChange={handleStatusTabChange}
         />
       ) : (
         <TaskListView
@@ -141,6 +176,8 @@ export function TasksPage() {
           onStatusChange={handleStatusChange}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
+          statusTab={filters.status}
+          onStatusTabChange={handleStatusTabChange}
         />
       )}
 

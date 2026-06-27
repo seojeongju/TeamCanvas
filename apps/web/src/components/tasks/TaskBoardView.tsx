@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -29,6 +29,8 @@ interface TaskBoardViewProps {
   onMove: (taskId: string, status: TaskStatus, sortOrder: number) => void;
   onCreate?: () => void;
   canWrite?: boolean;
+  statusTab?: TaskStatus;
+  onStatusTabChange?: (status: TaskStatus) => void;
 }
 
 function columnId(status: TaskStatus) {
@@ -49,9 +51,17 @@ export function TaskBoardView({
   onMove,
   onCreate,
   canWrite = true,
+  statusTab,
+  onStatusTabChange,
 }: TaskBoardViewProps) {
-  const [activeColumn, setActiveColumn] = useState<TaskStatus>("todo");
+  const [internalColumn, setInternalColumn] = useState<TaskStatus>("todo");
+  const activeColumn = statusTab ?? internalColumn;
+  const setActiveColumn = onStatusTabChange ?? setInternalColumn;
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  useEffect(() => {
+    if (statusTab) setInternalColumn(statusTab);
+  }, [statusTab]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
