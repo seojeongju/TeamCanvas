@@ -28,12 +28,11 @@ interface TaskCardProps {
   canWrite?: boolean;
   compact?: boolean;
   inFolder?: boolean;
-  /** 칸반 열 뷰 — 상태 뱃지 숨김, 제목 줄임, 컴팩트 푸터 */
+  /** 칸반 열 — 상태 뱃지 숨김, 제목 2줄 말줄임 */
   variant?: "default" | "board";
 }
 
 const SWIPE_THRESHOLD = 72;
-const BOARD_LABEL_LIMIT = 2;
 
 export function TaskCard({
   task,
@@ -71,12 +70,7 @@ export function TaskCard({
     setSwiping(false);
   };
 
-  const visibleLabels = isBoard
-    ? (task.labels ?? []).slice(0, BOARD_LABEL_LIMIT)
-    : (task.labels ?? []);
-  const hiddenLabelCount = isBoard ? Math.max(0, (task.labels?.length ?? 0) - BOARD_LABEL_LIMIT) : 0;
-
-  const paddingClass = isBoard ? "p-3" : compact ? "p-3" : "p-3.5";
+  const paddingClass = compact ? "p-3" : "p-3.5";
 
   return (
     <div className={cn("relative overflow-hidden rounded-2xl", inFolder && "rounded-xl")}>
@@ -91,9 +85,8 @@ export function TaskCard({
 
       <GlassCard
         className={cn(
-          "group relative overflow-hidden p-0 transition-transform",
+          "relative overflow-hidden p-0 transition-transform",
           compact && "shadow-sm",
-          isBoard && "shadow-sm hover:shadow-md",
           workToneCardClass(workTone),
         )}
       >
@@ -107,11 +100,11 @@ export function TaskCard({
         >
           <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
 
-          <div className={cn("flex min-w-0 flex-1 flex-col", paddingClass, isBoard && "pb-0")}>
+          <div className={cn("min-w-0 flex-1", paddingClass)}>
             <button type="button" onClick={() => onOpen(task)} className="w-full text-left">
-              <div className="flex items-start gap-1.5">
+              <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {!isBoard && (
                       <span
                         className={cn(
@@ -130,8 +123,8 @@ export function TaskCard({
                     >
                       {getPriorityLabel(task.priority)}
                     </span>
-                    {!isBoard && task.teamName && (
-                      <span className="max-w-[5.5rem] truncate rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
+                    {task.teamName && (
+                      <span className="max-w-[7rem] truncate rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
                         {task.teamName}
                       </span>
                     )}
@@ -143,20 +136,13 @@ export function TaskCard({
                     )}
                   </div>
 
-                  {isBoard && (task.teamName || task.projectName) && (
-                    <p className="mt-1 truncate text-[11px] font-medium text-navy-500">
-                      {task.projectName ?? task.teamName}
-                    </p>
-                  )}
-
                   <p
                     title={task.title}
                     className={cn(
-                      "font-semibold leading-snug text-navy-900",
+                      "mt-1.5 font-semibold leading-snug [word-break:keep-all]",
                       isBoard
-                        ? "mt-1 line-clamp-2 break-words text-sm"
+                        ? "line-clamp-2 text-sm text-navy-900"
                         : cn(
-                            "mt-1.5",
                             compact ? "line-clamp-2 text-sm" : "line-clamp-3 text-[15px]",
                             workToneTitleClass(workTone),
                           ),
@@ -165,44 +151,31 @@ export function TaskCard({
                     {task.title}
                   </p>
 
-                  {visibleLabels.length > 0 && (
-                    <div className={cn("flex flex-wrap gap-1", isBoard ? "mt-1.5" : "mt-1.5")}>
-                      {visibleLabels.map((label) => (
+                  {task.labels && task.labels.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {task.labels.map((label) => (
                         <span
                           key={label.id}
-                          className="max-w-[6.5rem] truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
+                          className="max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
                           style={{ backgroundColor: label.color }}
                           title={label.name}
                         >
                           {label.name}
                         </span>
                       ))}
-                      {hiddenLabelCount > 0 && (
-                        <span className="rounded-md bg-navy-100 px-1.5 py-0.5 text-[10px] font-medium text-navy-600">
-                          +{hiddenLabelCount}
-                        </span>
-                      )}
                     </div>
                   )}
                 </div>
 
                 <ChevronRight
-                  className={cn(
-                    "shrink-0 text-navy-300 transition group-hover:text-navy-400",
-                    isBoard ? "mt-0.5 h-3.5 w-3.5" : "mt-0.5 h-4 w-4",
-                  )}
+                  className="mt-0.5 h-4 w-4 shrink-0 text-navy-300"
                   strokeWidth={2}
                   aria-hidden
                 />
               </div>
 
-              <div
-                className={cn(
-                  "flex items-center justify-between gap-2 border-sky-50",
-                  isBoard ? "mt-2 border-t pt-2" : "mt-2.5 border-t pt-2.5",
-                )}
-              >
-                <div className="flex min-w-0 items-center gap-1.5">
+              <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-sky-50 pt-2.5">
+                <div className="flex min-w-0 items-center gap-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[9px] font-bold text-primary-600">
                     {getInitials(task.assignee)}
                   </span>
@@ -222,52 +195,26 @@ export function TaskCard({
               </div>
             </button>
 
-            {isBoard ? (
-              <div className="-mx-3 mt-2 flex overflow-hidden rounded-b-2xl border-t border-sky-100/80">
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => onOpen(task)}
+                className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                상세보기
+              </button>
+              {canWrite && (
                 <button
                   type="button"
-                  onClick={() => onOpen(task)}
-                  className="inline-flex flex-1 items-center justify-center gap-1 py-2.5 text-[11px] font-medium text-navy-600 transition hover:bg-sky-50/80"
+                  onClick={() => onEdit(task)}
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-primary-400/10 py-2 text-xs font-medium text-primary-600 transition hover:bg-primary-400/20"
                 >
-                  <Eye className="h-3.5 w-3.5" />
-                  상세
+                  <Pencil className="h-3.5 w-3.5" />
+                  수정
                 </button>
-                {canWrite && (
-                  <>
-                    <div className="w-px bg-sky-100/80" aria-hidden />
-                    <button
-                      type="button"
-                      onClick={() => onEdit(task)}
-                      className="inline-flex flex-1 items-center justify-center gap-1 py-2.5 text-[11px] font-medium text-primary-600 transition hover:bg-primary-400/5"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      수정
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => onOpen(task)}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  상세보기
-                </button>
-                {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => onEdit(task)}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-primary-400/10 py-2 text-xs font-medium text-primary-600 transition hover:bg-primary-400/20"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    수정
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </GlassCard>

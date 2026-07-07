@@ -21,6 +21,9 @@ import { TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { Task, TaskStatus } from "../../lib/types";
 
+/** 좁은 레이아웃(max-w-lg)에서도 읽기 좋은 칸반 열 너비 */
+const BOARD_COLUMN_WIDTH = "w-[17.5rem]";
+
 interface TaskBoardViewProps {
   tasks: Task[];
   onOpen: (task: Task) => void;
@@ -146,23 +149,28 @@ export function TaskBoardView({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="hidden gap-3 md:grid md:grid-cols-4">
-          {TASK_COLUMNS.map((col) => (
-            <DroppableColumn
-              key={col.id}
-              column={col}
-              tasks={tasksByColumn[col.id]}
-              resetKey={`${col.id}-${tasks.length}`}
-              onOpen={onOpen}
-              onEdit={onEdit}
-              onStatusChange={onStatusChange}
-              canWrite={canWrite}
-            />
-          ))}
+        <div className="hidden md:block">
+          <p className="mb-2 text-[11px] text-navy-500">열을 좌우로 스크롤해 다른 상태를 확인하세요.</p>
+          <div className="-mx-1 overflow-x-auto pb-2 [scrollbar-width:thin]">
+            <div className="flex w-max snap-x snap-mandatory gap-3 px-1">
+              {TASK_COLUMNS.map((col) => (
+                <DroppableColumn
+                  key={col.id}
+                  column={col}
+                  tasks={tasksByColumn[col.id]}
+                  resetKey={`${col.id}-${tasks.length}`}
+                  onOpen={onOpen}
+                  onEdit={onEdit}
+                  onStatusChange={onStatusChange}
+                  canWrite={canWrite}
+                />
+              ))}
+            </div>
+          </div>
         </div>
         <DragOverlay>
           {activeTask ? (
-            <div className="rotate-1 opacity-95 shadow-lg">
+            <div className={cn("rotate-1 opacity-95 shadow-lg", BOARD_COLUMN_WIDTH)}>
               <TaskCard
                 task={activeTask}
                 variant="board"
@@ -198,24 +206,22 @@ function DroppableColumn({
   const { setNodeRef, isOver } = useDroppable({ id: columnId(column.id) });
 
   return (
-    <div className="flex min-w-0 flex-col">
+    <div className={cn("flex shrink-0 snap-start flex-col", BOARD_COLUMN_WIDTH)}>
       <div className={cn("mb-2 flex items-center gap-2 border-l-4 pl-2", column.color)}>
         <h3 className="text-sm font-semibold text-navy-800">{column.label}</h3>
-        <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-navy-600 shadow-sm">
+        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-navy-600">
           {tasks.length}
         </span>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "flex min-h-[160px] flex-1 flex-col rounded-2xl border border-sky-100/60 bg-white/40 p-2 transition",
-          isOver && "border-primary-300/50 bg-sky-50/60 ring-2 ring-primary-400/15",
+          "min-h-[120px] rounded-2xl bg-sky-50/40 p-2 transition",
+          isOver && "bg-sky-50/90 ring-2 ring-primary-400/20",
         )}
       >
         {tasks.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-sky-200/80 bg-white/30 p-4 text-center text-xs text-navy-500">
-            {column.label} 업무 없음
-          </div>
+          <p className="py-6 text-center text-xs text-navy-400">업무 없음</p>
         ) : (
           <TaskPaginatedColumn tasks={tasks} resetKey={resetKey}>
             {(visibleTasks) => (
