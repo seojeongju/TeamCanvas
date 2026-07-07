@@ -487,6 +487,48 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getTaskSubtasks: (taskId: string) =>
+    request<{ subtasks: import("./types").TaskSubtask[] }>(`/api/tasks/${taskId}/subtasks`),
+
+  createTaskSubtask: (
+    taskId: string,
+    data: { title: string; status?: import("./types").TaskStatus },
+  ) =>
+    request<{ id: string }>(`/api/tasks/${taskId}/subtasks`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getTaskDependencies: (taskId: string) =>
+    request<{ dependencies: import("./types").TaskDependency[] }>(
+      `/api/tasks/${taskId}/dependencies`,
+    ),
+
+  addTaskDependency: (taskId: string, dependsOnTaskId: string) =>
+    request<{ id: string }>(`/api/tasks/${taskId}/dependencies`, {
+      method: "POST",
+      body: JSON.stringify({ dependsOnTaskId }),
+    }),
+
+  removeTaskDependency: (taskId: string, dependencyId: string) =>
+    request<{ ok: boolean }>(`/api/tasks/${taskId}/dependencies/${dependencyId}`, {
+      method: "DELETE",
+    }),
+
+  getTaskSavedFilters: (orgId: string) =>
+    request<{ filters: import("./types").TaskSavedFilter[] }>(
+      `/api/organizations/${orgId}/task-saved-filters`,
+    ),
+
+  createTaskSavedFilter: (orgId: string, name: string, filters: import("./types").TaskFilters) =>
+    request<{ id: string }>(`/api/organizations/${orgId}/task-saved-filters`, {
+      method: "POST",
+      body: JSON.stringify({ name, filters }),
+    }),
+
+  deleteTaskSavedFilter: (filterId: string) =>
+    request<{ ok: boolean }>(`/api/task-saved-filters/${filterId}`, { method: "DELETE" }),
+
   deleteTask: (taskId: string) =>
     request<{ ok: boolean }>(`/api/tasks/${taskId}`, { method: "DELETE" }),
 

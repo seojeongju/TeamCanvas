@@ -724,6 +724,122 @@ export function useDeleteChecklistItem() {
   });
 }
 
+export function useTaskSubtasks(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ["task-subtasks", taskId],
+    queryFn: () => api.getTaskSubtasks(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+export function useCreateTaskSubtask() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      title,
+      status,
+    }: {
+      taskId: string;
+      title: string;
+      status?: import("../lib/types").TaskStatus;
+    }) => api.createTaskSubtask(taskId, { title, status }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-subtasks", v.taskId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+    },
+  });
+}
+
+export function useUpdateTaskSubtaskStatus() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (vars: {
+      subtaskId: string;
+      parentTaskId: string;
+      status: import("../lib/types").TaskStatus;
+    }) => api.updateTask(vars.subtaskId, { status: vars.status }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-subtasks", v.parentTaskId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+    },
+  });
+}
+
+export function useTaskDependencies(taskId: string | undefined) {
+  return useQuery({
+    queryKey: ["task-dependencies", taskId],
+    queryFn: () => api.getTaskDependencies(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+export function useAddTaskDependency() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      dependsOnTaskId,
+    }: {
+      taskId: string;
+      dependsOnTaskId: string;
+    }) => api.addTaskDependency(taskId, dependsOnTaskId),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-dependencies", v.taskId] });
+    },
+  });
+}
+
+export function useRemoveTaskDependency() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      dependencyId,
+    }: {
+      taskId: string;
+      dependencyId: string;
+    }) => api.removeTaskDependency(taskId, dependencyId),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-dependencies", v.taskId] });
+    },
+  });
+}
+
+export function useTaskSavedFilters() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["task-saved-filters", orgId],
+    queryFn: () => api.getTaskSavedFilters(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateTaskSavedFilter() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ name, filters }: { name: string; filters: TaskFilters }) =>
+      api.createTaskSavedFilter(orgId!, name, filters),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task-saved-filters", orgId] });
+    },
+  });
+}
+
+export function useDeleteTaskSavedFilter() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (filterId: string) => api.deleteTaskSavedFilter(filterId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["task-saved-filters", orgId] });
+    },
+  });
+}
+
 export function useGoogleCalendarStatus() {
   const orgId = useCurrentOrgId();
   return useQuery({

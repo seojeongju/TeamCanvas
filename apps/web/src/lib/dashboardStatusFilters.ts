@@ -41,6 +41,7 @@ function isTaskFilter(value: unknown): value is DashboardTaskFilter {
     value === "overdue" ||
     value === "todo" ||
     value === "doing" ||
+    value === "on_hold" ||
     value === "done"
   );
 }
@@ -67,6 +68,7 @@ export function filterDashboardMyTasks(
   switch (filter) {
     case "todo":
     case "doing":
+    case "on_hold":
     case "done":
       return mine.filter((t) => t.status === filter);
     case "overdue":
@@ -98,13 +100,14 @@ export function filterDashboardProjects(
 
 export function countDashboardTasks(tasks: Task[], userId?: string): Record<DashboardTaskFilter, number> {
   if (!userId) {
-    return { all: 0, todo: 0, doing: 0, done: 0, overdue: 0 };
+    return { all: 0, todo: 0, doing: 0, on_hold: 0, done: 0, overdue: 0 };
   }
   const mine = tasks.filter((t) => t.assigneeId === userId);
   return {
     all: mine.filter((t) => t.status !== "done").length,
     todo: mine.filter((t) => t.status === "todo").length,
     doing: mine.filter((t) => t.status === "doing").length,
+    on_hold: mine.filter((t) => t.status === "on_hold").length,
     done: mine.filter((t) => t.status === "done").length,
     overdue: mine.filter((t) => t.status !== "done" && !!t.isOverdue).length,
   };

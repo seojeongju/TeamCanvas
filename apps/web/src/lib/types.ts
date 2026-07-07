@@ -400,7 +400,7 @@ export type EventAttendee = {
   rsvp: "pending" | "accepted" | "declined" | string;
 };
 
-export type TaskStatus = "todo" | "doing" | "done";
+export type TaskStatus = "todo" | "doing" | "on_hold" | "done";
 export type TaskPriority = "low" | "medium" | "high";
 export type TaskViewMode = "board" | "list";
 
@@ -426,6 +426,37 @@ export type Task = {
   updatedAt?: number;
   labels?: TaskLabel[];
   attachmentCount?: number;
+  parentTaskId?: string | null;
+  subtaskCount?: number;
+  blockedByCount?: number;
+};
+
+export type TaskSubtask = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  assigneeId?: string | null;
+  assignee: string;
+  dueAt?: number | null;
+  due: string;
+  isOverdue?: boolean;
+  sortOrder?: number;
+  parentTaskId: string;
+};
+
+export type TaskDependency = {
+  id: string;
+  dependsOnTaskId: string;
+  title: string;
+  status: TaskStatus | string;
+};
+
+export type TaskSavedFilter = {
+  id: string;
+  name: string;
+  filters: TaskFilters;
+  createdAt: number;
+  updatedAt: number;
 };
 
 export type ProjectStatus = "planning" | "active" | "on_hold" | "done" | "archived";

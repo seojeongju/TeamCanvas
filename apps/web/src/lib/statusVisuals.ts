@@ -24,6 +24,7 @@ export type ActivityTone = "done" | "active" | "pending" | "info" | "alert";
 const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   todo: "할 일",
   doing: "진행 중",
+  on_hold: "보류",
   done: "완료",
 };
 
@@ -43,6 +44,7 @@ export function taskWorkTone(task: { status: TaskStatus; isOverdue?: boolean }):
   if (task.status === "done") return "done";
   if (task.isOverdue) return "overdue";
   if (task.status === "doing") return "active";
+  if (task.status === "on_hold") return "neutral";
   if (task.status === "todo") return "pending";
   return "neutral";
 }

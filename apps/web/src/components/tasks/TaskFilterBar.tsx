@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, User } from "lucide-react";
+import { TaskSavedFiltersMenu } from "./TaskSavedFiltersMenu";
 import { cn } from "../../lib/cn";
 import { taskStatusLabel } from "../../lib/statusVisuals";
 import { TASK_COLUMNS } from "../../lib/taskUtils";
@@ -165,6 +166,8 @@ export function TaskFilterBar({ filters, teams, projects = [], labels = [], onCh
           초기화
         </button>
       )}
+
+      <TaskSavedFiltersMenu filters={filters} onApply={onChange} />
     </div>
   );
 }

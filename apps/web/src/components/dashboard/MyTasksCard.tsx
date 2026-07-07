@@ -19,6 +19,7 @@ const FILTER_EMPTY_LABEL: Record<DashboardTaskFilter, string> = {
   all: "진행 중인 내 업무가 없습니다.",
   todo: "할 일 상태의 내 업무가 없습니다.",
   doing: "진행 중인 내 업무가 없습니다.",
+  on_hold: "보류 중인 내 업무가 없습니다.",
   done: "완료된 내 업무가 없습니다.",
   overdue: "지연된 내 업무가 없습니다.",
 };

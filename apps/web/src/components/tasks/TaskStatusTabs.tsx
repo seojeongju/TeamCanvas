@@ -64,6 +64,19 @@ const STATUS_TAB_THEME: Record<
     hoverBadge: "group-hover:bg-emerald-100 group-hover:text-emerald-800",
     hoverShadow: "hover:shadow-sm hover:shadow-emerald-200/50",
   },
+  on_hold: {
+    indicator: "bg-amber-400",
+    indicatorHover: "group-hover:bg-amber-400/70 group-hover:w-8",
+    activeBg: "bg-white ring-1 ring-amber-200/80",
+    activeText: "text-amber-800",
+    activeBadge: "bg-amber-100 text-amber-700",
+    inactiveText: "text-amber-600/85",
+    inactiveBadge: "bg-amber-50/90 text-amber-600",
+    hoverBg: "hover:bg-amber-50",
+    hoverText: "hover:text-amber-800",
+    hoverBadge: "group-hover:bg-amber-100 group-hover:text-amber-800",
+    hoverShadow: "hover:shadow-sm hover:shadow-amber-200/50",
+  },
 };
 
 export function TaskStatusTabs({ active, onChange, counts, className }: TaskStatusTabsProps) {
@@ -126,6 +139,7 @@ export function taskCountsByStatus(tasks: { status: TaskStatus }[]): Record<Task
   return {
     todo: tasks.filter((t) => t.status === "todo").length,
     doing: tasks.filter((t) => t.status === "doing").length,
+    on_hold: tasks.filter((t) => t.status === "on_hold").length,
     done: tasks.filter((t) => t.status === "done").length,
   };
 }

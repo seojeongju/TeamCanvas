@@ -111,7 +111,7 @@ export function TaskCard({
 
       onStatusChange(task, advanceStatus(task.status));
 
-    } else if (offsetX < -SWIPE_THRESHOLD && task.status !== "todo") {
+    } else if (offsetX < -SWIPE_THRESHOLD && task.status !== "todo" && task.status !== "on_hold") {
 
       onStatusChange(task, regressStatus(task.status));
 
@@ -133,7 +133,7 @@ export function TaskCard({
 
         <span className={cn("text-emerald-600", offsetX > 20 ? "opacity-100" : "opacity-0")}>
 
-          {task.status === "todo" ? "진행 →" : "완료 →"}
+          {task.status === "todo" || task.status === "on_hold" ? "진행 →" : "완료 →"}
 
         </span>
 

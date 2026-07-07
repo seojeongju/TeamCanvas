@@ -4,6 +4,7 @@ import type { CalendarEvent, Task, TaskFilters, TaskPriority, TaskStatus } from 
 export const TASK_COLUMNS: { id: TaskStatus; label: string; color: string }[] = [
   { id: "todo", label: "할 일", color: "border-sky-300" },
   { id: "doing", label: "진행 중", color: "border-primary-400" },
+  { id: "on_hold", label: "보류", color: "border-amber-300" },
   { id: "done", label: "완료", color: "border-emerald-400" },
 ];
 
@@ -41,12 +42,14 @@ export function getInitials(name: string) {
 export function advanceStatus(status: TaskStatus): TaskStatus {
   if (status === "todo") return "doing";
   if (status === "doing") return "done";
+  if (status === "on_hold") return "doing";
   return "done";
 }
 
 export function regressStatus(status: TaskStatus): TaskStatus {
   if (status === "done") return "doing";
   if (status === "doing") return "todo";
+  if (status === "on_hold") return "todo";
   return "todo";
 }
 

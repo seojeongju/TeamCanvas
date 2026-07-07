@@ -29,6 +29,8 @@ import { useAuthStore } from "../../stores/authStore";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
 import { CommentThread } from "../comments/CommentThread";
 import { TaskChecklistSection } from "./TaskChecklistSection";
+import { TaskSubtasksSection } from "./TaskSubtasksSection";
+import { TaskDependenciesSection } from "./TaskDependenciesSection";
 import { TaskLabelsSection } from "./TaskLabelsSection";
 import { TaskLinkedEventSection } from "./TaskLinkedEventSection";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
@@ -308,6 +310,8 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
           <TaskLinkedEventSection task={task} />
         </div>
         <TaskChecklistSection taskId={task.id} />
+        <TaskSubtasksSection taskId={task.id} />
+        <TaskDependenciesSection task={task} />
         <EntityFilesSection entityType="task" entityId={task.id} />
 
         <div className="mt-6">

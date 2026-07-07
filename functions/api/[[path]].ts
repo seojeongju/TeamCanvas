@@ -1161,7 +1161,7 @@ app.get("/organizations/:orgId/tasks", async (c) => {
      LEFT JOIN teams tm ON tm.id = t.team_id
      LEFT JOIN projects p ON p.id = t.project_id
      LEFT JOIN events e ON e.id = t.event_id
-     WHERE t.organization_id = ?`;
+     WHERE t.organization_id = ? AND t.parent_task_id IS NULL`;
   const binds: unknown[] = [orgId];
 
   if (assignee === "me") {
@@ -1184,9 +1184,12 @@ app.get("/organizations/:orgId/tasks", async (c) => {
     sql += " AND t.project_id = ?";
     binds.push(projectId);
   }
-  if (status && ["todo", "doing", "done"].includes(status)) {
-    sql += " AND t.status = ?";
-    binds.push(status);
+  if (status) {
+    const { isValidTaskStatus } = await import("../utils/taskConstants");
+    if (isValidTaskStatus(status)) {
+      sql += " AND t.status = ?";
+      binds.push(status);
+    }
   }
   if (overdue === "true") {
     sql += " AND t.due_at IS NOT NULL AND t.due_at < ? AND t.status != 'done'";
@@ -1301,6 +1304,10 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     ? body.priority
     : "medium";
 
+  const { isValidTaskStatus } = await import("../utils/taskConstants");
+  const taskStatus =
+    body.status && isValidTaskStatus(body.status) ? body.status : "todo";
+
   const id = newId();
   const ts = now();
   const assigneeId = body.assigneeId ?? user.id;
@@ -1318,7 +1325,7 @@ app.post("/organizations/:orgId/tasks", async (c) => {
       assigneeId,
       body.title.trim(),
       body.description ?? null,
-      body.status ?? "todo",
+      taskStatus,
       priority,
       body.dueAt ?? null,
       body.eventId ?? null,
@@ -1445,8 +1452,22 @@ app.patch("/tasks/:taskId", async (c) => {
   }
 
   if (body.status !== undefined) {
-    if (!["todo", "doing", "done"].includes(body.status)) {
+    const { isValidTaskStatus } = await import("../utils/taskConstants");
+    if (!isValidTaskStatus(body.status)) {
       return c.json({ error: "Invalid status" }, 400);
+    }
+    if (body.status === "done" && existing.status !== "done") {
+      const { getIncompleteDependencies } = await import("../utils/taskDependencies");
+      const blockers = await getIncompleteDependencies(c.env.DB, taskId);
+      if (blockers.length > 0) {
+        return c.json(
+          {
+            error: "Blocked by dependencies",
+            blockers: blockers.map((b) => ({ id: b.id, title: b.title })),
+          },
+          409,
+        );
+      }
     }
     updates.push("status = ?");
     values.push(body.status);
@@ -1583,6 +1604,339 @@ app.patch("/tasks/:taskId", async (c) => {
 
   const { bumpOrgSyncSafe } = await import("../utils/orgSync");
   await bumpOrgSyncSafe(c.env, existing.organization_id, ["tasks", "activity"]);
+
+  return c.json({ ok: true });
+});
+
+// ── Subtasks ──
+
+app.get("/tasks/:taskId/subtasks", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const parent = await c.env.DB.prepare(
+    "SELECT organization_id FROM tasks WHERE id = ? AND parent_task_id IS NULL",
+  )
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!parent) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, parent.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT t.*, u.name as assignee_name
+     FROM tasks t
+     LEFT JOIN users u ON u.id = t.assignee_id
+     WHERE t.parent_task_id = ?
+     ORDER BY t.sort_order, t.created_at ASC`,
+  )
+    .bind(taskId)
+    .all();
+
+  const ts = now();
+  const subtasks = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    const dueAt = r.due_at as number | null;
+    const taskStatus = r.status as string;
+    let due = "";
+    let isOverdue = false;
+    if (taskStatus === "done") due = "완료";
+    else if (dueAt) {
+      isOverdue = dueAt < ts;
+      const d = new Date(dueAt);
+      if (isOverdue) due = "지연";
+      else due = `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+    return {
+      id: r.id,
+      title: r.title,
+      status: taskStatus,
+      assigneeId: r.assignee_id,
+      assignee: r.assignee_name ?? "미배정",
+      dueAt,
+      due,
+      isOverdue,
+      sortOrder: r.sort_order ?? 0,
+      parentTaskId: taskId,
+    };
+  });
+
+  return c.json({ subtasks });
+});
+
+app.post("/tasks/:taskId/subtasks", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const parent = await c.env.DB.prepare(
+    `SELECT organization_id, team_id, project_id, assignee_id FROM tasks
+     WHERE id = ? AND parent_task_id IS NULL`,
+  )
+    .bind(taskId)
+    .first<{
+      organization_id: string;
+      team_id: string | null;
+      project_id: string | null;
+      assignee_id: string | null;
+    }>();
+  if (!parent) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, parent.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ title?: string; status?: string }>();
+  if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
+
+  const { isValidTaskStatus } = await import("../utils/taskConstants");
+  const status = body.status && isValidTaskStatus(body.status) ? body.status : "todo";
+
+  const id = newId();
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO tasks (
+       id, organization_id, team_id, project_id, parent_task_id, creator_id, assignee_id,
+       title, status, priority, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'medium', ?, ?)`,
+  )
+    .bind(
+      id,
+      parent.organization_id,
+      parent.team_id,
+      parent.project_id,
+      taskId,
+      user.id,
+      parent.assignee_id ?? user.id,
+      body.title.trim(),
+      status,
+      ts,
+      ts,
+    )
+    .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, parent.organization_id, ["tasks"]);
+
+  return c.json({ id }, 201);
+});
+
+// ── Task dependencies ──
+
+app.get("/tasks/:taskId/dependencies", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { fetchDependenciesForTask } = await import("../utils/taskDependencies");
+  const dependencies = await fetchDependenciesForTask(c.env.DB, taskId);
+
+  return c.json({ dependencies });
+});
+
+app.post("/tasks/:taskId/dependencies", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ dependsOnTaskId?: string }>();
+  if (!body.dependsOnTaskId) return c.json({ error: "dependsOnTaskId required" }, 400);
+
+  const dependsOn = await c.env.DB.prepare(
+    "SELECT id, organization_id FROM tasks WHERE id = ? AND parent_task_id IS NULL",
+  )
+    .bind(body.dependsOnTaskId)
+    .first<{ id: string; organization_id: string }>();
+  if (!dependsOn || dependsOn.organization_id !== task.organization_id) {
+    return c.json({ error: "Invalid dependency task" }, 400);
+  }
+
+  const { wouldCreateDependencyCycle } = await import("../utils/taskDependencies");
+  if (await wouldCreateDependencyCycle(c.env.DB, taskId, body.dependsOnTaskId)) {
+    return c.json({ error: "Circular dependency" }, 400);
+  }
+
+  const id = newId();
+  const ts = now();
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO task_dependencies (id, task_id, depends_on_task_id, created_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+      .bind(id, taskId, body.dependsOnTaskId, ts)
+      .run();
+  } catch {
+    return c.json({ error: "Dependency already exists" }, 409);
+  }
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks"]);
+
+  return c.json({ id }, 201);
+});
+
+app.delete("/tasks/:taskId/dependencies/:dependencyId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+  const dependencyId = c.req.param("dependencyId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  await c.env.DB.prepare("DELETE FROM task_dependencies WHERE id = ? AND task_id = ?")
+    .bind(dependencyId, taskId)
+    .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks"]);
+
+  return c.json({ ok: true });
+});
+
+// ── Saved task filters ──
+
+app.get("/organizations/:orgId/task-saved-filters", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, name, filters_json, created_at, updated_at
+     FROM task_saved_filters
+     WHERE organization_id = ? AND user_id = ?
+     ORDER BY updated_at DESC`,
+  )
+    .bind(orgId, user.id)
+    .all();
+
+  const filters = (results ?? []).map((row) => {
+    const r = row as Record<string, unknown>;
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(r.filters_json as string) as Record<string, unknown>;
+    } catch {
+      parsed = {};
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      filters: parsed,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  });
+
+  return c.json({ filters });
+});
+
+app.post("/organizations/:orgId/task-saved-filters", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ name?: string; filters?: Record<string, unknown> }>();
+  if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
+  if (!body.filters || typeof body.filters !== "object") {
+    return c.json({ error: "filters required" }, 400);
+  }
+
+  const id = newId();
+  const ts = now();
+  await c.env.DB.prepare(
+    `INSERT INTO task_saved_filters (id, organization_id, user_id, name, filters_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(id, orgId, user.id, body.name.trim(), JSON.stringify(body.filters), ts, ts)
+    .run();
+
+  return c.json({ id }, 201);
+});
+
+app.patch("/task-saved-filters/:filterId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const filterId = c.req.param("filterId");
+
+  const existing = await c.env.DB.prepare(
+    "SELECT organization_id, user_id FROM task_saved_filters WHERE id = ?",
+  )
+    .bind(filterId)
+    .first<{ organization_id: string; user_id: string }>();
+  if (!existing || existing.user_id !== user.id) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, existing.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const body = await c.req.json<{ name?: string; filters?: Record<string, unknown> }>();
+  const updates: string[] = [];
+  const values: unknown[] = [];
+
+  if (body.name !== undefined) {
+    if (!body.name.trim()) return c.json({ error: "name required" }, 400);
+    updates.push("name = ?");
+    values.push(body.name.trim());
+  }
+  if (body.filters !== undefined) {
+    if (!body.filters || typeof body.filters !== "object") {
+      return c.json({ error: "filters required" }, 400);
+    }
+    updates.push("filters_json = ?");
+    values.push(JSON.stringify(body.filters));
+  }
+  if (!updates.length) return c.json({ error: "Nothing to update" }, 400);
+
+  updates.push("updated_at = ?");
+  values.push(now(), filterId);
+
+  await c.env.DB.prepare(`UPDATE task_saved_filters SET ${updates.join(", ")} WHERE id = ?`)
+    .bind(...values)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+app.delete("/task-saved-filters/:filterId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const filterId = c.req.param("filterId");
+
+  const existing = await c.env.DB.prepare(
+    "SELECT user_id FROM task_saved_filters WHERE id = ?",
+  )
+    .bind(filterId)
+    .first<{ user_id: string }>();
+  if (!existing || existing.user_id !== user.id) return c.json({ error: "Not found" }, 404);
+
+  await c.env.DB.prepare("DELETE FROM task_saved_filters WHERE id = ?").bind(filterId).run();
 
   return c.json({ ok: true });
 });

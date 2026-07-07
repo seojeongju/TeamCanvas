@@ -64,7 +64,12 @@ export function TasksPage() {
     setFilters((f) => ({
       ...f,
       status:
-        status === "todo" || status === "doing" || status === "done" ? status : undefined,
+        status === "todo" ||
+        status === "doing" ||
+        status === "on_hold" ||
+        status === "done"
+          ? status
+          : undefined,
       overdue: overdue === "1",
       dueToday: overdue === "1" ? false : f.dueToday,
     }));
@@ -90,9 +95,16 @@ export function TasksPage() {
     setFilters((f) => ({ ...f, status, overdue: false, dueToday: false }));
   };
 
-  const handleStatusChange = (task: Task, status: TaskStatus) => {
+  const handleStatusChange = async (task: Task, status: TaskStatus) => {
     if (task.status === status) return;
-    updateTask.mutate({ id: task.id, status });
+    try {
+      await updateTask.mutateAsync({ id: task.id, status });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "상태 변경에 실패했습니다.";
+      if (message.includes("Blocked") || message.includes("dependencies")) {
+        window.alert("선행 업무가 완료되지 않아 완료 처리할 수 없습니다.");
+      }
+    }
   };
 
   const handleMove = (taskId: string, status: TaskStatus, sortOrder: number) => {
