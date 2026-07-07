@@ -1,8 +1,8 @@
 # TeamCanvas — 고도화 로드맵 & 이어하기 가이드
 
 > **버전:** 2.0  
-> **최종 갱신:** 2026-06-10  
-> **최신 커밋:** Sprint G — D1 rate limit·OAuth E2E·AI 튜닝  
+> **최종 갱신:** 2026-06-11  
+> **최신 작업:** Sprint 1-1·1-2 — 실시간 동기화·파일/댓글 첨부 고도화  
 > **프로덕션:** https://teamcanvas.pages.dev  
 > **관련 문서:** [PRD](./PRD.md) · [개발 계획서](./DEVELOPMENT_PLAN.md) · [배포](./DEPLOY.md)
 
@@ -49,6 +49,18 @@
 | **Google Calendar 양방향** | 읽기만 | 쓰기 동기화 없음 |
 | **멀티 조직** | UI만 (`OrgSwitcher`), API 1인 1조직 | 겸직·컨설턴트 미지원 |
 | **오프라인** | `localStorage` 캐시만 | PRD IndexedDB 목표 미달 |
+
+### 2.3 협업 고도화 Sprint 1 (2026-06-11) 🟡 진행 중
+
+| # | 기능 | 상태 | 주요 파일 |
+|---|------|------|-----------|
+| 1.1 | 조직 동기화 (D1 `org_sync_state` + 3초 폴링) | ✅ | `orgSync.ts`, `useOrgSync.ts`, `AppShell.tsx` |
+| 1.2 | 파일·이미지 공유 고도화 (다중·드래그·라이트박스·댓글 첨부) | ✅ | `EntityFilesSection.tsx`, `CommentComposer.tsx` |
+| 1.3 | 댓글 수정·삭제·스레드·리액션 | ✅ | `CommentThread.tsx`, migration `0028` |
+| 1.4 | 서브태스크·보류·저장 필터·의존성 | ⬜ | — |
+| 1.5 | 자동화 프리셋 | ⬜ | — |
+
+---
 | **테스트** | Vitest/Playwright 계획만, 0 파일 | 회귀 위험 |
 | **공개 랜딩** | `/` → 로그인 리다이렉트 | 성장 채널 없음 |
 | **i18n** | 한국어 하드코딩 | 해외 확장 불가 |

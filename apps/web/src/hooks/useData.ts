@@ -317,11 +317,65 @@ export function useProjectComments(projectId: string | undefined) {
 export function useCreateProjectComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ projectId, body }: { projectId: string; body: string }) =>
-      api.createProjectComment(projectId, body),
+    mutationFn: ({
+      projectId,
+      body,
+      parentId,
+    }: {
+      projectId: string;
+      body: string;
+      parentId?: string | null;
+    }) => api.createProjectComment(projectId, body, parentId),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-comments", vars.projectId] });
       qc.invalidateQueries({ queryKey: ["project-activities", vars.projectId] });
+    },
+  });
+}
+
+export function useUpdateProjectComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      commentId,
+      body,
+    }: {
+      projectId: string;
+      commentId: string;
+      body: string;
+    }) => api.updateProjectComment(projectId, commentId, body),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-comments", vars.projectId] });
+    },
+  });
+}
+
+export function useDeleteProjectComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectId, commentId }: { projectId: string; commentId: string }) =>
+      api.deleteProjectComment(projectId, commentId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-comments", vars.projectId] });
+    },
+  });
+}
+
+export function useToggleProjectCommentReaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      commentId,
+      emoji,
+    }: {
+      projectId: string;
+      commentId: string;
+      emoji: string;
+    }) => api.toggleProjectCommentReaction(projectId, commentId, emoji),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-comments", vars.projectId] });
     },
   });
 }
@@ -824,12 +878,66 @@ export function useTaskComments(taskId: string | undefined) {
 export function useCreateTaskComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ taskId, body }: { taskId: string; body: string }) =>
-      api.createTaskComment(taskId, body),
+    mutationFn: ({
+      taskId,
+      body,
+      parentId,
+    }: {
+      taskId: string;
+      body: string;
+      parentId?: string | null;
+    }) => api.createTaskComment(taskId, body, parentId),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["task-comments", vars.taskId] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
       invalidateTaskActivities(qc, vars.taskId);
+    },
+  });
+}
+
+export function useUpdateTaskComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      commentId,
+      body,
+    }: {
+      taskId: string;
+      commentId: string;
+      body: string;
+    }) => api.updateTaskComment(taskId, commentId, body),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["task-comments", vars.taskId] });
+    },
+  });
+}
+
+export function useDeleteTaskComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, commentId }: { taskId: string; commentId: string }) =>
+      api.deleteTaskComment(taskId, commentId),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["task-comments", vars.taskId] });
+    },
+  });
+}
+
+export function useToggleTaskCommentReaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      commentId,
+      emoji,
+    }: {
+      taskId: string;
+      commentId: string;
+      emoji: string;
+    }) => api.toggleTaskCommentReaction(taskId, commentId, emoji),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["task-comments", vars.taskId] });
     },
   });
 }
@@ -988,13 +1096,22 @@ export function useUploadEntityFile() {
       entityType,
       entityId,
       file,
+      commentId,
     }: {
       entityType: "task" | "event" | "project";
       entityId: string;
       file: File;
-    }) => api.uploadEntityFile(orgId!, entityType, entityId, file),
+      commentId?: string;
+    }) => api.uploadEntityFile(orgId!, entityType, entityId, file, commentId),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: entityFilesKey(vars.entityType, vars.entityId) });
+      if (vars.entityType === "task") {
+        qc.invalidateQueries({ queryKey: ["task-comments", vars.entityId] });
+      }
+      if (vars.entityType === "project") {
+        qc.invalidateQueries({ queryKey: ["project-comments", vars.entityId] });
+      }
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
     },
   });
 }

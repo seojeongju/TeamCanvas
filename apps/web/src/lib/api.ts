@@ -551,10 +551,25 @@ export const api = {
   getProjectComments: (projectId: string) =>
     request<{ comments: import("./types").ProjectComment[] }>(`/api/projects/${projectId}/comments`),
 
-  createProjectComment: (projectId: string, body: string) =>
+  createProjectComment: (projectId: string, body: string, parentId?: string | null) =>
     request<{ id: string }>(`/api/projects/${projectId}/comments`, {
       method: "POST",
+      body: JSON.stringify({ body, parentId: parentId ?? null }),
+    }),
+
+  updateProjectComment: (projectId: string, commentId: string, body: string) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}/comments/${commentId}`, {
+      method: "PATCH",
       body: JSON.stringify({ body }),
+    }),
+
+  deleteProjectComment: (projectId: string, commentId: string) =>
+    request<{ ok: boolean }>(`/api/projects/${projectId}/comments/${commentId}`, { method: "DELETE" }),
+
+  toggleProjectCommentReaction: (projectId: string, commentId: string, emoji: string) =>
+    request<{ added: boolean }>(`/api/projects/${projectId}/comments/${commentId}/reactions`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
     }),
 
   syncProjectMilestonesCalendar: (projectId: string) =>
@@ -667,10 +682,25 @@ export const api = {
   getTaskComments: (taskId: string) =>
     request<{ comments: import("./types").TaskComment[] }>(`/api/tasks/${taskId}/comments`),
 
-  createTaskComment: (taskId: string, body: string) =>
+  createTaskComment: (taskId: string, body: string, parentId?: string | null) =>
     request<{ id: string }>(`/api/tasks/${taskId}/comments`, {
       method: "POST",
+      body: JSON.stringify({ body, parentId: parentId ?? null }),
+    }),
+
+  updateTaskComment: (taskId: string, commentId: string, body: string) =>
+    request<{ ok: boolean }>(`/api/tasks/${taskId}/comments/${commentId}`, {
+      method: "PATCH",
       body: JSON.stringify({ body }),
+    }),
+
+  deleteTaskComment: (taskId: string, commentId: string) =>
+    request<{ ok: boolean }>(`/api/tasks/${taskId}/comments/${commentId}`, { method: "DELETE" }),
+
+  toggleTaskCommentReaction: (taskId: string, commentId: string, emoji: string) =>
+    request<{ added: boolean }>(`/api/tasks/${taskId}/comments/${commentId}/reactions`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
     }),
 
   getNotifications: () =>
@@ -694,6 +724,9 @@ export const api = {
     );
   },
 
+  getOrgSync: (orgId: string) =>
+    request<{ version: number; updatedAt: number }>(`/api/organizations/${orgId}/sync`),
+
   getEntityFiles: (entityType: "task" | "event" | "project", entityId: string) =>
     request<{ files: import("./types").TaskFile[] }>(
       entityType === "task"
@@ -703,11 +736,18 @@ export const api = {
           : `/api/projects/${entityId}/files`,
     ),
 
-  uploadEntityFile: (orgId: string, entityType: "task" | "event" | "project", entityId: string, file: File) => {
+  uploadEntityFile: (
+    orgId: string,
+    entityType: "task" | "event" | "project",
+    entityId: string,
+    file: File,
+    commentId?: string,
+  ) => {
     const form = new FormData();
     form.append("file", file);
     form.append("entityType", entityType);
     form.append("entityId", entityId);
+    if (commentId) form.append("commentId", commentId);
     return request<{ id: string; filename: string; mimeType: string; sizeBytes: number }>(
       `/api/organizations/${orgId}/files`,
       { method: "POST", body: form },

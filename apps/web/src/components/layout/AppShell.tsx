@@ -8,7 +8,11 @@ import { OrgDeletionBanner } from "../auth/OrgDeletionBanner";
 import { AppHeader } from "./AppHeader";
 import { OfflineBanner } from "./OfflineBanner";
 
+import { useOrgSync } from "../../hooks/useOrgSync";
+
 export function AppShell() {
+  useOrgSync();
+
   return (
     <div className="bg-mesh mx-auto min-h-dvh w-full max-w-lg">
       <SessionActivityRefresher />

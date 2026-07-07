@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import { Calendar, ChevronRight, Eye, Pencil } from "lucide-react";
+import { Calendar, ChevronRight, Eye, Paperclip, Pencil } from "lucide-react";
 
 import { GlassCard } from "../ui/GlassCard";
 
@@ -220,6 +220,13 @@ export function TaskCard({
 
                       </span>
 
+                    )}
+
+                    {(task.attachmentCount ?? 0) > 0 && (
+                      <span className="inline-flex items-center gap-0.5 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
+                        <Paperclip className="h-3 w-3" />
+                        {task.attachmentCount}
+                      </span>
                     )}
 
                   </div>

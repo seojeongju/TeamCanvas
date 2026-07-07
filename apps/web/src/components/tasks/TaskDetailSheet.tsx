@@ -13,18 +13,21 @@ import { Input } from "../ui/Input";
 import {
   useCreateTaskComment,
   useDeleteTask,
+  useDeleteTaskComment,
   useEvent,
   useEventAttendees,
   useProjects,
   useTaskComments,
   useTeams,
+  useToggleTaskCommentReaction,
   useUpdateTask,
+  useUpdateTaskComment,
 } from "../../hooks/useData";
 import { useCurrentOrgRole, useHasPermission } from "../../hooks/usePermissions";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
 import { EntityFilesSection } from "../ui/EntityFilesSection";
-import { MentionTextarea } from "../ui/MentionTextarea";
+import { CommentThread } from "../comments/CommentThread";
 import { TaskChecklistSection } from "./TaskChecklistSection";
 import { TaskLabelsSection } from "./TaskLabelsSection";
 import { TaskLinkedEventSection } from "./TaskLinkedEventSection";
@@ -43,6 +46,9 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const createComment = useCreateTaskComment();
+  const updateComment = useUpdateTaskComment();
+  const deleteComment = useDeleteTaskComment();
+  const toggleReaction = useToggleTaskCommentReaction();
   const user = useAuthStore((s) => s.user);
   const canDeleteAny = useHasPermission("tasks:delete");
   const orgRole = useCurrentOrgRole();
@@ -81,7 +87,6 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const [teamId, setTeamId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
-  const [commentBody, setCommentBody] = useState("");
   const [showConvertProject, setShowConvertProject] = useState(false);
 
   const members = membersData?.members ?? [];
@@ -315,41 +320,33 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
             <MessageSquare className="h-4 w-4 text-navy-600" />
             <h3 className="text-sm font-semibold text-navy-800">댓글 {comments.length}</h3>
           </div>
-          <div className="max-h-48 space-y-2 overflow-y-auto">
-            {comments.length === 0 ? (
-              <p className="text-xs text-navy-500">첫 댓글을 남겨보세요.</p>
-            ) : (
-              comments.map((c) => (
-                <div key={c.id} className="rounded-2xl bg-sky-50/80 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-navy-800">{c.userName}</span>
-                    <span className="text-[10px] text-navy-500">{c.time}</span>
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-navy-700">{c.body}</p>
-                </div>
-              ))
-            )}
-          </div>
-          <form
-            className="mt-3 flex items-end gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!commentBody.trim() || !task) return;
-              await createComment.mutateAsync({ taskId: task.id, body: commentBody.trim() });
-              setCommentBody("");
-            }}
-          >
-            <MentionTextarea
-              value={commentBody}
-              onChange={setCommentBody}
+          {task && (
+            <CommentThread
+              comments={comments}
+              entityType="task"
+              entityId={task.id}
               members={members.map((m) => ({ id: m.user_id, name: m.name }))}
-              placeholder="댓글 입력... (@이름 멘션)"
-              rows={2}
+              currentUserId={user?.id}
+              canWrite={canWrite}
+              isOrgAdmin={isAdmin}
+              createPending={createComment.isPending}
+              actionPending={
+                updateComment.isPending || deleteComment.isPending || toggleReaction.isPending
+              }
+              createComment={async (body, parentId) =>
+                createComment.mutateAsync({ taskId: task.id, body, parentId })
+              }
+              updateComment={async (commentId, body) => {
+                await updateComment.mutateAsync({ taskId: task.id, commentId, body });
+              }}
+              deleteComment={async (commentId) => {
+                await deleteComment.mutateAsync({ taskId: task.id, commentId });
+              }}
+              toggleReaction={async (commentId, emoji) => {
+                await toggleReaction.mutateAsync({ taskId: task.id, commentId, emoji });
+              }}
             />
-            <Button type="submit" disabled={createComment.isPending || !commentBody.trim()} className="shrink-0">
-              등록
-            </Button>
-          </form>
+          )}
         </div>
         </div>
 

@@ -58,6 +58,18 @@ app.get("/health", async (c) => {
   return c.json({ status: "ok", service: "teamcanvas", db: dbStatus, timestamp: new Date().toISOString() });
 });
 
+app.get("/organizations/:orgId/sync", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const member = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (member instanceof Response) return member;
+
+  const { getOrgSyncVersion } = await import("../utils/orgSync");
+  const sync = await getOrgSyncVersion(c.env.DB, orgId);
+  return c.json(sync);
+});
+
 // ── Organizations ──
 
 app.get("/organizations", async (c) => {
@@ -1240,13 +1252,14 @@ app.get("/organizations/:orgId/tasks", async (c) => {
   });
 
   const { fetchLabelsForTasks } = await import("../utils/taskExtras");
-  const labelMap = await fetchLabelsForTasks(
-    c.env.DB,
-    tasks.map((t) => t.id as string),
-  );
+  const { fetchFileCountsForEntities } = await import("../utils/fileAttachments");
+  const taskIds = tasks.map((t) => t.id as string);
+  const labelMap = await fetchLabelsForTasks(c.env.DB, taskIds);
+  const fileCountMap = await fetchFileCountsForEntities(c.env.DB, "task", taskIds);
   const tasksWithLabels = tasks.map((t) => ({
     ...t,
     labels: labelMap[t.id as string] ?? [],
+    attachmentCount: fileCountMap[t.id as string] ?? 0,
   }));
 
   return c.json({ tasks: tasksWithLabels });
@@ -1359,6 +1372,9 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     const { syncTaskLabels } = await import("../utils/taskExtras");
     await syncTaskLabels(c.env.DB, id, body.labelIds, orgId);
   }
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, orgId, ["tasks", "activity"]);
 
   return c.json({ id }, 201);
 });
@@ -1565,6 +1581,9 @@ app.patch("/tasks/:taskId", async (c) => {
     });
   }
 
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, existing.organization_id, ["tasks", "activity"]);
+
   return c.json({ ok: true });
 });
 
@@ -1582,7 +1601,8 @@ app.get("/tasks/:taskId/comments", async (c) => {
   if (member instanceof Response) return member;
 
   const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.task_id, c.user_id, c.body, c.created_at, u.name as user_name
+    `SELECT c.id, c.task_id, c.user_id, c.body, c.created_at, c.parent_id, c.edited_at, c.deleted_at,
+            u.name as user_name
      FROM task_comments c
      JOIN users u ON u.id = c.user_id
      WHERE c.task_id = ?
@@ -1591,21 +1611,28 @@ app.get("/tasks/:taskId/comments", async (c) => {
     .bind(taskId)
     .all();
 
-  const comments = (results ?? []).map((row) => {
-    const r = row as Record<string, unknown>;
-    const createdAt = r.created_at as number;
-    return {
-      id: r.id,
-      taskId: r.task_id,
-      userId: r.user_id,
-      userName: r.user_name,
-      body: r.body,
-      createdAt,
-      time: formatActivityTimeKst(createdAt),
-    };
-  });
+  const { mapCommentRow, enrichCommentsWithMeta } = await import("../utils/commentThreads");
+  const comments = (results ?? []).map((row) =>
+    mapCommentRow(row as Record<string, unknown>, formatActivityTimeKst, "task_id", "taskId"),
+  );
 
-  return c.json({ comments });
+  const { fetchFilesForComments } = await import("../utils/fileAttachments");
+  const { fetchReactionsForComments } = await import("../utils/commentReactions");
+  const attachmentMap = await fetchFilesForComments(
+    c.env.DB,
+    "task",
+    taskId,
+    comments.map((cm) => cm.id),
+  );
+  const reactionMap = await fetchReactionsForComments(
+    c.env.DB,
+    "task",
+    comments.map((cm) => cm.id),
+    user.id,
+  );
+  const commentsWithFiles = enrichCommentsWithMeta(comments, attachmentMap, reactionMap);
+
+  return c.json({ comments: commentsWithFiles });
 });
 
 app.post("/tasks/:taskId/comments", async (c) => {
@@ -1628,15 +1655,29 @@ app.post("/tasks/:taskId/comments", async (c) => {
   const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
   if (member instanceof Response) return member;
 
-  const body = await c.req.json<{ body?: string }>();
+  const body = await c.req.json<{ body?: string; parentId?: string | null }>();
   if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const parentId = body.parentId?.trim() || null;
+  if (parentId) {
+    const { validateCommentParent } = await import("../utils/commentThreads");
+    const parentCheck = await validateCommentParent(
+      c.env.DB,
+      "task_comments",
+      "task_id",
+      taskId,
+      parentId,
+    );
+    if (!parentCheck.ok) return c.json({ error: parentCheck.error }, parentCheck.status);
+  }
 
   const id = newId();
   const ts = now();
   await c.env.DB.prepare(
-    `INSERT INTO task_comments (id, task_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO task_comments (id, task_id, user_id, body, created_at, parent_id)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, taskId, user.id, body.body.trim(), ts)
+    .bind(id, taskId, user.id, body.body.trim(), ts, parentId)
     .run();
 
   const trimmedBody = body.body.trim();
@@ -1692,7 +1733,128 @@ app.post("/tasks/:taskId/comments", async (c) => {
     });
   }
 
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks", "activity", "files"]);
+
   return c.json({ id }, 201);
+});
+
+app.patch("/tasks/:taskId/comments/:commentId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+  const commentId = c.req.param("commentId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const comment = await c.env.DB.prepare(
+    "SELECT user_id, deleted_at FROM task_comments WHERE id = ? AND task_id = ?",
+  )
+    .bind(commentId, taskId)
+    .first<{ user_id: string; deleted_at: number | null }>();
+  if (!comment) return c.json({ error: "Not found" }, 404);
+  if (comment.deleted_at) return c.json({ error: "Comment deleted" }, 400);
+
+  const { canModifyComment } = await import("../utils/commentThreads");
+  if (!canModifyComment(comment.user_id, user.id, member.role)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const body = await c.req.json<{ body?: string }>();
+  if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const ts = now();
+  await c.env.DB.prepare(
+    "UPDATE task_comments SET body = ?, edited_at = ? WHERE id = ? AND task_id = ?",
+  )
+    .bind(body.body.trim(), ts, commentId, taskId)
+    .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks", "activity"]);
+
+  return c.json({ ok: true });
+});
+
+app.delete("/tasks/:taskId/comments/:commentId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+  const commentId = c.req.param("commentId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const comment = await c.env.DB.prepare(
+    "SELECT user_id, deleted_at FROM task_comments WHERE id = ? AND task_id = ?",
+  )
+    .bind(commentId, taskId)
+    .first<{ user_id: string; deleted_at: number | null }>();
+  if (!comment) return c.json({ error: "Not found" }, 404);
+  if (comment.deleted_at) return c.json({ ok: true });
+
+  const { canModifyComment } = await import("../utils/commentThreads");
+  if (!canModifyComment(comment.user_id, user.id, member.role)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const ts = now();
+  await c.env.DB.prepare(
+    "UPDATE task_comments SET body = '', deleted_at = ? WHERE id = ? AND task_id = ?",
+  )
+    .bind(ts, commentId, taskId)
+    .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks", "activity"]);
+
+  return c.json({ ok: true });
+});
+
+app.post("/tasks/:taskId/comments/:commentId/reactions", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+  const commentId = c.req.param("commentId");
+
+  const task = await c.env.DB.prepare("SELECT organization_id FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ organization_id: string }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:read");
+  if (member instanceof Response) return member;
+
+  const comment = await c.env.DB.prepare(
+    "SELECT id, deleted_at FROM task_comments WHERE id = ? AND task_id = ?",
+  )
+    .bind(commentId, taskId)
+    .first<{ id: string; deleted_at: number | null }>();
+  if (!comment || comment.deleted_at) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{ emoji?: string }>();
+  const { isAllowedReactionEmoji, toggleCommentReaction } = await import("../utils/commentReactions");
+  if (!body.emoji || !isAllowedReactionEmoji(body.emoji)) {
+    return c.json({ error: "Invalid emoji" }, 400);
+  }
+
+  const result = await toggleCommentReaction(c.env.DB, "task", commentId, user.id, body.emoji);
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks"]);
+
+  return c.json(result);
 });
 
 app.delete("/tasks/:taskId", async (c) => {
@@ -1721,6 +1883,9 @@ app.delete("/tasks/:taskId", async (c) => {
   }
 
   await c.env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(taskId).run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks", "activity"]);
 
   return c.json({ ok: true });
 });
@@ -2091,7 +2256,7 @@ app.get("/tasks/:taskId/files", async (c) => {
 
   const { results } = await c.env.DB.prepare(
     `SELECT id, filename, mime_type, size_bytes, created_at
-     FROM files WHERE organization_id = ? AND entity_type = 'task' AND entity_id = ?
+     FROM files WHERE organization_id = ? AND entity_type = 'task' AND entity_id = ? AND comment_id IS NULL
      ORDER BY created_at DESC`,
   )
     .bind(task.organization_id, taskId)
@@ -2126,7 +2291,7 @@ app.get("/events/:eventId/files", async (c) => {
 
   const { results } = await c.env.DB.prepare(
     `SELECT id, filename, mime_type, size_bytes, created_at
-     FROM files WHERE organization_id = ? AND entity_type = 'event' AND entity_id = ?
+     FROM files WHERE organization_id = ? AND entity_type = 'event' AND entity_id = ? AND comment_id IS NULL
      ORDER BY created_at DESC`,
   )
     .bind(event.organization_id, eventId)
@@ -2158,6 +2323,7 @@ app.post("/organizations/:orgId/files", async (c) => {
   const file = form.file;
   const entityType = String(form.entityType ?? "");
   const entityId = String(form.entityId ?? "");
+  const commentId = form.commentId ? String(form.commentId) : null;
 
   if (!(file instanceof File)) return c.json({ error: "file required" }, 400);
   if (!entityType || !entityId) return c.json({ error: "entityType and entityId required" }, 400);
@@ -2187,11 +2353,14 @@ app.post("/organizations/:orgId/files", async (c) => {
 
   const ts = now();
   await c.env.DB.prepare(
-    `INSERT INTO files (id, organization_id, uploader_id, r2_key, filename, mime_type, size_bytes, entity_type, entity_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO files (id, organization_id, uploader_id, r2_key, filename, mime_type, size_bytes, entity_type, entity_id, comment_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(fileId, orgId, user.id, key, file.name, file.type, file.size, entityType, entityId, ts)
+    .bind(fileId, orgId, user.id, key, file.name, file.type, file.size, entityType, entityId, commentId, ts)
     .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, orgId, ["files", "tasks", "projects", "activity"]);
 
   return c.json({ id: fileId, filename: file.name, mimeType: file.type, sizeBytes: file.size }, 201);
 });
@@ -2276,6 +2445,10 @@ app.delete("/files/:fileId", async (c) => {
 
   await c.env.FILES.delete(row.r2_key);
   await c.env.DB.prepare("DELETE FROM files WHERE id = ?").bind(fileId).run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, row.organization_id, ["files", "tasks", "projects", "activity"]);
+
   return c.json({ ok: true });
 });
 

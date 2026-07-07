@@ -1053,7 +1053,7 @@ projectRoutes.get("/projects/:projectId/files", async (c) => {
 
   const { results } = await c.env.DB.prepare(
     `SELECT id, filename, mime_type, size_bytes, created_at
-     FROM files WHERE organization_id = ? AND entity_type = 'project' AND entity_id = ?
+     FROM files WHERE organization_id = ? AND entity_type = 'project' AND entity_id = ? AND comment_id IS NULL
      ORDER BY created_at DESC`,
   )
     .bind(orgId, projectId)
@@ -1091,7 +1091,8 @@ projectRoutes.get("/projects/:projectId/comments", async (c) => {
   if (access) return access;
 
   const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.project_id, c.user_id, c.body, c.created_at, u.name as user_name
+    `SELECT c.id, c.project_id, c.user_id, c.body, c.created_at, c.parent_id, c.edited_at, c.deleted_at,
+            u.name as user_name
      FROM project_comments c
      JOIN users u ON u.id = c.user_id
      WHERE c.project_id = ?
@@ -1101,21 +1102,28 @@ projectRoutes.get("/projects/:projectId/comments", async (c) => {
     .all();
 
   const { formatActivityTimeKst } = await import("../utils/helpers");
-  const comments = (results ?? []).map((row) => {
-    const r = row as Record<string, unknown>;
-    const createdAt = r.created_at as number;
-    return {
-      id: r.id,
-      projectId: r.project_id,
-      userId: r.user_id,
-      userName: r.user_name,
-      body: r.body,
-      createdAt,
-      time: formatActivityTimeKst(createdAt),
-    };
-  });
+  const { mapCommentRow, enrichCommentsWithMeta } = await import("../utils/commentThreads");
+  const comments = (results ?? []).map((row) =>
+    mapCommentRow(row as Record<string, unknown>, formatActivityTimeKst, "project_id", "projectId"),
+  );
 
-  return c.json({ comments });
+  const { fetchFilesForComments } = await import("../utils/fileAttachments");
+  const { fetchReactionsForComments } = await import("../utils/commentReactions");
+  const attachmentMap = await fetchFilesForComments(
+    c.env.DB,
+    "project",
+    projectId,
+    comments.map((cm) => cm.id),
+  );
+  const reactionMap = await fetchReactionsForComments(
+    c.env.DB,
+    "project",
+    comments.map((cm) => cm.id),
+    user.id,
+  );
+  const commentsWithFiles = enrichCommentsWithMeta(comments, attachmentMap, reactionMap);
+
+  return c.json({ comments: commentsWithFiles });
 });
 
 projectRoutes.post("/projects/:projectId/comments", async (c) => {
@@ -1140,8 +1148,21 @@ projectRoutes.post("/projects/:projectId/comments", async (c) => {
   );
   if (roleCheck instanceof Response) return roleCheck;
 
-  const body = await c.req.json<{ body?: string }>();
+  const body = await c.req.json<{ body?: string; parentId?: string | null }>();
   if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const parentId = body.parentId?.trim() || null;
+  if (parentId) {
+    const { validateCommentParent } = await import("../utils/commentThreads");
+    const parentCheck = await validateCommentParent(
+      c.env.DB,
+      "project_comments",
+      "project_id",
+      projectId,
+      parentId,
+    );
+    if (!parentCheck.ok) return c.json({ error: parentCheck.error }, parentCheck.status);
+  }
 
   const id = newId();
   const ts = now();
@@ -1149,9 +1170,10 @@ projectRoutes.post("/projects/:projectId/comments", async (c) => {
   const preview = trimmedBody.slice(0, 80);
 
   await c.env.DB.prepare(
-    `INSERT INTO project_comments (id, project_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO project_comments (id, project_id, user_id, body, created_at, parent_id)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, projectId, user.id, trimmedBody, ts)
+    .bind(id, projectId, user.id, trimmedBody, ts, parentId)
     .run();
 
   const { insertProjectActivity } = await import("../utils/projectActivities");
@@ -1187,7 +1209,148 @@ projectRoutes.post("/projects/:projectId/comments", async (c) => {
     mentionedIds,
   });
 
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, orgId, ["projects", "activity", "files"]);
+
   return c.json({ id }, 201);
+});
+
+projectRoutes.patch("/projects/:projectId/comments/:commentId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+  const commentId = c.req.param("commentId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
+
+  const comment = await c.env.DB.prepare(
+    "SELECT user_id, deleted_at FROM project_comments WHERE id = ? AND project_id = ?",
+  )
+    .bind(commentId, projectId)
+    .first<{ user_id: string; deleted_at: number | null }>();
+  if (!comment) return c.json({ error: "Not found" }, 404);
+  if (comment.deleted_at) return c.json({ error: "Comment deleted" }, 400);
+
+  const { canModifyComment } = await import("../utils/commentThreads");
+  if (!canModifyComment(comment.user_id, user.id, member.role)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const body = await c.req.json<{ body?: string }>();
+  if (!body.body?.trim()) return c.json({ error: "body required" }, 400);
+
+  const ts = now();
+  await c.env.DB.prepare(
+    "UPDATE project_comments SET body = ?, edited_at = ? WHERE id = ? AND project_id = ?",
+  )
+    .bind(body.body.trim(), ts, commentId, projectId)
+    .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, orgId, ["projects", "activity"]);
+
+  return c.json({ ok: true });
+});
+
+projectRoutes.delete("/projects/:projectId/comments/:commentId", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+  const commentId = c.req.param("commentId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const roleCheck = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    projectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (roleCheck instanceof Response) return roleCheck;
+
+  const comment = await c.env.DB.prepare(
+    "SELECT user_id, deleted_at FROM project_comments WHERE id = ? AND project_id = ?",
+  )
+    .bind(commentId, projectId)
+    .first<{ user_id: string; deleted_at: number | null }>();
+  if (!comment) return c.json({ error: "Not found" }, 404);
+  if (comment.deleted_at) return c.json({ ok: true });
+
+  const { canModifyComment } = await import("../utils/commentThreads");
+  if (!canModifyComment(comment.user_id, user.id, member.role)) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  const ts = now();
+  await c.env.DB.prepare(
+    "UPDATE project_comments SET body = '', deleted_at = ? WHERE id = ? AND project_id = ?",
+  )
+    .bind(ts, commentId, projectId)
+    .run();
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, orgId, ["projects", "activity"]);
+
+  return c.json({ ok: true });
+});
+
+projectRoutes.post("/projects/:projectId/comments/:commentId/reactions", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const projectId = c.req.param("projectId");
+  const commentId = c.req.param("commentId");
+
+  const project = await getProjectOr404(c.env.DB, projectId);
+  if (!project) return c.json({ error: "not found" }, 404);
+
+  const orgId = project.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "projects:read");
+  if (member instanceof Response) return member;
+
+  const access = await requireProjectAccess(c, user.id, member.role, projectId, orgId);
+  if (access) return access;
+
+  const comment = await c.env.DB.prepare(
+    "SELECT id, deleted_at FROM project_comments WHERE id = ? AND project_id = ?",
+  )
+    .bind(commentId, projectId)
+    .first<{ id: string; deleted_at: number | null }>();
+  if (!comment || comment.deleted_at) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{ emoji?: string }>();
+  const { isAllowedReactionEmoji, toggleCommentReaction } = await import("../utils/commentReactions");
+  if (!body.emoji || !isAllowedReactionEmoji(body.emoji)) {
+    return c.json({ error: "Invalid emoji" }, 400);
+  }
+
+  const result = await toggleCommentReaction(c.env.DB, "project", commentId, user.id, body.emoji);
+
+  const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+  await bumpOrgSyncSafe(c.env, orgId, ["projects"]);
+
+  return c.json(result);
 });
 
 projectRoutes.post("/projects/:projectId/sync-milestones-calendar", async (c) => {

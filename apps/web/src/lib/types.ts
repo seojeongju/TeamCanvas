@@ -324,6 +324,19 @@ export type TaskChecklistItem = {
   createdAt?: number;
 };
 
+export type EntityAttachment = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+export type CommentReaction = {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+};
+
 export type TaskComment = {
   id: string;
   taskId: string;
@@ -332,6 +345,12 @@ export type TaskComment = {
   body: string;
   createdAt: number;
   time: string;
+  parentId?: string | null;
+  editedAt?: number | null;
+  deletedAt?: number | null;
+  isDeleted?: boolean;
+  attachments?: EntityAttachment[];
+  reactions?: CommentReaction[];
 };
 
 export type EventComment = {
@@ -406,6 +425,7 @@ export type Task = {
   sortOrder?: number;
   updatedAt?: number;
   labels?: TaskLabel[];
+  attachmentCount?: number;
 };
 
 export type ProjectStatus = "planning" | "active" | "on_hold" | "done" | "archived";
@@ -483,6 +503,12 @@ export type ProjectComment = {
   body: string;
   createdAt: number;
   time: string;
+  parentId?: string | null;
+  editedAt?: number | null;
+  deletedAt?: number | null;
+  isDeleted?: boolean;
+  attachments?: EntityAttachment[];
+  reactions?: CommentReaction[];
 };
 
 export type ProjectMember = {

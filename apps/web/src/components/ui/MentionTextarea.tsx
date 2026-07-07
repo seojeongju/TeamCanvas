@@ -10,6 +10,7 @@ export function MentionTextarea({
   placeholder,
   className,
   rows = 2,
+  onPaste,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -17,6 +18,7 @@ export function MentionTextarea({
   placeholder?: string;
   className?: string;
   rows?: number;
+  onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [open, setOpen] = useState(false);
@@ -95,6 +97,7 @@ export function MentionTextarea({
           }
         }}
         onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onPaste={onPaste}
         className={cn(
           "w-full resize-none rounded-xl border border-sky-200/80 bg-white/80 px-3 py-2 text-sm text-navy-800 outline-none focus:border-primary-400",
           className,
