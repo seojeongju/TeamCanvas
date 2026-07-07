@@ -15,7 +15,6 @@ import {
   useDeleteTask,
   useEvent,
   useEventAttendees,
-  useProjectMembers,
   useProjects,
   useTaskComments,
   useTeams,
@@ -54,17 +53,11 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const { data: teamsData } = useTeams();
   const { data: projectsData } = useProjects();
   const { data: commentsData } = useTaskComments(task?.id);
-  const { data: projectMembersData } = useProjectMembers(task?.projectId ?? undefined);
   const { data: eventAttendeesData } = useEventAttendees(task?.eventId ?? undefined);
   const { data: linkedEventData } = useEvent(task?.eventId ?? undefined);
   const projects = projectsData?.projects ?? [];
-  const linkedProject = projects.find((p) => p.id === task?.projectId);
-  const projectOtherMemberCount = (projectMembersData?.members ?? []).filter(
-    (m) => m.userId !== linkedProject?.ownerId,
-  ).length;
   const hasCollaboration = task
     ? taskHasCollaborationLinks(task, {
-        projectOtherMemberCount,
         eventAttendeeUserIds: eventAttendeesData?.attendees.map((a) => a.user_id),
         eventCreatorId: linkedEventData?.event.creatorId ?? null,
         linkedEventIsMilestone: linkedEventData?.event.description?.startsWith("프로젝트:"),

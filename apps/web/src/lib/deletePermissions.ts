@@ -25,9 +25,8 @@ export function eventHasCollaborationLinks(
 }
 
 export function taskHasCollaborationLinks(
-  task: Pick<Task, "creatorId" | "assigneeId" | "eventId" | "projectId">,
+  task: Pick<Task, "creatorId" | "assigneeId" | "eventId">,
   context?: {
-    projectOtherMemberCount?: number;
     eventAttendeeUserIds?: string[];
     eventCreatorId?: string | null;
     linkedEventIsMilestone?: boolean;
@@ -42,11 +41,6 @@ export function taskHasCollaborationLinks(
     if (context?.eventCreatorId && context.eventCreatorId !== creatorId) return true;
     if (context?.eventAttendeeUserIds?.some((id) => id !== creatorId)) return true;
     if (context?.linkedEventIsMilestone) return true;
-    return false;
-  }
-
-  if (task.projectId) {
-    if ((context?.projectOtherMemberCount ?? 0) > 0) return true;
     return false;
   }
 

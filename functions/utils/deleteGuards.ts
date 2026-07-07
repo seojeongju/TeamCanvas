@@ -70,39 +70,6 @@ export async function taskHasCollaborationLinks(
     if (await eventHasCollaborationLinks(db, task.event_id, event.creator_id)) return true;
   }
 
-  if (task.project_id) {
-    const project = await db
-      .prepare(`SELECT owner_id FROM projects WHERE id = ?`)
-      .bind(task.project_id)
-      .first<{ owner_id: string }>();
-    if (!project) return true;
-
-    const otherMember = await db
-      .prepare(
-        `SELECT 1 FROM project_members
-         WHERE project_id = ? AND user_id != ?
-         LIMIT 1`,
-      )
-      .bind(task.project_id, project.owner_id)
-      .first();
-    if (otherMember) return true;
-
-    const otherTask = await db
-      .prepare(
-        `SELECT 1 FROM tasks
-         WHERE project_id = ?
-           AND id != ?
-           AND (
-             (assignee_id IS NOT NULL AND assignee_id != ?)
-             OR creator_id != ?
-           )
-         LIMIT 1`,
-      )
-      .bind(task.project_id, taskId, creatorId, creatorId)
-      .first();
-    if (otherTask) return true;
-  }
-
   return false;
 }
 
