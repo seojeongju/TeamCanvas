@@ -29,6 +29,7 @@ export function TaskPaginatedColumn({ tasks, resetKey, children }: TaskPaginated
         totalItems={tasks.length}
         pageSize={TASK_LIST_PAGE_SIZE}
         onPageChange={setPage}
+        variant="compact"
       />
     </>
   );

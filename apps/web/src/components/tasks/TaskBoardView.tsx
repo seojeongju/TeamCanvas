@@ -146,7 +146,7 @@ export function TaskBoardView({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="hidden gap-3 md:flex">
+        <div className="hidden gap-3 md:grid md:grid-cols-4">
           {TASK_COLUMNS.map((col) => (
             <DroppableColumn
               key={col.id}
@@ -162,8 +162,14 @@ export function TaskBoardView({
         </div>
         <DragOverlay>
           {activeTask ? (
-            <div className="rotate-2 opacity-90">
-              <TaskCard task={activeTask} onOpen={() => {}} onEdit={() => {}} onStatusChange={() => {}} />
+            <div className="rotate-1 opacity-95 shadow-lg">
+              <TaskCard
+                task={activeTask}
+                variant="board"
+                onOpen={() => {}}
+                onEdit={() => {}}
+                onStatusChange={() => {}}
+              />
             </div>
           ) : null}
         </DragOverlay>
@@ -192,24 +198,24 @@ function DroppableColumn({
   const { setNodeRef, isOver } = useDroppable({ id: columnId(column.id) });
 
   return (
-    <div className="min-w-0 flex-1">
-      <div className={cn("mb-3 flex items-center gap-2 border-l-4 pl-2", column.color)}>
+    <div className="flex min-w-0 flex-col">
+      <div className={cn("mb-2 flex items-center gap-2 border-l-4 pl-2", column.color)}>
         <h3 className="text-sm font-semibold text-navy-800">{column.label}</h3>
-        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-navy-600">
+        <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-navy-600 shadow-sm">
           {tasks.length}
         </span>
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "min-h-[120px] space-y-2 rounded-2xl p-1 transition",
-          isOver && "bg-sky-50/80 ring-2 ring-primary-400/20",
+          "flex min-h-[160px] flex-1 flex-col rounded-2xl border border-sky-100/60 bg-white/40 p-2 transition",
+          isOver && "border-primary-300/50 bg-sky-50/60 ring-2 ring-primary-400/15",
         )}
       >
         {tasks.length === 0 ? (
-          <GlassCard className="p-4 text-center text-xs text-navy-500">
-            {column.label} 업무가 없습니다
-          </GlassCard>
+          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-sky-200/80 bg-white/30 p-4 text-center text-xs text-navy-500">
+            {column.label} 업무 없음
+          </div>
         ) : (
           <TaskPaginatedColumn tasks={tasks} resetKey={resetKey}>
             {(visibleTasks) => (
@@ -222,6 +228,7 @@ function DroppableColumn({
                     <SortableTaskCard
                       key={task.id}
                       task={task}
+                      variant="board"
                       onOpen={onOpen}
                       onEdit={onEdit}
                       onStatusChange={onStatusChange}
@@ -271,6 +278,7 @@ function TaskColumn({
             <TaskCard
               key={task.id}
               task={task}
+              variant="board"
               onOpen={onOpen}
               onEdit={onEdit}
               onStatusChange={onStatusChange}

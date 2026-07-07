@@ -9,6 +9,7 @@ interface SortableTaskCardProps {
   onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite?: boolean;
+  variant?: "default" | "board";
 }
 
 export function SortableTaskCard({
@@ -17,6 +18,7 @@ export function SortableTaskCard({
   onEdit,
   onStatusChange,
   canWrite,
+  variant,
 }: SortableTaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -33,6 +35,7 @@ export function SortableTaskCard({
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <TaskCard
         task={task}
+        variant={variant}
         onOpen={onOpen}
         onEdit={onEdit}
         onStatusChange={onStatusChange}
