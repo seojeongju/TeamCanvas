@@ -141,6 +141,16 @@ export const api = {
     });
   },
 
+  downloadMonthlyReport: (orgId: string, year?: number, month?: number) => {
+    const params = new URLSearchParams();
+    if (year) params.set("year", String(year));
+    if (month) params.set("month", String(month));
+    const qs = params.toString();
+    return fetch(`/api/organizations/${orgId}/reports/monthly.csv${qs ? `?${qs}` : ""}`, {
+      credentials: "include",
+    });
+  },
+
   getOrgWebhooks: (orgId: string) =>
     request<{ webhooks: import("./types").OrgWebhook[]; availableEvents: string[] }>(
       `/api/organizations/${orgId}/webhooks`,
@@ -768,10 +778,20 @@ export const api = {
   searchOrg: (
     orgId: string,
     q: string,
-    opts?: { limit?: number; type?: import("./types").SearchResultType },
+    opts?: {
+      limit?: number;
+      type?: import("./types").SearchResultType;
+      filters?: import("./types").SearchFilters;
+    },
   ) => {
     const params = new URLSearchParams({ q, limit: String(opts?.limit ?? 20) });
     if (opts?.type) params.set("type", opts.type);
+    if (opts?.filters?.teamId) params.set("teamId", opts.filters.teamId);
+    if (opts?.filters?.projectId) params.set("projectId", opts.filters.projectId);
+    if (opts?.filters?.status) params.set("status", opts.filters.status);
+    if (opts?.filters?.assigneeId) params.set("assigneeId", opts.filters.assigneeId);
+    if (opts?.filters?.dateFrom != null) params.set("dateFrom", String(opts.filters.dateFrom));
+    if (opts?.filters?.dateTo != null) params.set("dateTo", String(opts.filters.dateTo));
     return request<{ results: import("./types").SearchResult[] }>(
       `/api/organizations/${orgId}/search?${params}`,
     );
@@ -954,6 +974,11 @@ export const api = {
 
   getOrgPermissions: (orgId: string) =>
     request<import("./types").OrgPermissionsResponse>(`/api/organizations/${orgId}/permissions`),
+
+  getPermissionMatrix: (orgId: string) =>
+    request<import("./types").PermissionMatrixResponse>(
+      `/api/organizations/${orgId}/permissions/matrix`,
+    ),
 
   getOrgMembers: (orgId: string) =>
     request<{ members: import("./types").OrgMember[]; limits: { ok: boolean; limit: number; current: number } }>(

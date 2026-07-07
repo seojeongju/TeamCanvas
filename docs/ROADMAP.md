@@ -2,7 +2,7 @@
 
 > **버전:** 2.0  
 > **최종 갱신:** 2026-06-11  
-> **최신 작업:** Sprint 1-1·1-2 — 실시간 동기화·파일/댓글 첨부 고도화  
+> **최신 작업:** Sprint 2 — 검색·알림·팀캘린더·PM·리포트·권한  
 > **프로덕션:** https://teamcanvas.pages.dev  
 > **관련 문서:** [PRD](./PRD.md) · [개발 계획서](./DEVELOPMENT_PLAN.md) · [배포](./DEPLOY.md)
 
@@ -59,6 +59,17 @@
 | 1.3 | 댓글 수정·삭제·스레드·리액션 | ✅ | `CommentThread.tsx`, migration `0028` |
 | 1.4 | 서브태스크·보류·저장 필터·의존성 | ✅ | migration `0029`, `TaskSubtasksSection` |
 | 1.5 | 자동화 프리셋 | ✅ | `AutomationPresetsSection.tsx`, migration `0030` |
+
+### 2.4 운영 효율 Sprint 2 (2026-06-11) ✅ 완료
+
+| # | 기능 | 상태 | 주요 파일 |
+|---|------|------|-----------|
+| 2.1 | 검색·필터 확장 (팀·프로젝트·상태·담당자·기간·댓글·라벨) | ✅ | `search.ts`, `SearchPage.tsx` |
+| 2.2 | 알림 고도화 (유형별 설정·날짜 그룹·읽지 않음 필터) | ✅ | migration `0031`, `NotificationsPage.tsx` |
+| 2.3 | 팀 캘린더 (팀별 필터 칩) | ✅ | `CalendarPage.tsx` |
+| 2.4 | PM 심화 (프로젝트 개요 통계·진행률) | ✅ | `ProjectOverviewStats.tsx` |
+| 2.5 | 월간 리포트 CSV | ✅ | `dashboardInsights.ts`, `DashboardInsights.tsx` |
+| 2.6 | 권한 매트릭스 UI | ✅ | `PermissionsPage.tsx`, `permissions/matrix` API |
 
 ---
 | **테스트** | Vitest/Playwright 계획만, 0 파일 | 회귀 위험 |

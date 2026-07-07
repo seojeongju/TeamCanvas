@@ -208,10 +208,19 @@ export async function createNotification(
 
   const pref = await db
     .prepare(
-      "SELECT in_app_enabled, push_enabled, email_enabled FROM notification_preferences WHERE user_id = ?",
+      "SELECT in_app_enabled, push_enabled, email_enabled, type_prefs_json FROM notification_preferences WHERE user_id = ?",
     )
     .bind(data.userId)
-    .first<{ in_app_enabled: number; push_enabled: number; email_enabled: number }>();
+    .first<{
+      in_app_enabled: number;
+      push_enabled: number;
+      email_enabled: number;
+      type_prefs_json: string | null;
+    }>();
+
+  const { parseTypePrefsJson, isNotificationTypeEnabled } = await import("./notificationTypePrefs");
+  const typePrefs = parseTypePrefsJson(pref?.type_prefs_json);
+  if (!isNotificationTypeEnabled(data.type, typePrefs)) return;
 
   const inAppEnabled = pref ? Boolean(pref.in_app_enabled) : true;
 

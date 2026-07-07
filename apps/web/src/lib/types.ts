@@ -660,9 +660,19 @@ export type Notification = {
   link: string | null;
   unread: boolean;
   time: string;
+  createdAt?: number;
 };
 
-export type SearchResultType = "event" | "task" | "project" | "milestone" | "member";
+export type SearchResultType = "event" | "task" | "project" | "milestone" | "member" | "comment";
+
+export type SearchFilters = {
+  teamId?: string;
+  projectId?: string;
+  status?: string;
+  assigneeId?: string;
+  dateFrom?: number;
+  dateTo?: number;
+};
 
 export type SearchResult = {
   id: string;
@@ -684,7 +694,15 @@ export type NotificationPreferences = {
   inAppEnabled: boolean;
   pushEnabled: boolean;
   emailEnabled: boolean;
+  typePrefs?: {
+    tasks: boolean;
+    events: boolean;
+    projects: boolean;
+    mentions: boolean;
+  };
 };
+
+export type NotificationTypeCategory = "tasks" | "events" | "projects" | "mentions";
 
 export type OrgInvite = {
   id: string;
@@ -752,6 +770,12 @@ export type OrgPermissionsResponse = {
     trialEndsAt: number | null;
     currentPeriodEnd: number;
   } | null;
+};
+
+export type PermissionMatrixResponse = {
+  roles: OrgRole[];
+  permissions: Permission[];
+  matrix: Record<OrgRole, Permission[]>;
 };
 
 export type MemberTeamTag = {

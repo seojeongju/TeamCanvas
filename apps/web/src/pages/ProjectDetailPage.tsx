@@ -10,11 +10,12 @@ import { ProjectActivitySection } from "../components/projects/ProjectActivitySe
 import { EntityFilesSection } from "../components/ui/EntityFilesSection";
 import { ProjectTasksSection } from "../components/projects/ProjectTasksSection";
 import { ProjectMilestonesSection } from "../components/projects/ProjectMilestonesSection";
+import { ProjectOverviewStats } from "../components/projects/ProjectOverviewStats";
 import { ProjectMembersSection } from "../components/projects/ProjectMembersSection";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
-import { useDeleteProject, useProject, useProjectMembers, useTasks, useTeams, useUpdateProject } from "../hooks/useData";
+import { useDeleteProject, useProject, useProjectMembers, useProjectMilestones, useTasks, useTeams, useUpdateProject } from "../hooks/useData";
 import { useCurrentOrgRole, useHasPermission } from "../hooks/usePermissions";
 import { useAuthStore } from "../stores/authStore";
 import {
@@ -67,6 +68,7 @@ export function ProjectDetailPage() {
 
   const project = data?.project;
   const { data: tasksData } = useTasks(project ? { projectId: project.id } : undefined);
+  const { data: milestonesData } = useProjectMilestones(project?.id);
   const hasCollaboration = project
     ? projectHasCollaborationLinks(
         project,
@@ -211,6 +213,12 @@ export function ProjectDetailPage() {
       </div>
 
       {tab === "overview" && (
+        <>
+          <ProjectOverviewStats
+            project={project}
+            tasks={tasksData?.tasks ?? []}
+            milestones={milestonesData?.milestones ?? []}
+          />
         <GlassCard className="p-5">
           <div className="mt-0 flex flex-wrap items-center gap-2">
             <span
@@ -396,6 +404,7 @@ export function ProjectDetailPage() {
             <ProjectActivityFolder projectId={project.id} />
           </div>
         </GlassCard>
+        </>
       )}
 
       {tab === "tasks" && <ProjectTasksSection project={project} />}

@@ -95,6 +95,18 @@ export function permissionsForRole(role: string): Permission[] {
   return ROLE_PERMISSIONS[role];
 }
 
+const ALL_PERMISSIONS = [
+  ...new Set(Object.values(ROLE_PERMISSIONS).flat()),
+] as Permission[];
+
+export function getRolePermissionMatrix() {
+  return {
+    roles: [...ORG_ROLES],
+    permissions: ALL_PERMISSIONS,
+    matrix: ROLE_PERMISSIONS,
+  };
+}
+
 export async function requireOrgPermission(
   c: Context<{ Bindings: Env }>,
   userId: string,

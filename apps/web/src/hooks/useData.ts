@@ -1183,11 +1183,19 @@ export function useMarkNotificationRead() {
   });
 }
 
-export function useSearch(q: string, type?: import("../lib/types").SearchResultType) {
+export function useSearch(
+  q: string,
+  type?: import("../lib/types").SearchResultType,
+  filters?: import("../lib/types").SearchFilters,
+) {
   const orgId = useCurrentOrgId();
   return useQuery({
-    queryKey: ["search", orgId, q, type],
-    queryFn: () => api.searchOrg(orgId!, q, type ? { type } : undefined),
+    queryKey: ["search", orgId, q, type, filters],
+    queryFn: () =>
+      api.searchOrg(orgId!, q, {
+        type,
+        filters: filters && Object.values(filters).some((v) => v != null && v !== "") ? filters : undefined,
+      }),
     enabled: !!orgId && q.length >= 1,
   });
 }

@@ -2356,18 +2356,33 @@ app.get("/organizations/:orgId/search", async (c) => {
 
   const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
   const typeParam = c.req.query("type")?.trim();
-  const validTypes = ["event", "task", "project", "milestone", "member"] as const;
+  const validTypes = ["event", "task", "project", "milestone", "member", "comment"] as const;
   const types = typeParam
     ? typeParam.split(",").filter((t): t is (typeof validTypes)[number] =>
         validTypes.includes(t as (typeof validTypes)[number]),
       )
     : undefined;
 
+  const teamId = c.req.query("teamId")?.trim() || undefined;
+  const projectId = c.req.query("projectId")?.trim() || undefined;
+  const status = c.req.query("status")?.trim() || undefined;
+  const assigneeId = c.req.query("assigneeId")?.trim() || undefined;
+  const dateFrom = c.req.query("dateFrom") ? Number(c.req.query("dateFrom")) : undefined;
+  const dateTo = c.req.query("dateTo") ? Number(c.req.query("dateTo")) : undefined;
+
   const { searchOrganization } = await import("../utils/search");
   const results = await searchOrganization(c.env.DB, orgId, q, limit, {
     userId: user.id,
     orgRole: member.role,
     types: types?.length ? types : undefined,
+    filters: {
+      teamId,
+      projectId,
+      status,
+      assigneeId,
+      dateFrom: dateFrom != null && !Number.isNaN(dateFrom) ? dateFrom : undefined,
+      dateTo: dateTo != null && !Number.isNaN(dateTo) ? dateTo : undefined,
+    },
   });
   return c.json({ results });
 });
@@ -3383,6 +3398,7 @@ app.get("/notifications", async (c) => {
       link: r.link,
       unread: !r.read_at,
       time,
+      createdAt: created,
     };
   });
 
@@ -3417,18 +3433,27 @@ app.get("/notification-preferences", async (c) => {
 
   const pref = await c.env.DB
     .prepare(
-      `SELECT in_app_enabled, push_enabled, email_enabled
+      `SELECT in_app_enabled, push_enabled, email_enabled, type_prefs_json
        FROM notification_preferences
        WHERE user_id = ?`,
     )
     .bind(user.id)
-    .first<{ in_app_enabled: number; push_enabled: number; email_enabled: number }>();
+    .first<{
+      in_app_enabled: number;
+      push_enabled: number;
+      email_enabled: number;
+      type_prefs_json: string | null;
+    }>();
+
+  const { parseTypePrefsJson } = await import("../utils/notificationTypePrefs");
+  const typePrefs = parseTypePrefsJson(pref?.type_prefs_json);
 
   return c.json({
     preferences: {
       inAppEnabled: pref ? Boolean(pref.in_app_enabled) : true,
       pushEnabled: pref ? Boolean(pref.push_enabled) : false,
       emailEnabled: pref ? Boolean(pref.email_enabled) : false,
+      typePrefs,
     },
   });
 });
@@ -3441,6 +3466,7 @@ app.patch("/notification-preferences", async (c) => {
     inAppEnabled?: boolean;
     pushEnabled?: boolean;
     emailEnabled?: boolean;
+    typePrefs?: Partial<Record<string, boolean>>;
   }>();
   const pref = {
     inAppEnabled: body.inAppEnabled ?? true,
@@ -3448,14 +3474,22 @@ app.patch("/notification-preferences", async (c) => {
     emailEnabled: body.emailEnabled ?? false,
   };
 
+  const { parseTypePrefsJson } = await import("../utils/notificationTypePrefs");
+  const existing = await c.env.DB
+    .prepare("SELECT type_prefs_json FROM notification_preferences WHERE user_id = ?")
+    .bind(user.id)
+    .first<{ type_prefs_json: string | null }>();
+  const typePrefs = { ...parseTypePrefsJson(existing?.type_prefs_json), ...body.typePrefs };
+
   await c.env.DB
     .prepare(
-      `INSERT INTO notification_preferences (user_id, in_app_enabled, push_enabled, email_enabled, updated_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO notification_preferences (user_id, in_app_enabled, push_enabled, email_enabled, type_prefs_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
          in_app_enabled = excluded.in_app_enabled,
          push_enabled = excluded.push_enabled,
          email_enabled = excluded.email_enabled,
+         type_prefs_json = excluded.type_prefs_json,
          updated_at = excluded.updated_at`,
     )
     .bind(
@@ -3463,11 +3497,12 @@ app.patch("/notification-preferences", async (c) => {
       pref.inAppEnabled ? 1 : 0,
       pref.pushEnabled ? 1 : 0,
       pref.emailEnabled ? 1 : 0,
+      JSON.stringify(typePrefs),
       now(),
     )
     .run();
 
-  return c.json({ ok: true, preferences: pref });
+  return c.json({ ok: true, preferences: { ...pref, typePrefs } });
 });
 
 export const onRequest = handle(app);

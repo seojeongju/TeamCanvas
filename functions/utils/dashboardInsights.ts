@@ -392,6 +392,49 @@ export async function buildWeeklyReportCsv(
   return "\uFEFF" + lines.join("\n");
 }
 
+export async function buildMonthlyReportCsv(
+  db: D1Database,
+  orgId: string,
+  from: number,
+  to: number,
+  year: number,
+  month: number,
+) {
+  const base = await buildWeeklyReportCsv(db, orgId, from, to);
+  const lines = base.replace(/^\uFEFF/, "").split("\n");
+
+  const taskStats = await db
+    .prepare(
+      `SELECT status, COUNT(*) AS cnt FROM tasks
+       WHERE organization_id = ? AND updated_at >= ? AND updated_at <= ?
+       GROUP BY status`,
+    )
+    .bind(orgId, from, to)
+    .all<{ status: string; cnt: number }>();
+
+  const eventCount = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM events
+       WHERE organization_id = ? AND start_at < ? AND end_at > ?`,
+    )
+    .bind(orgId, to, from)
+    .first<{ cnt: number }>();
+
+  const summary = [
+    "",
+    "[월간 요약]",
+    "항목,건수",
+    ...(taskStats.results ?? []).map((row) => `업무 ${row.status},${row.cnt}`),
+    `일정,${eventCount?.cnt ?? 0}`,
+    "",
+  ];
+
+  lines[0] = "TeamCanvas 월간 리포트";
+  lines[1] = `기간,${year}년 ${month}월 (${formatDateOnlyKst(from)} ~ ${formatDateOnlyKst(to)})`;
+
+  return "\uFEFF" + [...lines.slice(0, 2), ...summary, ...lines.slice(2)].join("\n");
+}
+
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;

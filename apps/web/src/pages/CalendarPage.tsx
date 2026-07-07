@@ -18,7 +18,7 @@ import { UpcomingRemindersPanel } from "../components/calendar/UpcomingReminders
 import { CalendarSourceLegend, TodayEventsList } from "../components/calendar/TodayEventsList";
 import { getReminderQueryRange } from "../lib/eventReminders";
 import { splitCalendarEvents } from "../lib/calendarEventSources";
-import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks } from "../hooks/useData";
+import { useEvent, useEventReminders, useEvents, useMarkReminderDelivered, useTasks, useTeams } from "../hooks/useData";
 import { expandCalendarEvents, resolveParentEventId } from "../lib/recurrence";
 import { dedupeCalendarEvents } from "../lib/todayEventsGroup";
 import { tasksToCalendarEvents } from "../lib/taskUtils";
@@ -36,6 +36,7 @@ import type { CalendarEvent } from "../lib/types";
 import { api } from "../lib/api";
 import { useCurrentOrgId } from "../stores/orgStore";
 import { Button } from "../components/ui/Button";
+import { cn } from "../lib/cn";
 
 export function CalendarPage() {
   const qc = useQueryClient();
@@ -72,15 +73,19 @@ export function CalendarPage() {
   const { from, to } = getViewRange(viewMode, focusDate);
   const { data } = useEvents(from, to);
   const { data: tasksData } = useTasks();
+  const { data: teamsData } = useTeams();
   const { data: holidaysData } = useHolidays(from, to);
   const calendarEvents = data?.events ?? [];
   const holidays = holidaysData?.holidays ?? [];
+  const teamFilter = searchParams.get("team") ?? "";
 
   const events = useMemo(() => {
     const taskEvents = tasksToCalendarEvents(tasksData?.tasks ?? [], from, to);
     const merged = dedupeCalendarEvents(calendarEvents, taskEvents);
-    return expandCalendarEvents(merged, from, to);
-  }, [calendarEvents, tasksData?.tasks, from, to]);
+    const expanded = expandCalendarEvents(merged, from, to);
+    if (!teamFilter) return expanded;
+    return expanded.filter((e) => e.teamId === teamFilter);
+  }, [calendarEvents, tasksData?.tasks, from, to, teamFilter]);
 
   const [reminderNow, setReminderNow] = useState(Date.now());
   useEffect(() => {
@@ -361,6 +366,46 @@ export function CalendarPage() {
       />
 
       <CalendarViewSwitcher value={viewMode} onChange={setViewMode} />
+
+      {(teamsData?.teams ?? []).length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete("team");
+              setSearchParams(next, { replace: true });
+            }}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
+              !teamFilter
+                ? "bg-primary-400/15 text-primary-700"
+                : "bg-white/60 text-navy-600 hover:bg-white/90",
+            )}
+          >
+            전체 팀
+          </button>
+          {(teamsData?.teams ?? []).map((team) => (
+            <button
+              key={team.id}
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.set("team", team.id);
+                setSearchParams(next, { replace: true });
+              }}
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition",
+                teamFilter === team.id
+                  ? "bg-primary-400/15 text-primary-700"
+                  : "bg-white/60 text-navy-600 hover:bg-white/90",
+              )}
+            >
+              {team.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <CalendarSourceLegend hasPersonalGoogle={hasPersonalGoogle} />
 

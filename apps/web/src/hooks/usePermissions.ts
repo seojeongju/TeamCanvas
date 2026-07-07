@@ -33,3 +33,13 @@ export function useCurrentOrgRole() {
   const { data } = useOrgPermissions();
   return data?.role ?? null;
 }
+
+export function usePermissionMatrix() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["permissions-matrix", orgId],
+    queryFn: () => api.getPermissionMatrix(orgId!),
+    enabled: !!orgId,
+    staleTime: 60_000,
+  });
+}

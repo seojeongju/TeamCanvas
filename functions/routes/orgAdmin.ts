@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { requireAuth } from "../utils/auth";
-import { ORG_ROLES, permissionsForRole, requireOrgPermission } from "../utils/permissions";
+import { getRolePermissionMatrix, ORG_ROLES, permissionsForRole, requireOrgPermission } from "../utils/permissions";
 import {
   requireOrgFeature,
   getOrgSubscription,
@@ -40,6 +40,17 @@ orgAdminRoutes.get("/organizations/:orgId/permissions", async (c) => {
     permissions: permissionsForRole(membership.role),
     subscription,
   });
+});
+
+orgAdminRoutes.get("/organizations/:orgId/permissions/matrix", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+
+  const membership = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (membership instanceof Response) return membership;
+
+  return c.json(getRolePermissionMatrix());
 });
 
 orgAdminRoutes.patch("/organizations/:orgId", async (c) => {
@@ -1839,6 +1850,30 @@ orgAdminRoutes.get("/organizations/:orgId/reports/weekly.csv", async (c) => {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="teamcanvas-weekly-${new Date(from).toISOString().slice(0, 10)}.csv"`,
+    },
+  });
+});
+
+orgAdminRoutes.get("/organizations/:orgId/reports/monthly.csv", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:read");
+  if (access instanceof Response) return access;
+
+  const ts = now();
+  const year = Number(c.req.query("year") ?? new Date(ts).getFullYear());
+  const month = Number(c.req.query("month") ?? new Date(ts).getMonth() + 1);
+  const from = new Date(year, month - 1, 1).getTime();
+  const to = new Date(year, month, 0, 23, 59, 59, 999).getTime();
+
+  const { buildMonthlyReportCsv } = await import("../utils/dashboardInsights");
+  const csv = await buildMonthlyReportCsv(c.env.DB, orgId, from, to, year, month);
+
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="teamcanvas-monthly-${year}-${String(month).padStart(2, "0")}.csv"`,
     },
   });
 });

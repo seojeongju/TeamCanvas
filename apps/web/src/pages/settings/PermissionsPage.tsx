@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ScrollText, Shield } from "lucide-react";
+import { Check, ChevronRight, ScrollText, Shield, X } from "lucide-react";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { GlassCard } from "../../components/ui/GlassCard";
-import { useOrgPermissions, useHasPermission } from "../../hooks/usePermissions";
-import type { Permission } from "../../lib/types";
+import { useOrgPermissions, useHasPermission, usePermissionMatrix } from "../../hooks/usePermissions";
+import type { OrgRole, Permission } from "../../lib/types";
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "소유자",
@@ -36,6 +36,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
 export function PermissionsPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useOrgPermissions();
+  const { data: matrixData } = usePermissionMatrix();
   const canViewAudit = useHasPermission("org:settings");
 
   return (
@@ -74,17 +75,63 @@ export function PermissionsPage() {
             </GlassCard>
           </section>
 
+          {matrixData && (
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-navy-800">역할별 권한 매트릭스</h2>
+              <GlassCard className="overflow-x-auto p-0">
+                <table className="w-full min-w-[640px] text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-sky-100/80 bg-white/50">
+                      <th className="px-3 py-2.5 font-medium text-navy-600">권한</th>
+                      {matrixData.roles.map((role) => (
+                        <th key={role} className="px-3 py-2.5 text-center font-medium text-navy-700">
+                          {ROLE_LABELS[role] ?? role}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrixData.permissions.map((perm) => (
+                      <tr key={perm} className="border-b border-sky-50/80 last:border-0">
+                        <td className="px-3 py-2 text-navy-800">{PERMISSION_LABELS[perm] ?? perm}</td>
+                        {matrixData.roles.map((role) => {
+                          const has = matrixData.matrix[role as OrgRole]?.includes(perm);
+                          return (
+                            <td key={role} className="px-3 py-2 text-center">
+                              {has ? (
+                                <Check className="mx-auto h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <X className="mx-auto h-4 w-4 text-navy-300" />
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </GlassCard>
+            </section>
+          )}
+
           <section>
             <h2 className="mb-3 text-sm font-semibold text-navy-800">역할 안내</h2>
             <GlassCard className="space-y-2 p-4 text-xs text-navy-600">
-              <p><strong className="text-navy-800">소유자·관리자</strong> — 조직·팀·멤버 설정 가능</p>
-              <p><strong className="text-navy-800">멤버·게스트</strong> — 참여 중인 프로젝트만 조회 (소유자·관리자는 전체)</p>
-              <p><strong className="text-navy-800">멤버</strong> — 일정·업무·프로젝트 작성, 본인이 만든 항목 삭제</p>
-              <p><strong className="text-navy-800">게스트</strong> — 초대받은 일정·업무만 조회</p>
-              <p className="pt-1">팀 리드는 소속 팀의 멤버 추가·제거가 가능합니다.</p>
-              <p className="pt-1">
-                캘린더 정책(소속 팀만 / 전체 팀)은 조직 설정에서 변경할 수 있습니다.
+              <p>
+                <strong className="text-navy-800">소유자·관리자</strong> — 조직·팀·멤버 설정 가능
               </p>
+              <p>
+                <strong className="text-navy-800">멤버·게스트</strong> — 참여 중인 프로젝트만 조회 (소유자·관리자는
+                전체)
+              </p>
+              <p>
+                <strong className="text-navy-800">멤버</strong> — 일정·업무·프로젝트 작성, 본인이 만든 항목 삭제
+              </p>
+              <p>
+                <strong className="text-navy-800">게스트</strong> — 초대받은 일정·업무만 조회
+              </p>
+              <p className="pt-1">팀 리드는 소속 팀의 멤버 추가·제거가 가능합니다.</p>
+              <p className="pt-1">캘린더 정책(소속 팀만 / 전체 팀)은 조직 설정에서 변경할 수 있습니다.</p>
             </GlassCard>
           </section>
 

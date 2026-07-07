@@ -52,6 +52,20 @@ export function DashboardInsightsPanel({
     URL.revokeObjectURL(url);
   };
 
+  const handleMonthlyExport = async () => {
+    if (!orgId) return;
+    const now = new Date();
+    const res = await api.downloadMonthlyReport(orgId, now.getFullYear(), now.getMonth() + 1);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `teamcanvas-monthly-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) {
     return (
       <GlassCard className="p-4">
@@ -77,10 +91,16 @@ export function DashboardInsightsPanel({
           <p className="text-xs text-navy-500">이번 주 업무·일정·프로젝트 요약</p>
         </div>
         {canExport && (
-          <Button variant="secondary" className="!min-h-9 text-xs" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            주간 CSV
-          </Button>
+          <div className="flex gap-1">
+            <Button variant="secondary" className="!min-h-9 text-xs" onClick={handleExport}>
+              <Download className="h-4 w-4" />
+              주간 CSV
+            </Button>
+            <Button variant="secondary" className="!min-h-9 text-xs" onClick={handleMonthlyExport}>
+              <Download className="h-4 w-4" />
+              월간 CSV
+            </Button>
+          </div>
         )}
       </div>
 
