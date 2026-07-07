@@ -14,8 +14,10 @@ import {
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Input } from "../components/ui/Input";
+import { ListPagination } from "../components/tasks/ListPagination";
 import { useProjects, useSearch, useTeams } from "../hooks/useData";
 import { useOrgMembers } from "../hooks/useAdmin";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import { addRecentSearch, clearRecentSearches, getRecentSearches } from "../lib/searchUtils";
 import type { SearchFilters, SearchResult, SearchResultType } from "../lib/types";
 import { cn } from "../lib/cn";
@@ -91,13 +93,23 @@ export function SearchPage() {
   }, [query]);
 
   const results = data?.results ?? [];
+  const searchResetKey = `${query}-${typeFilter}-${teamId}-${projectId}-${status}-${assigneeId}-${dateFrom}-${dateTo}`;
+  const {
+    visible: visibleResults,
+    page,
+    setPage,
+    totalPages,
+    totalItems,
+    pageSize,
+  } = usePaginatedList(results, searchResetKey);
+
   const grouped = {
-    event: results.filter((r) => r.type === "event"),
-    task: results.filter((r) => r.type === "task"),
-    project: results.filter((r) => r.type === "project"),
-    milestone: results.filter((r) => r.type === "milestone"),
-    member: results.filter((r) => r.type === "member"),
-    comment: results.filter((r) => r.type === "comment"),
+    event: visibleResults.filter((r) => r.type === "event"),
+    task: visibleResults.filter((r) => r.type === "task"),
+    project: visibleResults.filter((r) => r.type === "project"),
+    milestone: visibleResults.filter((r) => r.type === "milestone"),
+    member: visibleResults.filter((r) => r.type === "member"),
+    comment: visibleResults.filter((r) => r.type === "comment"),
   };
 
   const displayTypes =
@@ -278,8 +290,9 @@ export function SearchPage() {
           「{query}」에 대한 결과가 없습니다.
         </GlassCard>
       ) : (
-        <div className="space-y-5">
-          {displayTypes.map((type) => {
+        <>
+          <div className="space-y-5">
+            {displayTypes.map((type) => {
             const items = grouped[type];
             if (items.length === 0) return null;
             const meta = TYPE_META[type];
@@ -310,7 +323,15 @@ export function SearchPage() {
               </section>
             );
           })}
-        </div>
+          </div>
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );

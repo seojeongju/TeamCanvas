@@ -2,10 +2,11 @@ import { Activity, ChevronRight, RotateCcw } from "lucide-react";
 import { ActivityListItem } from "../ui/ActivityListItem";
 import { GlassCard } from "../ui/GlassCard";
 import { ListPagination } from "../tasks/ListPagination";
+import { LIST_PAGE_SIZE } from "../../lib/listPagination";
 import { cn } from "../../lib/cn";
 import type { OrgActivityItem, OrgMember } from "../../lib/types";
 
-export const ACTIVITY_PAGE_SIZE = 10;
+export const ACTIVITY_PAGE_SIZE = LIST_PAGE_SIZE;
 
 export type ActivityFeedFilters = {
   actorId: string;

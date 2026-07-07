@@ -3,11 +3,13 @@ import { ChevronRight, FolderKanban, LayoutTemplate, Plus } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
+import { ListPagination } from "../components/tasks/ListPagination";
 import { CreateProjectModal } from "../components/modals/CreateProjectModal";
 import { ProjectBoardView } from "../components/projects/ProjectBoardView";
 import { ProjectViewSwitcher } from "../components/projects/ProjectViewSwitcher";
 import { ProjectListFilters } from "../components/projects/ProjectListFilters";
 import { useProjects, useTeams, useUpdateProject } from "../hooks/useData";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import { useHasPermission } from "../hooks/usePermissions";
 import { useAuthStore } from "../stores/authStore";
 import { filterProjectsList, sortProjects, type ProjectSortKey } from "../lib/projectListUtils";
@@ -138,6 +140,16 @@ export function ProjectsPage() {
     return sortProjects(list, sortKey);
   }, [projects, statusFilter, mineOnly, userId, searchQuery, sortKey]);
 
+  const listResetKey = `${statusFilter}-${teamFilter}-${sortKey}-${mineOnly}-${searchQuery}`;
+  const {
+    visible: visibleProjects,
+    page: listPage,
+    setPage: setListPage,
+    totalPages: listTotalPages,
+    totalItems: listTotalItems,
+    pageSize: listPageSize,
+  } = usePaginatedList(filtered, listResetKey);
+
   const canDragBoard = useMemo(
     () => filtered.some((p) => canEditProjectMeta(p.currentUserRole)),
     [filtered],
@@ -257,11 +269,20 @@ export function ProjectsPage() {
           canWrite={canDragBoard}
         />
       ) : (
-        <div className="space-y-2">
-          {filtered.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-2">
+            {visibleProjects.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </div>
+          <ListPagination
+            page={listPage}
+            totalPages={listTotalPages}
+            totalItems={listTotalItems}
+            pageSize={listPageSize}
+            onPageChange={setListPage}
+          />
+        </>
       )}
 
       {canWrite && (

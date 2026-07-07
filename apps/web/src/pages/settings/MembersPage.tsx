@@ -17,7 +17,9 @@ import {
   useUpdateProfile,
 } from "../../hooks/useAdmin";
 import { MemberEditModal } from "../../components/settings/MemberEditModal";
+import { ListPagination } from "../../components/tasks/ListPagination";
 import { useHasPermission } from "../../hooks/usePermissions";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 import { useAuthStore } from "../../stores/authStore";
 import type { OrgInvite, OrgMember } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -62,6 +64,16 @@ export function MembersPage() {
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "info" | "error" } | null>(null);
   const [editingMember, setEditingMember] = useState<OrgMember | null>(null);
+
+  const members = data?.members ?? [];
+  const {
+    visible: visibleMembers,
+    page: membersPage,
+    setPage: setMembersPage,
+    totalPages: membersTotalPages,
+    totalItems: membersTotalItems,
+    pageSize: membersPageSize,
+  } = usePaginatedList(members, members.length);
 
   useEffect(() => {
     if (!toast) return;
@@ -374,8 +386,9 @@ export function MembersPage() {
       {isLoading ? (
         <p className="text-sm text-navy-600">로딩 중...</p>
       ) : (
-        <div className="space-y-2">
-          {(data?.members ?? []).map((m) => {
+        <>
+          <div className="space-y-2">
+            {visibleMembers.map((m) => {
             const editable = canOpenMember(m);
             return (
               <GlassCard
@@ -425,7 +438,16 @@ export function MembersPage() {
               </GlassCard>
             );
           })}
-        </div>
+          </div>
+          <ListPagination
+            page={membersPage}
+            totalPages={membersTotalPages}
+            totalItems={membersTotalItems}
+            pageSize={membersPageSize}
+            onPageChange={setMembersPage}
+            itemLabel="명"
+          />
+        </>
       )}
 
       <MemberEditModal

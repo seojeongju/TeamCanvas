@@ -7,6 +7,7 @@ import { Input } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { ToastMessage } from "../../components/ui/ToastMessage";
+import { ListPagination } from "../../components/tasks/ListPagination";
 import {
   useTeamsManage,
   useCreateTeam,
@@ -16,6 +17,7 @@ import {
   useRejectTeamRequest,
 } from "../../hooks/useOrgSettings";
 import { useHasPermission } from "../../hooks/usePermissions";
+import { usePaginatedList } from "../../hooks/usePaginatedList";
 
 const TEAM_COLORS = ["#4A9FE8", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#EC4899"];
 
@@ -71,6 +73,14 @@ export function TeamsPage() {
   const teams = data?.teams ?? [];
   const limits = data?.limits;
   const pendingRequests = (requestsData?.requests ?? []).filter((r) => r.status === "pending");
+  const {
+    visible: visibleTeams,
+    page: teamsPage,
+    setPage: setTeamsPage,
+    totalPages: teamsTotalPages,
+    totalItems: teamsTotalItems,
+    pageSize: teamsPageSize,
+  } = usePaginatedList(teams, teams.length);
 
   return (
     <div className="space-y-6">
@@ -169,8 +179,9 @@ export function TeamsPage() {
           )}
         </GlassCard>
       ) : (
-        <div className="space-y-2">
-          {teams.map((team) => (
+        <>
+          <div className="space-y-2">
+            {visibleTeams.map((team) => (
             <button
               key={team.id}
               type="button"
@@ -192,7 +203,15 @@ export function TeamsPage() {
               </GlassCard>
             </button>
           ))}
-        </div>
+          </div>
+          <ListPagination
+            page={teamsPage}
+            totalPages={teamsTotalPages}
+            totalItems={teamsTotalItems}
+            pageSize={teamsPageSize}
+            onPageChange={setTeamsPage}
+          />
+        </>
       )}
 
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="팀 만들기">

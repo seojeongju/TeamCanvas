@@ -4,11 +4,13 @@ import { CheckCheck, ChevronRight } from "lucide-react";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
+import { ListPagination } from "../components/tasks/ListPagination";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
 } from "../hooks/useData";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import { cn } from "../lib/cn";
 import { resolveNotificationLink } from "../lib/notificationLinks";
 import { startOfDay } from "../lib/dates";
@@ -65,16 +67,25 @@ export function NotificationsPage() {
     [notifications, readFilter],
   );
 
+  const {
+    visible: visibleNotifications,
+    page,
+    setPage,
+    totalPages,
+    totalItems,
+    pageSize,
+  } = usePaginatedList(filtered, readFilter);
+
   const grouped = useMemo(() => {
     const map = new Map<string, Notification[]>();
-    for (const n of filtered) {
+    for (const n of visibleNotifications) {
       const key = groupLabel(n.createdAt ?? Date.now());
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(n);
     }
     const order = ["오늘", "어제", "이번 주", "이전"];
     return order.filter((k) => map.has(k)).map((k) => ({ label: k, items: map.get(k)! }));
-  }, [filtered]);
+  }, [visibleNotifications]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
@@ -181,6 +192,13 @@ export function NotificationsPage() {
               </div>
             </section>
           ))}
+          <ListPagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
         </div>
       )}
     </div>

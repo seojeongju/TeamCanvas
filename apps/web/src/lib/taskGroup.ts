@@ -1,6 +1,8 @@
 import type { Task } from "./types";
+import { LIST_PAGE_SIZE, pageCount, paginateItems } from "./listPagination";
 
-export const TASK_LIST_PAGE_SIZE = 5;
+export const TASK_LIST_PAGE_SIZE = LIST_PAGE_SIZE;
+export { LIST_PAGE_SIZE, pageCount, paginateItems };
 
 export function normalizeTaskGroupTitle(title: string): string {
   return title.trim();
@@ -80,11 +82,3 @@ export function groupTasksByLabel(tasks: Task[]): TaskFolderGroupData[] {
     });
 }
 
-export function paginateItems<T>(items: T[], page: number, pageSize = TASK_LIST_PAGE_SIZE): T[] {
-  const start = page * pageSize;
-  return items.slice(start, start + pageSize);
-}
-
-export function pageCount(length: number, pageSize = TASK_LIST_PAGE_SIZE): number {
-  return Math.max(1, Math.ceil(length / pageSize));
-}

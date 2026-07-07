@@ -15,6 +15,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 import { FolderKanban } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
+import { PaginatedList } from "../ui/PaginatedList";
 import { PROJECT_BOARD_COLUMNS, projectStatusTone, formatProjectDateRange } from "../../lib/projectUtils";
 import { ProjectProgressBadge } from "./ProjectProgressBadge";
 import type { Project, ProjectStatus } from "../../lib/types";
@@ -102,17 +103,24 @@ function DroppableColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "min-h-[120px] space-y-2 rounded-2xl p-1 transition",
+          "min-h-[120px] rounded-2xl p-1 transition",
           isOver && "bg-sky-50/80 ring-2 ring-primary-400/20",
         )}
       >
-        <SortableContext items={projects.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-          {projects.map((p) => (
-            <SortableProjectCard key={p.id} project={p} canWrite={canWrite} />
-          ))}
-        </SortableContext>
-        {projects.length === 0 && (
+        {projects.length === 0 ? (
           <p className="px-2 py-6 text-center text-xs text-navy-400">프로젝트 없음</p>
+        ) : (
+          <PaginatedList items={projects} resetKey={`${status}-${projects.length}`} variant="compact">
+            {(visible) => (
+              <SortableContext items={visible.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {visible.map((p) => (
+                    <SortableProjectCard key={p.id} project={p} canWrite={canWrite} />
+                  ))}
+                </div>
+              </SortableContext>
+            )}
+          </PaginatedList>
         )}
       </div>
     </div>
