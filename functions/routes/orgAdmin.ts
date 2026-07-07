@@ -1596,7 +1596,13 @@ orgAdminRoutes.get("/organizations/:orgId/audit-logs", async (c) => {
 
 // ── Webhooks ──
 
-const WEBHOOK_EVENTS = ["event.created", "task.assigned", "task.completed"] as const;
+const WEBHOOK_EVENTS = [
+  "event.created",
+  "task.assigned",
+  "task.completed",
+  "task.created",
+  "project.comment",
+] as const;
 
 function resolveWebhookProvider(provider?: string): "slack" | "generic" | "kakaowork" {
   if (provider === "slack") return "slack";
@@ -1754,6 +1760,50 @@ orgAdminRoutes.delete("/organizations/:orgId/webhooks/:webhookId", async (c) => 
   await c.env.DB.prepare("DELETE FROM org_webhooks WHERE id = ? AND organization_id = ?")
     .bind(webhookId, orgId)
     .run();
+  return c.json({ ok: true });
+});
+
+// ── Automation presets ──
+
+orgAdminRoutes.get("/organizations/:orgId/automation-presets", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const { listAutomationPresetsForOrg } = await import("../utils/automationPresets");
+  const presets = await listAutomationPresetsForOrg(c.env.DB, orgId);
+
+  return c.json({ presets });
+});
+
+orgAdminRoutes.patch("/organizations/:orgId/automation-presets/:presetKey", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const orgId = c.req.param("orgId");
+  const presetKey = c.req.param("presetKey");
+  const access = await requireOrgPermission(c, user.id, orgId, "org:settings");
+  if (access instanceof Response) return access;
+
+  const body = await c.req.json<{ enabled?: boolean }>();
+  if (typeof body.enabled !== "boolean") {
+    return c.json({ error: "enabled boolean required" }, 400);
+  }
+
+  const { setAutomationPresetEnabled, AUTOMATION_PRESET_CATALOG } = await import(
+    "../utils/automationPresets"
+  );
+  const valid = AUTOMATION_PRESET_CATALOG.some((p) => p.key === presetKey);
+  if (!valid) return c.json({ error: "Invalid preset key" }, 400);
+
+  await setAutomationPresetEnabled(
+    c.env.DB,
+    orgId,
+    presetKey as import("../utils/automationPresets").AutomationPresetKey,
+    body.enabled,
+  );
+
   return c.json({ ok: true });
 });
 

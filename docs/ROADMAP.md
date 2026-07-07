@@ -50,7 +50,7 @@
 | **멀티 조직** | UI만 (`OrgSwitcher`), API 1인 1조직 | 겸직·컨설턴트 미지원 |
 | **오프라인** | `localStorage` 캐시만 | PRD IndexedDB 목표 미달 |
 
-### 2.3 협업 고도화 Sprint 1 (2026-06-11) 🟡 진행 중
+### 2.3 협업 고도화 Sprint 1 (2026-06-11) ✅ 완료
 
 | # | 기능 | 상태 | 주요 파일 |
 |---|------|------|-----------|
@@ -58,7 +58,7 @@
 | 1.2 | 파일·이미지 공유 고도화 (다중·드래그·라이트박스·댓글 첨부) | ✅ | `EntityFilesSection.tsx`, `CommentComposer.tsx` |
 | 1.3 | 댓글 수정·삭제·스레드·리액션 | ✅ | `CommentThread.tsx`, migration `0028` |
 | 1.4 | 서브태스크·보류·저장 필터·의존성 | ✅ | migration `0029`, `TaskSubtasksSection` |
-| 1.5 | 자동화 프리셋 | ⬜ | — |
+| 1.5 | 자동화 프리셋 | ✅ | `AutomationPresetsSection.tsx`, migration `0030` |
 
 ---
 | **테스트** | Vitest/Playwright 계획만, 0 파일 | 회귀 위험 |

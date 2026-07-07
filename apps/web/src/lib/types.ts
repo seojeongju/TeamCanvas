@@ -218,6 +218,27 @@ export type OrgWebhook = {
   updatedAt: number;
 };
 
+export type AutomationPresetKey =
+  | "notify_task_assigned"
+  | "notify_task_comment"
+  | "notify_task_mention"
+  | "notify_task_overdue_daily"
+  | "notify_task_status_change"
+  | "webhook_task_assigned"
+  | "webhook_task_completed"
+  | "webhook_event_created"
+  | "webhook_high_priority_task"
+  | "webhook_project_comment";
+
+export type AutomationPreset = {
+  key: AutomationPresetKey;
+  name: string;
+  description: string;
+  category: "notification" | "webhook";
+  defaultEnabled: boolean;
+  enabled: boolean;
+};
+
 export type LinkedEventSummary = {
   id: string;
   title: string;

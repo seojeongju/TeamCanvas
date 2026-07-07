@@ -181,6 +181,17 @@ export const api = {
       method: "DELETE",
     }),
 
+  getAutomationPresets: (orgId: string) =>
+    request<{ presets: import("./types").AutomationPreset[] }>(
+      `/api/organizations/${orgId}/automation-presets`,
+    ),
+
+  updateAutomationPreset: (orgId: string, presetKey: string, enabled: boolean) =>
+    request<{ ok: boolean }>(`/api/organizations/${orgId}/automation-presets/${presetKey}`, {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
+
   getDepartments: (orgId: string) =>
     request<{ departments: import("./types").Department[] }>(`/api/organizations/${orgId}/departments`),
 

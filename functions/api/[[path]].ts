@@ -478,9 +478,9 @@ app.post("/organizations/:orgId/events", async (c) => {
   }
 
   try {
-    const { dispatchOrgWebhooks } = await import("../utils/webhooks");
+    const { dispatchAutomationWebhooks } = await import("../utils/automationRunner");
     const when = formatEventTime(body.startAt, body.endAt, Boolean(body.allDay));
-    await dispatchOrgWebhooks(
+    await dispatchAutomationWebhooks(
       c.env.DB,
       orgId,
       "event.created",
@@ -1335,13 +1335,16 @@ app.post("/organizations/:orgId/tasks", async (c) => {
     .run();
 
   const { notifyTaskAssigned, notifyTaskDueSoon } = await import("../utils/notifications");
-  await notifyTaskAssigned(c.env.DB, c.env, {
-    assigneeId,
-    actorId: user.id,
-    organizationId: orgId,
-    taskId: id,
-    taskTitle: body.title.trim(),
-  });
+  const { isAutomationPresetEnabled } = await import("../utils/automationPresets");
+  if (await isAutomationPresetEnabled(c.env.DB, orgId, "notify_task_assigned")) {
+    await notifyTaskAssigned(c.env.DB, c.env, {
+      assigneeId,
+      actorId: user.id,
+      organizationId: orgId,
+      taskId: id,
+      taskTitle: body.title.trim(),
+    });
+  }
   if (body.dueAt && body.dueAt <= now() + 86400000) {
     await notifyTaskDueSoon(c.env.DB, c.env, {
       assigneeId,
@@ -1357,8 +1360,8 @@ app.post("/organizations/:orgId/tasks", async (c) => {
 
   if (assigneeId && assigneeId !== user.id) {
     try {
-      const { dispatchOrgWebhooks } = await import("../utils/webhooks");
-      await dispatchOrgWebhooks(
+      const { dispatchAutomationWebhooks } = await import("../utils/automationRunner");
+      await dispatchAutomationWebhooks(
         c.env.DB,
         orgId,
         "task.assigned",
@@ -1369,6 +1372,27 @@ app.post("/organizations/:orgId/tasks", async (c) => {
         },
         c.req.raw.url,
         c.env,
+      );
+    } catch {
+      /* optional */
+    }
+  }
+
+  if (priority === "high") {
+    try {
+      const { dispatchAutomationWebhooks } = await import("../utils/automationRunner");
+      await dispatchAutomationWebhooks(
+        c.env.DB,
+        orgId,
+        "task.created",
+        {
+          title: `긴급 업무: ${body.title.trim()}`,
+          link: `/tasks?task=${id}`,
+          actorName: user.name,
+        },
+        c.req.raw.url,
+        c.env,
+        { presetKey: "webhook_high_priority_task" },
       );
     } catch {
       /* optional */
@@ -1530,7 +1554,10 @@ app.patch("/tasks/:taskId", async (c) => {
   const { logTaskUpdates } = await import("../utils/taskActivities");
   await logTaskUpdates(c.env.DB, existing.organization_id, taskId, user.id, existing, body);
 
-  const { notifyTaskAssigned, notifyTaskDueSoon } = await import("../utils/notifications");
+  const { notifyTaskAssigned, notifyTaskDueSoon, createNotification } = await import(
+    "../utils/notifications"
+  );
+  const { isAutomationPresetEnabled } = await import("../utils/automationPresets");
   const nextAssignee =
     body.assigneeId !== undefined ? body.assigneeId : existing.assignee_id;
   const nextTitle = body.title !== undefined ? body.title.trim() : existing.title;
@@ -1539,7 +1566,8 @@ app.patch("/tasks/:taskId", async (c) => {
   if (
     body.assigneeId !== undefined &&
     body.assigneeId &&
-    body.assigneeId !== existing.assignee_id
+    body.assigneeId !== existing.assignee_id &&
+    (await isAutomationPresetEnabled(c.env.DB, existing.organization_id, "notify_task_assigned"))
   ) {
     await notifyTaskAssigned(c.env.DB, c.env, {
       assigneeId: body.assigneeId,
@@ -1549,8 +1577,8 @@ app.patch("/tasks/:taskId", async (c) => {
       taskTitle: nextTitle,
     });
     try {
-      const { dispatchOrgWebhooks } = await import("../utils/webhooks");
-      await dispatchOrgWebhooks(
+      const { dispatchAutomationWebhooks } = await import("../utils/automationRunner");
+      await dispatchAutomationWebhooks(
         c.env.DB,
         existing.organization_id,
         "task.assigned",
@@ -1567,10 +1595,38 @@ app.patch("/tasks/:taskId", async (c) => {
     }
   }
 
+  if (
+    body.status !== undefined &&
+    body.status !== existing.status &&
+    nextAssignee &&
+    (await isAutomationPresetEnabled(
+      c.env.DB,
+      existing.organization_id,
+      "notify_task_status_change",
+    ))
+  ) {
+    const statusLabel =
+      body.status === "done"
+        ? "완료"
+        : body.status === "on_hold"
+          ? "보류"
+          : body.status === "doing"
+            ? "진행 중"
+            : "할 일";
+    await createNotification(c.env.DB, c.env, {
+      userId: nextAssignee,
+      organizationId: existing.organization_id,
+      type: "task_status",
+      title: "업무 상태가 변경되었습니다",
+      body: `「${nextTitle}」→ ${statusLabel}`,
+      link: `/tasks?task=${taskId}`,
+    });
+  }
+
   if (body.status === "done" && existing.status !== "done") {
     try {
-      const { dispatchOrgWebhooks } = await import("../utils/webhooks");
-      await dispatchOrgWebhooks(
+      const { dispatchAutomationWebhooks } = await import("../utils/automationRunner");
+      await dispatchAutomationWebhooks(
         c.env.DB,
         existing.organization_id,
         "task.completed",
@@ -2061,7 +2117,20 @@ app.post("/tasks/:taskId/comments", async (c) => {
   });
 
   const mentionedIds = parseMentionedUserIds(body.body.trim(), members);
+  const { isAutomationPresetEnabled } = await import("../utils/automationPresets");
+  const mentionEnabled = await isAutomationPresetEnabled(
+    c.env.DB,
+    task.organization_id,
+    "notify_task_mention",
+  );
+  const commentEnabled = await isAutomationPresetEnabled(
+    c.env.DB,
+    task.organization_id,
+    "notify_task_comment",
+  );
+
   for (const mentionedId of mentionedIds) {
+    if (!mentionEnabled) continue;
     await notifyTaskMention(c.env.DB, c.env, {
       mentionedUserId: mentionedId,
       actorId: user.id,
@@ -2077,6 +2146,7 @@ app.post("/tasks/:taskId/comments", async (c) => {
   if (task.creator_id) recipients.add(task.creator_id);
   for (const recipientId of recipients) {
     if (mentionedIds.includes(recipientId)) continue;
+    if (!commentEnabled) continue;
     await notifyTaskComment(c.env.DB, c.env, {
       recipientId,
       actorId: user.id,

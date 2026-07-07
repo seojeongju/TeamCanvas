@@ -395,3 +395,22 @@ export function useDeleteOrgWebhook() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["org-webhooks", orgId] }),
   });
 }
+
+export function useAutomationPresets() {
+  const orgId = useCurrentOrgId();
+  return useQuery({
+    queryKey: ["automation-presets", orgId],
+    queryFn: () => api.getAutomationPresets(orgId!),
+    enabled: !!orgId,
+  });
+}
+
+export function useUpdateAutomationPreset() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) =>
+      api.updateAutomationPreset(orgId!, key, enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-presets", orgId] }),
+  });
+}

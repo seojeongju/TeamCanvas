@@ -22,6 +22,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useCurrentOrgId } from "../../stores/orgStore";
 import { api } from "../../lib/api";
 import { cn } from "../../lib/cn";
+import { AutomationPresetsSection } from "../../components/settings/AutomationPresetsSection";
 import { WebhooksSection } from "../../components/settings/WebhooksSection";
 
 const TIMEZONES = [
@@ -346,6 +347,7 @@ export function OrgSettingsPage() {
             </GlassCard>
           </button>
 
+          <AutomationPresetsSection />
           <WebhooksSection />
 
           {role === "owner" && data?.organization.status !== "pending_deletion" && (

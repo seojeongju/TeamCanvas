@@ -3,7 +3,10 @@ import { appUrl } from "./helpers";
 export type WebhookEventType =
   | "event.created"
   | "task.assigned"
-  | "task.completed";
+  | "task.completed"
+  | "task.created"
+  | "task.comment"
+  | "project.comment";
 
 export type WebhookPayload = {
   type: WebhookEventType;

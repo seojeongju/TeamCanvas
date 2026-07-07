@@ -1209,6 +1209,25 @@ projectRoutes.post("/projects/:projectId/comments", async (c) => {
     mentionedIds,
   });
 
+  try {
+    const { dispatchAutomationWebhooks } = await import("../utils/automationRunner");
+    await dispatchAutomationWebhooks(
+      c.env.DB,
+      orgId,
+      "project.comment",
+      {
+        title: `프로젝트 논의: ${project.name as string}`,
+        body: preview,
+        link: `/projects/${projectId}`,
+        actorName: user.name,
+      },
+      c.req.raw.url,
+      c.env,
+    );
+  } catch {
+    /* optional */
+  }
+
   const { bumpOrgSyncSafe } = await import("../utils/orgSync");
   await bumpOrgSyncSafe(c.env, orgId, ["projects", "activity", "files"]);
 

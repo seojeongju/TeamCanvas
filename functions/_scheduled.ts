@@ -1,5 +1,6 @@
 import type { Env } from "./types";
 import { processMilestoneDueReminders } from "./utils/milestoneReminders";
+import { processOverdueTaskReminders } from "./utils/overdueTaskReminders";
 import { processDueReminders } from "./utils/reminders";
 
 type ScheduledContext = {
@@ -14,6 +15,7 @@ export async function onSchedule(context: ScheduledContext): Promise<Response> {
     Promise.all([
       processDueReminders(env.DB, env),
       processMilestoneDueReminders(env.DB, env),
+      processOverdueTaskReminders(env.DB, env),
     ]).catch(() => {
       /* 로그만 — Cron 응답은 성공 유지 */
     }),
