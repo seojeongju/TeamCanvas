@@ -60,6 +60,11 @@ function ProjectCard({ project }: { project: Project }) {
             >
               {projectStatusLabel(project.status)}
             </span>
+            {project.visibility === "organization" && (
+              <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                조직 공유
+              </span>
+            )}
             <ProjectProgressBadge percent={project.progressPercent} />
           </div>
           <p className="mt-0.5 truncate text-xs text-navy-500">

@@ -9,6 +9,7 @@ import {
   type ResolvedProjectTemplatePayload,
 } from "./projectTemplateData";
 import { newId, now } from "./helpers";
+import { isValidProjectVisibility, type ProjectVisibility } from "./projectAccess";
 
 const PROJECT_STATUSES = ["planning", "active", "on_hold", "done", "archived"] as const;
 
@@ -23,6 +24,8 @@ export type CreateProjectFromTemplateInput = {
   startAt?: number | null;
   endAt?: number | null;
   templateId: string;
+  visibility?: string;
+  shareWithOrganization?: boolean;
 };
 
 export type CreateProjectFromTemplateResult = {
@@ -87,11 +90,19 @@ export async function createProjectFromTemplate(
   const ts = now();
   const startAt = input.startAt ?? null;
 
+  let visibility: ProjectVisibility = "organization";
+  if (input.visibility !== undefined) {
+    if (!isValidProjectVisibility(input.visibility)) throw new Error("invalid_visibility");
+    visibility = input.visibility;
+  } else if (input.shareWithOrganization === false) {
+    visibility = "members";
+  }
+
   await db
     .prepare(
       `INSERT INTO projects (
-        id, organization_id, team_id, owner_id, name, description, status, color, start_at, end_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, organization_id, team_id, owner_id, name, description, status, color, start_at, end_at, visibility, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       projectId,
@@ -104,6 +115,7 @@ export async function createProjectFromTemplate(
       input.color ?? "#4A9FE8",
       startAt,
       input.endAt ?? null,
+      visibility,
       ts,
       ts,
     )

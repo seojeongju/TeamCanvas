@@ -12,6 +12,7 @@ import {
 } from "../../lib/statusVisuals";
 import {
   advanceStatus,
+  formatTaskCreatedAt,
   getDueClass,
   getInitials,
   getPriorityClass,
@@ -174,23 +175,33 @@ export function TaskCard({
                 />
               </div>
 
-              <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-sky-50 pt-2.5">
+              <div className="mt-2.5 space-y-1.5 border-t border-sky-50 pt-2.5">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[9px] font-bold text-primary-600">
                     {getInitials(task.assignee)}
                   </span>
                   <span className="truncate text-xs text-navy-600">{task.assignee}</span>
                 </div>
-                {task.due && (
-                  <span
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium",
-                      getDueClass(task),
+                {(task.createdAt != null || task.due) && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {task.createdAt != null && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-navy-500">
+                        <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
+                        작성 {formatTaskCreatedAt(task.createdAt)}
+                      </span>
                     )}
-                  >
-                    <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
-                    {task.due}
-                  </span>
+                    {task.due && (
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium",
+                          getDueClass(task),
+                        )}
+                      >
+                        <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
+                        마감 {task.due}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </button>

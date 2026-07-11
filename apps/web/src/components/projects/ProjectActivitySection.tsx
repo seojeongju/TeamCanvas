@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { History } from "lucide-react";
-import { ActivityListItem } from "../ui/ActivityListItem";
+import { ExpandableActivityItem } from "../ui/ExpandableActivityItem";
 import { GlassCard } from "../ui/GlassCard";
 import { useProjectActivities } from "../../hooks/useData";
 import { cn } from "../../lib/cn";
@@ -48,6 +48,8 @@ export function ProjectActivitySection({ projectId }: { projectId: string }) {
         <span className="text-xs text-navy-500">{(data?.activities ?? []).length}건</span>
       </div>
 
+      <p className="text-xs text-navy-500">항목을 누르면 변경 상세를 확인할 수 있습니다.</p>
+
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">
         {ACTION_FILTERS.map((f) => (
           <button
@@ -74,13 +76,15 @@ export function ProjectActivitySection({ projectId }: { projectId: string }) {
         <div className="space-y-1">
           {activities.map((a: ProjectActivity) => (
             <GlassCard key={a.id} className="p-0">
-              <ActivityListItem
+              <ExpandableActivityItem
                 actorName={a.actorName}
                 summary={a.summary}
                 time={a.time}
                 action={a.action}
+                createdAt={a.createdAt}
+                field={a.field}
                 kind="project"
-                className="px-2"
+                className="px-1"
               />
             </GlassCard>
           ))}

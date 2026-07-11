@@ -13,7 +13,7 @@ export async function duplicateProject(
 ): Promise<{ id: string; milestoneCount: number; taskCount: number }> {
   const source = await db
     .prepare(
-      `SELECT id, organization_id, team_id, name, description, status, color, start_at, end_at
+      `SELECT id, organization_id, team_id, name, description, status, color, start_at, end_at, visibility
        FROM projects WHERE id = ? AND organization_id = ?`,
     )
     .bind(opts.sourceProjectId, opts.orgId)
@@ -27,8 +27,8 @@ export async function duplicateProject(
   await db
     .prepare(
       `INSERT INTO projects (
-        id, organization_id, team_id, owner_id, name, description, status, color, start_at, end_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?, ?)`,
+        id, organization_id, team_id, owner_id, name, description, status, color, start_at, end_at, visibility, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'planning', ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       projectId,
@@ -40,6 +40,7 @@ export async function duplicateProject(
       source.color,
       source.start_at,
       source.end_at,
+      (source.visibility as string) || "members",
       ts,
       ts,
     )

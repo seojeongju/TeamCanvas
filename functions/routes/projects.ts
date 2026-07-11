@@ -10,9 +10,11 @@ import {
   canProjectManageMembers,
   canProjectWriteContent,
   getProjectMemberRole,
+  isValidProjectVisibility,
   orgRoleSeesAllProjects,
   PROJECT_MEMBER_ACCESS_SQL,
   type ProjectMemberRole,
+  type ProjectVisibility,
 } from "../utils/projectAccess";
 import {
   parseTemplateMemberSlots,
@@ -112,6 +114,7 @@ function mapProjectRow(row: Record<string, unknown>) {
     color: row.color as string,
     startAt: (row.start_at as number | null) ?? null,
     endAt: (row.end_at as number | null) ?? null,
+    visibility: ((row.visibility as string) || "members") as ProjectVisibility,
     taskCount: Number(row.task_count ?? 0),
     openTaskCount: Number(row.open_task_count ?? 0),
     milestoneCount: progress.milestoneCount,
@@ -218,6 +221,8 @@ projectRoutes.post("/organizations/:orgId/projects", async (c) => {
     teamId?: string | null;
     startAt?: number | null;
     endAt?: number | null;
+    visibility?: string;
+    shareWithOrganization?: boolean;
   }>();
 
   if (!body.name?.trim()) return c.json({ error: "name required" }, 400);
@@ -226,13 +231,23 @@ projectRoutes.post("/organizations/:orgId/projects", async (c) => {
     ? body.status
     : "planning";
 
+  let visibility: ProjectVisibility = "organization";
+  if (body.visibility !== undefined) {
+    if (!isValidProjectVisibility(body.visibility)) {
+      return c.json({ error: "invalid visibility" }, 400);
+    }
+    visibility = body.visibility;
+  } else if (body.shareWithOrganization === false) {
+    visibility = "members";
+  }
+
   const id = newId();
   const ts = now();
 
   await c.env.DB.prepare(
     `INSERT INTO projects (
-      id, organization_id, team_id, owner_id, name, description, status, color, start_at, end_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, organization_id, team_id, owner_id, name, description, status, color, start_at, end_at, visibility, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -245,6 +260,7 @@ projectRoutes.post("/organizations/:orgId/projects", async (c) => {
       body.color ?? "#4A9FE8",
       body.startAt ?? null,
       body.endAt ?? null,
+      visibility,
       ts,
       ts,
     )
@@ -290,6 +306,8 @@ projectRoutes.post("/organizations/:orgId/projects/from-template", async (c) => 
     teamId?: string | null;
     startAt?: number | null;
     endAt?: number | null;
+    visibility?: string;
+    shareWithOrganization?: boolean;
   }>();
 
   if (!body.templateId?.trim()) return c.json({ error: "templateId required" }, 400);
@@ -308,6 +326,8 @@ projectRoutes.post("/organizations/:orgId/projects/from-template", async (c) => 
       teamId: body.teamId,
       startAt: body.startAt,
       endAt: body.endAt,
+      visibility: body.visibility,
+      shareWithOrganization: body.shareWithOrganization,
     });
     const { syncProjectTeamMembers } = await import("../utils/projectTeamSync");
     await syncProjectTeamMembers(c.env.DB, {
@@ -387,6 +407,8 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
     teamId?: string | null;
     startAt?: number | null;
     endAt?: number | null;
+    visibility?: string;
+    shareWithOrganization?: boolean;
   }>();
 
   const updates: string[] = [];
@@ -424,6 +446,16 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
     updates.push("end_at = ?");
     binds.push(body.endAt);
   }
+  if (body.visibility !== undefined) {
+    if (!isValidProjectVisibility(body.visibility)) {
+      return c.json({ error: "invalid visibility" }, 400);
+    }
+    updates.push("visibility = ?");
+    binds.push(body.visibility);
+  } else if (body.shareWithOrganization !== undefined) {
+    updates.push("visibility = ?");
+    binds.push(body.shareWithOrganization ? "organization" : "members");
+  }
 
   if (updates.length === 0) return c.json({ ok: true });
 
@@ -446,6 +478,7 @@ projectRoutes.patch("/projects/:projectId", async (c) => {
       name: existing.name as string,
       description: (existing.description as string | null) ?? null,
       status: existing.status as string,
+      visibility: (existing.visibility as string | null) ?? "members",
     },
   );
 

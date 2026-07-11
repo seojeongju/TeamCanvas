@@ -36,7 +36,7 @@ import {
 } from "../lib/projectUtils";
 import { ProjectProgressBar } from "../components/projects/ProjectProgressBadge";
 import { cn } from "../lib/cn";
-import type { ProjectStatus } from "../lib/types";
+import type { ProjectStatus, ProjectVisibility } from "../lib/types";
 
 const selectClass =
   "w-full rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2.5 text-sm text-navy-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";
@@ -104,6 +104,7 @@ export function ProjectDetailPage() {
   const [teamId, setTeamId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [shareWithOrganization, setShareWithOrganization] = useState(true);
 
   const startEdit = () => {
     if (!project) return;
@@ -114,11 +115,13 @@ export function ProjectDetailPage() {
     setTeamId(project.teamId ?? "");
     setStartDate(toDateInputValue(project.startAt));
     setEndDate(toDateInputValue(project.endAt));
+    setShareWithOrganization(project.visibility !== "members");
     setEditing(true);
   };
 
   const handleSave = async () => {
     if (!project || !name.trim()) return;
+    const visibility: ProjectVisibility = shareWithOrganization ? "organization" : "members";
     await updateProject.mutateAsync({
       id: project.id,
       name: name.trim(),
@@ -128,6 +131,7 @@ export function ProjectDetailPage() {
       teamId: teamId || null,
       startAt: parseDateInputStart(startDate),
       endAt: parseDateInputEnd(endDate),
+      visibility,
     });
     setEditing(false);
   };
@@ -229,6 +233,15 @@ export function ProjectDetailPage() {
             >
               {projectStatusLabel(project.status)}
             </span>
+            {project.visibility === "organization" ? (
+              <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700">
+                조직 공유
+              </span>
+            ) : (
+              <span className="rounded-full bg-white/70 px-2.5 py-0.5 text-xs text-navy-600">
+                초대 멤버만
+              </span>
+            )}
             {project.teamName && (
               <span className="rounded-full bg-white/70 px-2.5 py-0.5 text-xs text-navy-600">
                 {project.teamName}
@@ -316,6 +329,20 @@ export function ProjectDetailPage() {
                     ))}
                   </select>
                 )}
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sky-100/80 bg-sky-50/50 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={shareWithOrganization}
+                    onChange={(e) => setShareWithOrganization(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-sky-300 text-primary-500 focus:ring-primary-400"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-navy-800">조직 전체에 공유</span>
+                    <span className="mt-0.5 block text-xs text-navy-500">
+                      조직 멤버 모두가 프로젝트를 보고 협업할 수 있습니다.
+                    </span>
+                  </span>
+                </label>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium text-navy-700">색상</label>
                   <div className="flex flex-wrap gap-2">

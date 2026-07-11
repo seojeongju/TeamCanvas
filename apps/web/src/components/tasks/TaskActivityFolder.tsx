@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, History, ListTodo } from "lucide-react";
-import { ActivityListItem } from "../ui/ActivityListItem";
+import { ExpandableActivityItem } from "../ui/ExpandableActivityItem";
 import { useTaskActivities } from "../../hooks/useData";
 import {
   activityToneBadgeClass,
@@ -68,13 +68,15 @@ export function TaskActivityFolder({ taskId }: { taskId: string }) {
 
       {expanded && (
         <div className="space-y-0.5 border-t border-sky-100/80 px-1 pb-2 pt-1">
+          <p className="px-3 pb-1 text-[11px] text-navy-500">항목을 누르면 상세를 볼 수 있습니다.</p>
           {activities.map((a) => (
-            <ActivityListItem
+            <ExpandableActivityItem
               key={a.id}
               actorName={a.actorName}
               summary={a.summary}
               time={a.time}
               action={a.action}
+              createdAt={a.createdAt}
               kind="task"
             />
           ))}

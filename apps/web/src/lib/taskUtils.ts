@@ -31,6 +31,17 @@ export function getDueClass(task: Task) {
   return "bg-sky-100 text-navy-600";
 }
 
+/** 업무 카드용 작성일 표시 (같은 해면 M/D, 아니면 YYYY. M. D.) */
+export function formatTaskCreatedAt(createdAt: number): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+}
+
 export function getInitials(name: string) {
   const trimmed = name.trim();
   if (!trimmed || trimmed === "미배정") return "?";

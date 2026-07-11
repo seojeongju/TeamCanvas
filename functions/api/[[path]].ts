@@ -1250,6 +1250,7 @@ app.get("/organizations/:orgId/tasks", async (c) => {
       due,
       isOverdue,
       sortOrder: r.sort_order ?? 0,
+      createdAt: r.created_at as number,
       updatedAt: r.updated_at as number,
     };
   });

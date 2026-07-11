@@ -77,35 +77,55 @@ export async function logProjectUpdated(
     teamId?: string | null;
     startAt?: number | null;
     endAt?: number | null;
+    visibility?: string;
+    shareWithOrganization?: boolean;
   },
   before: {
     name: string;
     description: string | null;
     status: string;
+    visibility?: string | null;
   },
 ): Promise<void> {
-  const logs: string[] = [];
+  const logs: { summary: string; field?: string }[] = [];
   if (body.name !== undefined && body.name.trim() !== before.name) {
-    logs.push(`이름: ${before.name} → ${body.name.trim()}`);
+    logs.push({ summary: `이름: ${before.name} → ${body.name.trim()}`, field: "name" });
   }
   if (body.description !== undefined && body.description !== before.description) {
-    logs.push("설명 변경");
+    logs.push({ summary: "설명 변경", field: "description" });
   }
   if (body.status !== undefined && body.status !== before.status) {
-    logs.push(
-      `상태: ${PROJECT_STATUS_LABELS[before.status] ?? before.status} → ${PROJECT_STATUS_LABELS[body.status] ?? body.status}`,
-    );
+    logs.push({
+      summary: `상태: ${PROJECT_STATUS_LABELS[before.status] ?? before.status} → ${PROJECT_STATUS_LABELS[body.status] ?? body.status}`,
+      field: "status",
+    });
   }
-  if (body.teamId !== undefined) logs.push("팀 변경");
-  if (body.startAt !== undefined || body.endAt !== undefined) logs.push("기간 변경");
+  if (body.teamId !== undefined) logs.push({ summary: "팀 변경", field: "team" });
+  if (body.startAt !== undefined || body.endAt !== undefined) {
+    logs.push({ summary: "기간 변경", field: "dates" });
+  }
 
-  for (const summary of logs) {
+  const nextVisibility =
+    body.visibility ??
+    (body.shareWithOrganization === undefined
+      ? undefined
+      : body.shareWithOrganization
+        ? "organization"
+        : "members");
+  if (nextVisibility !== undefined && nextVisibility !== (before.visibility ?? "members")) {
+    const beforeLabel = (before.visibility ?? "members") === "organization" ? "조직 공유" : "초대 멤버만";
+    const afterLabel = nextVisibility === "organization" ? "조직 공유" : "초대 멤버만";
+    logs.push({ summary: `공유: ${beforeLabel} → ${afterLabel}`, field: "visibility" });
+  }
+
+  for (const log of logs) {
     await insertProjectActivity(db, {
       projectId,
       organizationId: orgId,
       actorId,
       action: "updated",
-      summary,
+      summary: log.summary,
+      field: log.field,
     });
   }
 }

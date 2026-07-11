@@ -444,6 +444,7 @@ export type Task = {
   due: string;
   isOverdue?: boolean;
   sortOrder?: number;
+  createdAt?: number;
   updatedAt?: number;
   labels?: TaskLabel[];
   attachmentCount?: number;
@@ -481,6 +482,7 @@ export type TaskSavedFilter = {
 };
 
 export type ProjectStatus = "planning" | "active" | "on_hold" | "done" | "archived";
+export type ProjectVisibility = "members" | "organization";
 
 export type Project = {
   id: string;
@@ -495,6 +497,7 @@ export type Project = {
   color: string;
   startAt: number | null;
   endAt: number | null;
+  visibility?: ProjectVisibility;
   taskCount?: number;
   openTaskCount?: number;
   milestoneCount?: number;
@@ -519,6 +522,8 @@ export type CreateProjectPayload = {
   teamId?: string | null;
   startAt?: number | null;
   endAt?: number | null;
+  visibility?: ProjectVisibility;
+  shareWithOrganization?: boolean;
 };
 
 export type UpdateProjectPayload = {
@@ -530,6 +535,8 @@ export type UpdateProjectPayload = {
   teamId?: string | null;
   startAt?: number | null;
   endAt?: number | null;
+  visibility?: ProjectVisibility;
+  shareWithOrganization?: boolean;
 };
 
 export type MilestoneStatus = "pending" | "done";

@@ -52,6 +52,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [templateId, setTemplateId] = useState("builtin:blank");
+  const [shareWithOrganization, setShareWithOrganization] = useState(true);
 
   const selectedTemplate = useMemo(
     () => resolveProjectTemplate(templateId, orgTemplates),
@@ -67,6 +68,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
     setStartDate("");
     setEndDate("");
     setTemplateId("builtin:blank");
+    setShareWithOrganization(true);
   };
 
   const handleClose = () => {
@@ -90,6 +92,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
       teamId: teamId || null,
       startAt,
       endAt,
+      visibility: shareWithOrganization ? "organization" : "members",
     });
 
     handleClose();
@@ -217,6 +220,22 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
             </select>
           </div>
         )}
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sky-100/80 bg-sky-50/50 px-3 py-3">
+          <input
+            type="checkbox"
+            checked={shareWithOrganization}
+            onChange={(e) => setShareWithOrganization(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-sky-300 text-primary-500 focus:ring-primary-400"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-navy-800">조직 전체에 공유</span>
+            <span className="mt-0.5 block text-xs text-navy-500">
+              켜면 현재 조직의 모든 멤버가 이 프로젝트를 보고 협업할 수 있습니다. 끄면 초대된 멤버만
+              접근합니다.
+            </span>
+          </span>
+        </label>
 
         <div className="grid grid-cols-2 gap-3">
           <Input label="시작일 (선택)" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />

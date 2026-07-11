@@ -1,6 +1,7 @@
 import type { OrgRole } from "./permissions";
 
 export type ProjectMemberRole = "owner" | "manager" | "member" | "viewer";
+export type ProjectVisibility = "members" | "organization";
 
 const PROJECT_MEMBER_ROLES: ProjectMemberRole[] = ["owner", "manager", "member", "viewer"];
 
@@ -8,10 +9,15 @@ export function orgRoleSeesAllProjects(role: string): boolean {
   return role === "owner" || role === "admin";
 }
 
-/** member/guest: 소유자이거나 project_members에 포함된 프로젝트만 */
+export function isValidProjectVisibility(value: string): value is ProjectVisibility {
+  return value === "members" || value === "organization";
+}
+
+/** member/guest: 소유자·프로젝트 멤버·조직 전체 공유 프로젝트 */
 export const PROJECT_MEMBER_ACCESS_SQL = `
   AND (
     p.owner_id = ?
+    OR p.visibility = 'organization'
     OR EXISTS (
       SELECT 1 FROM project_members pm
       WHERE pm.project_id = p.id AND pm.user_id = ?
@@ -34,6 +40,7 @@ export async function assertProjectAccess(
        WHERE p.id = ? AND p.organization_id = ?
        AND (
          p.owner_id = ?
+         OR p.visibility = 'organization'
          OR EXISTS (
            SELECT 1 FROM project_members pm
            WHERE pm.project_id = p.id AND pm.user_id = ?
@@ -60,9 +67,9 @@ export async function getProjectMemberRole(
   if (orgRoleSeesAllProjects(orgRole)) return "owner";
 
   const project = await db
-    .prepare("SELECT owner_id FROM projects WHERE id = ? AND organization_id = ?")
+    .prepare("SELECT owner_id, visibility FROM projects WHERE id = ? AND organization_id = ?")
     .bind(projectId, orgId)
-    .first<{ owner_id: string }>();
+    .first<{ owner_id: string; visibility: string | null }>();
   if (!project) return null;
 
   if (project.owner_id === userId) return "owner";
@@ -72,11 +79,14 @@ export async function getProjectMemberRole(
     .bind(projectId, userId)
     .first<{ role: string }>();
 
-  if (!row) return null;
-  if (PROJECT_MEMBER_ROLES.includes(row.role as ProjectMemberRole)) {
+  if (row && PROJECT_MEMBER_ROLES.includes(row.role as ProjectMemberRole)) {
     return row.role as ProjectMemberRole;
   }
-  return "member";
+
+  // 조직 전체 공유: 명시 멤버가 아니면 협업 가능한 member 권한
+  if (project.visibility === "organization") return "member";
+
+  return null;
 }
 
 export function canProjectWriteContent(role: ProjectMemberRole | null): boolean {
