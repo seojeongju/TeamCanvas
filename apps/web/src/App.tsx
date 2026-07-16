@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { AdminShell } from "./components/layout/AdminShell";
 import { AuthGuard, GuestGuard, AuthOnly } from "./components/auth/AuthGuard";
@@ -53,11 +54,24 @@ function LoadingScreen() {
 
 /** 비로그인 → 랜딩, 로그인 → 앱 셸 */
 function AppRoot() {
+  const [params, setParams] = useSearchParams();
+  const oauthComplete = params.get("oauth") === "complete";
   const isLoading = useAuthStore((s) => s.isLoading);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { isFetching } = useAuthInit();
 
+  useEffect(() => {
+    if (!oauthComplete || !isAuthenticated) return;
+    const next = new URLSearchParams(params);
+    next.delete("oauth");
+    next.delete("t");
+    setParams(next, { replace: true });
+  }, [oauthComplete, isAuthenticated, params, setParams]);
+
   if (isLoading || isFetching) return <LoadingScreen />;
+  if (oauthComplete && !isAuthenticated) {
+    return <Navigate to="/login?error=session_cookie_failed&step=me" replace />;
+  }
   if (!isAuthenticated) return <LandingPage />;
 
   return (

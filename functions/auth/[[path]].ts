@@ -17,6 +17,7 @@ import {
   getSessionExpiry,
   refreshAuthSession,
   establishSessionFromTokens,
+  redirectWithAuthCookies,
 } from "../utils/auth";
 import { upsertOAuthUser, getUserOrganizations, registerEmailUser, loginEmailUser, resolveDisplayName } from "../utils/db";
 import { extendAuthMe } from "../routes/admin";
@@ -405,7 +406,14 @@ async function finalizeOAuthSession(c: Context<{ Bindings: Env }>, payloadRaw: s
     return htmlRedirect(c, url.toString(), "로그인 페이지로 이동 중…");
   }
 
-  return htmlRedirect(c, payload.destination, "로그인을 완료하는 중…");
+  const secure = new URL(c.req.url).protocol === "https:";
+  return redirectWithAuthCookies(
+    payload.destination,
+    payload.accessToken,
+    payload.refreshToken,
+    established.sessionExpiresAt,
+    secure,
+  );
 }
 
 /** OAuth 콜백에서 브라우저가 Set-Cookie를 저장하지 못한 경우의 동일 출처 핸드오프 */

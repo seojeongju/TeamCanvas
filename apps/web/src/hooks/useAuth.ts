@@ -1,37 +1,57 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../stores/authStore";
 import { useOrgStore } from "../stores/orgStore";
 
+function isOAuthComplete(search: string): boolean {
+  return new URLSearchParams(search).get("oauth") === "complete";
+}
+
 export function useAuthInit() {
+  const [params] = useSearchParams();
+  const oauthComplete = isOAuthComplete(params.toString());
   const setAuth = useAuthStore((s) => s.setAuth);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const setLoading = useAuthStore((s) => s.setLoading);
   const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
 
   return useQuery({
-    queryKey: ["auth", "me"],
+    queryKey: ["auth", "me", oauthComplete ? params.toString() : "default"],
     queryFn: async () => {
+      const attempts = oauthComplete ? 4 : 1;
+      let lastError: unknown;
+
       try {
-        const data = await api.me();
-        setAuth(data.user, data.organizations, {
-          isPlatformAdmin: data.isPlatformAdmin,
-          platformRole: data.platformRole,
-          sessionExpiresAt: data.sessionExpiresAt ?? null,
-        });
-        if (data.organizations[0] && !useOrgStore.getState().currentOrgId) {
-          setCurrentOrgId(data.organizations[0].id);
+        for (let i = 0; i < attempts; i++) {
+          try {
+            const data = await api.me();
+            setAuth(data.user, data.organizations, {
+              isPlatformAdmin: data.isPlatformAdmin,
+              platformRole: data.platformRole,
+              sessionExpiresAt: data.sessionExpiresAt ?? null,
+            });
+            if (data.organizations[0] && !useOrgStore.getState().currentOrgId) {
+              setCurrentOrgId(data.organizations[0].id);
+            }
+            return data;
+          } catch (err) {
+            lastError = err;
+            if (i < attempts - 1) {
+              await new Promise((resolve) => setTimeout(resolve, 300 * (i + 1)));
+            }
+          }
         }
-        return data;
-      } catch {
+
         clearAuth();
-        throw new Error("Unauthorized");
+        throw lastError instanceof Error ? lastError : new Error("Unauthorized");
       } finally {
         setLoading(false);
       }
     },
     retry: false,
-    staleTime: 60_000,
+    staleTime: oauthComplete ? 0 : 60_000,
+    refetchOnMount: oauthComplete ? "always" : true,
   });
 }
 

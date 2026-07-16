@@ -300,6 +300,25 @@ function setAuthTokenCookies(
   setCookie(c, "refresh_token", refreshToken, { ...cookieOpts, maxAge: refreshMaxAge });
 }
 
+/** OAuth 완료 시 브라우저가 쿠키를 확실히 저장하도록 HTTP 302 + 명시적 Set-Cookie */
+export function redirectWithAuthCookies(
+  destination: string,
+  accessToken: string,
+  refreshToken: string,
+  sessionExpiresAt: number,
+  secure: boolean,
+): Response {
+  const headers = new Headers({
+    Location: destination,
+    "Cache-Control": "no-store",
+  });
+  const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+  const refreshMaxAge = Math.max(1, Math.floor((sessionExpiresAt - Date.now()) / 1000));
+  headers.append("Set-Cookie", `access_token=${accessToken}; ${base}; Max-Age=${ACCESS_MAX_AGE}`);
+  headers.append("Set-Cookie", `refresh_token=${refreshToken}; ${base}; Max-Age=${refreshMaxAge}`);
+  return new Response(null, { status: 302, headers });
+}
+
 export async function getSessionExpiry(c: Context<{ Bindings: Env }>): Promise<number | null> {
   const refresh = getCookie(c, "refresh_token");
   if (!refresh) return null;
