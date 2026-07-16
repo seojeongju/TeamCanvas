@@ -18,10 +18,17 @@ export async function onRequest(context: EventContext<Env, string, unknown>) {
   }
 
   const response = await next();
-  // OAuth 콜백에는 access/refresh 쿠키가 각각 Set-Cookie로 포함된다.
-  // 응답을 다시 생성하면 일부 런타임에서 복수 쿠키 헤더가 합쳐질 수 있으므로
-  // Hono가 만든 원본 응답을 그대로 브라우저에 전달한다.
-  if (url.pathname.startsWith("/auth/callback/")) {
+  // Set-Cookie가 포함된 인증 응답은 헤더를 다시 구성하지 않는다.
+  // 일부 런타임에서 new Headers()가 복수 Set-Cookie를 합쳐 쿠키가 유실된다.
+  const setCookies =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [];
+  if (
+    setCookies.length > 0 ||
+    url.pathname.startsWith("/auth/callback/") ||
+    url.pathname === "/auth/establish-session"
+  ) {
     return response;
   }
 
@@ -32,8 +39,6 @@ export async function onRequest(context: EventContext<Env, string, unknown>) {
   if (url.pathname.startsWith("/api") || url.pathname.startsWith("/auth")) {
     headers.set("Access-Control-Allow-Origin", url.origin);
     headers.set("Access-Control-Allow-Credentials", "true");
-  }
-  if (url.pathname.startsWith("/auth")) {
     headers.set("Cache-Control", "no-store");
   }
   return new Response(response.body, {

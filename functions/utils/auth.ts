@@ -29,7 +29,12 @@ export async function setAuthCookies(
   c: Context<{ Bindings: Env }>,
   userId: string,
   email: string | null,
-): Promise<{ sessionExpiresAt: number; absoluteExpiresAt: number }> {
+): Promise<{
+  sessionExpiresAt: number;
+  absoluteExpiresAt: number;
+  accessToken: string;
+  refreshToken: string;
+}> {
   const secret = c.env.JWT_SECRET;
   const issuedAt = now();
   const sessionExpiresAt = issuedAt + REFRESH_IDLE_MAX_AGE * 1000;
@@ -63,7 +68,47 @@ export async function setAuthCookies(
 
   const secure = new URL(c.req.url).protocol === "https:";
   setAuthTokenCookies(c, accessToken, refreshToken, secure, REFRESH_IDLE_MAX_AGE);
-  return { sessionExpiresAt, absoluteExpiresAt };
+  return { sessionExpiresAt, absoluteExpiresAt, accessToken, refreshToken };
+}
+
+/** OAuth 콜백에서 Set-Cookie가 유실된 경우, 동일 출처 POST로 쿠키를 재설정한다. */
+export async function establishSessionFromTokens(
+  c: Context<{ Bindings: Env }>,
+  accessToken: string,
+  refreshToken: string,
+): Promise<{ sessionExpiresAt: number; userId: string } | null> {
+  const accessPayload = await verifyJwt(accessToken, c.env.JWT_SECRET);
+  const refreshPayload = await verifyJwt(refreshToken, c.env.JWT_SECRET);
+  if (!accessPayload || accessPayload.type !== "access") return null;
+  if (!refreshPayload || refreshPayload.type !== "refresh") return null;
+  if (accessPayload.sub !== refreshPayload.sub) return null;
+
+  const hash = await hashToken(refreshToken);
+  const session = await c.env.DB.prepare(
+    `SELECT id, expires_at, created_at, absolute_expires_at
+     FROM sessions
+     WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?
+       AND COALESCE(absolute_expires_at, created_at + ?) > ?`,
+  )
+    .bind(hash, refreshPayload.sub, now(), SESSION_ABSOLUTE_MAX_AGE * 1000, now())
+    .first<Pick<SessionRow, "id" | "expires_at" | "created_at" | "absolute_expires_at">>();
+  if (!session) return null;
+
+  const absoluteExpiresAt = sessionAbsoluteExpiry({
+    id: session.id,
+    user_id: refreshPayload.sub,
+    expires_at: session.expires_at,
+    created_at: session.created_at,
+    last_used_at: null,
+    absolute_expires_at: session.absolute_expires_at,
+  });
+  const refreshMaxAge = refreshMaxAgeSeconds(Math.min(session.expires_at, absoluteExpiresAt));
+  const secure = new URL(c.req.url).protocol === "https:";
+  setAuthTokenCookies(c, accessToken, refreshToken, secure, refreshMaxAge);
+  return {
+    userId: refreshPayload.sub,
+    sessionExpiresAt: Math.min(session.expires_at, absoluteExpiresAt),
+  };
 }
 
 export async function clearAuthCookies(c: Context<{ Bindings: Env }>): Promise<void> {

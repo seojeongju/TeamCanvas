@@ -9,7 +9,14 @@ import {
   completeOAuthLogin,
 } from "../utils/oauth";
 import { signOAuthState, verifyOAuthState } from "../utils/jwt";
-import { setAuthCookies, clearAuthCookies, getAuthUser, getSessionExpiry, refreshAuthSession } from "../utils/auth";
+import {
+  setAuthCookies,
+  clearAuthCookies,
+  getAuthUser,
+  getSessionExpiry,
+  refreshAuthSession,
+  establishSessionFromTokens,
+} from "../utils/auth";
 import { upsertOAuthUser, getUserOrganizations, registerEmailUser, loginEmailUser, resolveDisplayName } from "../utils/db";
 import { extendAuthMe } from "../routes/admin";
 import { validateEmail, validatePassword, validateName, normalizeEmail } from "../utils/validate";
@@ -368,6 +375,45 @@ app.get("/me", async (c) => {
   const platform = await extendAuthMe(c.env.DB, user.id);
   const sessionExpiresAt = await getSessionExpiry(c);
   return c.json({ user, organizations, ...platform, sessionExpiresAt });
+});
+
+/** OAuth 콜백에서 브라우저가 Set-Cookie를 저장하지 못한 경우의 동일 출처 핸드오프 */
+app.post("/establish-session", async (c) => {
+  const body = await c.req.json<{ accessToken?: string; refreshToken?: string }>().catch(() => ({}));
+  if (!body.accessToken || !body.refreshToken) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const established = await establishSessionFromTokens(c, body.accessToken, body.refreshToken);
+  if (!established) return c.json({ error: "Unauthorized" }, 401);
+
+  // setCookie는 응답 헤더에만 들어가므로, 같은 요청의 getAuthUser는 아직 쿠키를 못 본다.
+  const user = await c.env.DB.prepare(
+    "SELECT id, email, name, avatar_url, email_verified FROM users WHERE id = ?",
+  )
+    .bind(established.userId)
+    .first<{
+      id: string;
+      email: string | null;
+      name: string;
+      avatar_url: string | null;
+      email_verified: number;
+    }>();
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+  const organizations = await getUserOrganizations(c.env.DB, user.id);
+  const platform = await extendAuthMe(c.env.DB, user.id);
+  return c.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatar_url,
+      emailVerified: Boolean(user.email_verified),
+    },
+    organizations,
+    ...platform,
+    sessionExpiresAt: established.sessionExpiresAt,
+  });
 });
 
 app.patch("/me", async (c) => {

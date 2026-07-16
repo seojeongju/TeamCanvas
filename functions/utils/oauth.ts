@@ -60,23 +60,27 @@ export async function completeOAuthLogin(
   userId: string,
   email: string | null,
 ): Promise<Response> {
-  await setAuthCookies(c, userId, email);
+  const session = await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
   const frontend = frontendUrl(c.req.raw, c.env);
   const destination = `${frontend}${path}`;
   const loginUrl = `${frontend}/login?error=session_cookie_failed`;
-  c.header("Cache-Control", "no-store");
-  c.header("Content-Type", "text/html; charset=utf-8");
 
-  // 브라우저가 콜백 응답의 쿠키를 저장한 다음 /auth/me로 실제 인증 상태를
-  // 검증한다. 성공 후 새 문서로 이동하므로 BFCache/PWA의 비로그인 상태를
-  // 재사용하지 않는다.
+  // 브라우저가 콜백 응답의 쿠키를 저장한 다음 /auth/me로 인증 상태를 검증한다.
+  // Cloudflare Pages에서 c.body()가 복수 Set-Cookie를 유실하는 경우가 있어
+  // htmlRedirect와 동일하게 쿠키를 명시적으로 복사한다.
+  // 그래도 /auth/me가 실패하면 동일 출처 POST로 쿠키를 재설정한다.
+  const handoff = JSON.stringify({
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+  });
   const html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
   <title>TeamCanvas 로그인 중</title>
   <style>
     body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
@@ -91,25 +95,12 @@ export async function completeOAuthLogin(
   <main><div class="spinner"></div><p>로그인을 완료하는 중입니다…</p></main>
   <script>
     (async () => {
-      try {
-        const response = await fetch("/auth/me?oauth_check=${Date.now()}", {
-          credentials: "include",
-          cache: "no-store"
-        });
-        if (!response.ok) {
-          location.replace(${JSON.stringify(loginUrl)});
-          return;
-        }
+      const loginUrl = ${JSON.stringify(loginUrl)};
+      const destination = ${JSON.stringify(destination)};
+      const handoff = ${handoff};
 
-        const data = await response.json();
-        if (!data.user || !Array.isArray(data.organizations)) {
-          location.replace(${JSON.stringify(loginUrl)});
-          return;
-        }
-
-        // OAuth 직전 앱에 남아 있던 비로그인 상태보다 서버 검증 결과가 우선이다.
-        // Zustand persist 형식으로 저장해 PWA의 이전 JS가 로드되어도 즉시 로그인
-        // 상태로 복원되게 한다. 앱의 useAuthInit이 이후 서버 상태를 다시 확인한다.
+      function saveAuth(data) {
+        if (!data.user || !Array.isArray(data.organizations)) return false;
         localStorage.setItem("teamcanvas-auth", JSON.stringify({
           state: {
             user: data.user,
@@ -127,15 +118,50 @@ export async function completeOAuthLogin(
             version: 0
           }));
         }
-        location.replace(${JSON.stringify(destination)});
+        return true;
+      }
+
+      try {
+        let response = await fetch("/auth/me?oauth_check=${Date.now()}", {
+          credentials: "include",
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          response = await fetch("/auth/establish-session", {
+            method: "POST",
+            credentials: "include",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(handoff)
+          });
+        }
+
+        if (!response.ok) {
+          location.replace(loginUrl);
+          return;
+        }
+
+        const data = await response.json();
+        if (!saveAuth(data)) {
+          location.replace(loginUrl);
+          return;
+        }
+        location.replace(destination);
       } catch {
-        location.replace(${JSON.stringify(loginUrl)});
+        location.replace(loginUrl);
       }
     })();
   </script>
 </body>
 </html>`;
-  return c.body(html);
+
+  const headers = new Headers({
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  appendContextCookies(headers, c);
+  return new Response(html, { status: 200, headers });
 }
 
 export const OAUTH_ERROR_MESSAGES: Record<string, string> = {
