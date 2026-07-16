@@ -190,7 +190,7 @@ app.post("/register", async (c) => {
   const result = await registerEmailUser(c.env.DB, body.email!, body.password!, name);
   if ("error" in result) return c.json({ error: result.error }, result.status as 409);
 
-  await setAuthCookies(c, result.id, result.email);
+  const session = await setAuthCookies(c, result.id, result.email);
 
   const verifyToken = await createAuthToken(c.env.DB, result.id, "email_verify");
   const mail = await sendVerificationEmail(c.env, c.req.raw, result.email!, result.name, verifyToken);
@@ -199,6 +199,7 @@ app.post("/register", async (c) => {
   return c.json({
     user: result,
     organizations,
+    sessionExpiresAt: session.sessionExpiresAt,
     emailVerification: {
       sent: mail.sent,
       devLink: mail.devLink,
@@ -221,9 +222,9 @@ app.post("/login", async (c) => {
   const user = await loginEmailUser(c.env.DB, body.email!, body.password!);
   if (!user) return c.json({ error: "이메일 또는 비밀번호가 올바르지 않습니다." }, 401);
 
-  await setAuthCookies(c, user.id, user.email);
+  const session = await setAuthCookies(c, user.id, user.email);
   const organizations = await getUserOrganizations(c.env.DB, user.id);
-  return c.json({ user, organizations });
+  return c.json({ user, organizations, sessionExpiresAt: session.sessionExpiresAt });
 });
 
 app.post("/verify-email", async (c) => {
@@ -318,6 +319,7 @@ app.post("/reset-password", async (c) => {
   await updateUserPassword(c.env.DB, record.userId, passwordHash);
   await consumeAuthToken(c.env.DB, record.id);
   await markEmailVerified(c.env.DB, record.userId);
+  await c.env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(record.userId).run();
 
   return c.json({ ok: true, message: "비밀번호가 변경되었습니다." });
 });
@@ -339,9 +341,9 @@ app.post("/dev", async (c) => {
     name: body.name ?? (provider === "kakao" ? "김민지" : "Minji Kim"),
     email: body.email ?? "demo@teamcanvas.app",
   });
-  await setAuthCookies(c, user.id, user.email);
+  const session = await setAuthCookies(c, user.id, user.email);
   const organizations = await getUserOrganizations(c.env.DB, user.id);
-  return c.json({ user, organizations });
+  return c.json({ user, organizations, sessionExpiresAt: session.sessionExpiresAt });
 });
 
 app.get("/me", async (c) => {
@@ -374,7 +376,11 @@ app.patch("/me", async (c) => {
 app.post("/refresh", async (c) => {
   const refreshed = await refreshAuthSession(c);
   if (!refreshed) return c.json({ error: "Unauthorized" }, 401);
-  return c.json({ ok: true, sessionExpiresAt: refreshed.sessionExpiresAt });
+  return c.json({
+    ok: true,
+    sessionExpiresAt: refreshed.sessionExpiresAt,
+    absoluteExpiresAt: refreshed.absoluteExpiresAt,
+  });
 });
 
 app.post("/logout", async (c) => {

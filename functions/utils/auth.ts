@@ -4,22 +4,49 @@ import type { Env, AuthUser } from "../types";
 import { signJwt, verifyJwt } from "./jwt";
 import { hashToken, newId, now } from "./helpers";
 
-const ACCESS_MAX_AGE = 60 * 60 * 24;
-const REFRESH_MAX_AGE = 60 * 60 * 24;
+const ACCESS_MAX_AGE = 60 * 60;
+const REFRESH_IDLE_MAX_AGE = 60 * 60 * 24 * 7;
+const SESSION_ABSOLUTE_MAX_AGE = 60 * 60 * 24 * 30;
+
+type SessionRow = {
+  id: string;
+  user_id: string;
+  expires_at: number;
+  created_at: number;
+  last_used_at: number | null;
+  absolute_expires_at: number | null;
+};
+
+function sessionAbsoluteExpiry(session: SessionRow): number {
+  return session.absolute_expires_at ?? session.created_at + SESSION_ABSOLUTE_MAX_AGE * 1000;
+}
+
+function refreshMaxAgeSeconds(expiresAt: number): number {
+  return Math.max(1, Math.floor((expiresAt - now()) / 1000));
+}
 
 export async function setAuthCookies(
   c: Context<{ Bindings: Env }>,
   userId: string,
   email: string | null,
-): Promise<void> {
+): Promise<{ sessionExpiresAt: number; absoluteExpiresAt: number }> {
   const secret = c.env.JWT_SECRET;
+  const issuedAt = now();
+  const sessionExpiresAt = issuedAt + REFRESH_IDLE_MAX_AGE * 1000;
+  const absoluteExpiresAt = issuedAt + SESSION_ABSOLUTE_MAX_AGE * 1000;
   const accessToken = await signJwt({ sub: userId, email, type: "access" }, secret, ACCESS_MAX_AGE);
-  const refreshToken = await signJwt({ sub: userId, email, type: "refresh" }, secret, REFRESH_MAX_AGE);
+  const refreshToken = await signJwt(
+    { sub: userId, email, type: "refresh" },
+    secret,
+    REFRESH_IDLE_MAX_AGE,
+  );
   const refreshHash = await hashToken(refreshToken);
 
   await c.env.DB.prepare(
-    `INSERT INTO sessions (id, user_id, refresh_token_hash, user_agent, ip_address, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sessions (
+       id, user_id, refresh_token_hash, user_agent, ip_address,
+       expires_at, created_at, last_used_at, absolute_expires_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       newId(),
@@ -27,13 +54,16 @@ export async function setAuthCookies(
       refreshHash,
       c.req.header("user-agent") ?? null,
       c.req.header("cf-connecting-ip") ?? null,
-      now() + REFRESH_MAX_AGE * 1000,
-      now(),
+      sessionExpiresAt,
+      issuedAt,
+      issuedAt,
+      absoluteExpiresAt,
     )
     .run();
 
   const secure = new URL(c.req.url).protocol === "https:";
-  setAuthTokenCookies(c, accessToken, refreshToken, secure);
+  setAuthTokenCookies(c, accessToken, refreshToken, secure, REFRESH_IDLE_MAX_AGE);
+  return { sessionExpiresAt, absoluteExpiresAt };
 }
 
 export async function clearAuthCookies(c: Context<{ Bindings: Env }>): Promise<void> {
@@ -48,9 +78,7 @@ export async function clearAuthCookies(c: Context<{ Bindings: Env }>): Promise<v
 
 export async function getAuthUser(c: Context<{ Bindings: Env }>): Promise<AuthUser | null> {
   let token = getCookie(c, "access_token");
-  if (!token) return null;
-
-  let payload = await verifyJwt(token, c.env.JWT_SECRET);
+  let payload = token ? await verifyJwt(token, c.env.JWT_SECRET) : null;
   if (!payload || payload.type !== "access") {
     const refresh = getCookie(c, "refresh_token");
     if (!refresh) return null;
@@ -59,10 +87,13 @@ export async function getAuthUser(c: Context<{ Bindings: Env }>): Promise<AuthUs
 
     const hash = await hashToken(refresh);
     const session = await c.env.DB.prepare(
-      "SELECT id FROM sessions WHERE refresh_token_hash = ? AND expires_at > ?",
+      `SELECT id, user_id, expires_at, created_at, last_used_at, absolute_expires_at
+       FROM sessions
+       WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?
+         AND COALESCE(absolute_expires_at, created_at + ?) > ?`,
     )
-      .bind(hash, now())
-      .first<{ id: string }>();
+      .bind(hash, refreshPayload.sub, now(), SESSION_ABSOLUTE_MAX_AGE * 1000, now())
+      .first<SessionRow>();
     if (!session) return null;
 
     token = await signJwt(
@@ -100,7 +131,12 @@ export async function getAuthUser(c: Context<{ Bindings: Env }>): Promise<AuthUs
 
 export async function refreshAuthSession(
   c: Context<{ Bindings: Env }>,
-): Promise<{ userId: string; email: string | null; sessionExpiresAt: number } | null> {
+): Promise<{
+  userId: string;
+  email: string | null;
+  sessionExpiresAt: number;
+  absoluteExpiresAt: number;
+} | null> {
   const refresh = getCookie(c, "refresh_token");
   if (!refresh) return null;
 
@@ -109,13 +145,23 @@ export async function refreshAuthSession(
 
   const oldHash = await hashToken(refresh);
   const session = await c.env.DB.prepare(
-    "SELECT id FROM sessions WHERE refresh_token_hash = ? AND expires_at > ?",
+    `SELECT id, user_id, expires_at, created_at, last_used_at, absolute_expires_at
+     FROM sessions
+     WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?
+       AND COALESCE(absolute_expires_at, created_at + ?) > ?`,
   )
-    .bind(oldHash, now())
-    .first<{ id: string }>();
+    .bind(oldHash, refreshPayload.sub, now(), SESSION_ABSOLUTE_MAX_AGE * 1000, now())
+    .first<SessionRow>();
   if (!session) return null;
 
-  await c.env.DB.prepare("DELETE FROM sessions WHERE id = ?").bind(session.id).run();
+  const refreshedAt = now();
+  const absoluteExpiresAt = sessionAbsoluteExpiry(session);
+  const expiry = Math.min(
+    refreshedAt + REFRESH_IDLE_MAX_AGE * 1000,
+    absoluteExpiresAt,
+  );
+  if (expiry <= refreshedAt) return null;
+  const refreshMaxAge = refreshMaxAgeSeconds(expiry);
 
   const accessToken = await signJwt(
     { sub: refreshPayload.sub, email: refreshPayload.email, type: "access" },
@@ -125,33 +171,38 @@ export async function refreshAuthSession(
   const newRefreshToken = await signJwt(
     { sub: refreshPayload.sub, email: refreshPayload.email, type: "refresh" },
     c.env.JWT_SECRET,
-    REFRESH_MAX_AGE,
+    refreshMaxAge,
   );
 
-  const secure = new URL(c.req.url).protocol === "https:";
-  setAuthTokenCookies(c, accessToken, newRefreshToken, secure);
-
   const newHash = await hashToken(newRefreshToken);
-  const expiry = now() + REFRESH_MAX_AGE * 1000;
-  await c.env.DB.prepare(
-    `INSERT INTO sessions (id, user_id, refresh_token_hash, user_agent, ip_address, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  const update = await c.env.DB.prepare(
+    `UPDATE sessions
+     SET refresh_token_hash = ?, expires_at = ?, last_used_at = ?,
+         absolute_expires_at = COALESCE(absolute_expires_at, ?),
+         user_agent = ?, ip_address = ?
+     WHERE id = ? AND refresh_token_hash = ?`,
   )
     .bind(
-      newId(),
-      refreshPayload.sub,
       newHash,
+      expiry,
+      refreshedAt,
+      absoluteExpiresAt,
       c.req.header("user-agent") ?? null,
       c.req.header("cf-connecting-ip") ?? null,
-      expiry,
-      now(),
+      session.id,
+      oldHash,
     )
     .run();
+  if (!update.meta.changes) return null;
+
+  const secure = new URL(c.req.url).protocol === "https:";
+  setAuthTokenCookies(c, accessToken, newRefreshToken, secure, refreshMaxAge);
 
   return {
     userId: refreshPayload.sub,
     email: refreshPayload.email ?? null,
     sessionExpiresAt: expiry,
+    absoluteExpiresAt,
   };
 }
 
@@ -160,10 +211,11 @@ function setAuthTokenCookies(
   accessToken: string,
   refreshToken: string,
   secure: boolean,
+  refreshMaxAge: number,
 ): void {
   const cookieOpts = { httpOnly: true, secure, sameSite: "Lax" as const, path: "/" };
   setCookie(c, "access_token", accessToken, { ...cookieOpts, maxAge: ACCESS_MAX_AGE });
-  setCookie(c, "refresh_token", refreshToken, { ...cookieOpts, maxAge: REFRESH_MAX_AGE });
+  setCookie(c, "refresh_token", refreshToken, { ...cookieOpts, maxAge: refreshMaxAge });
 }
 
 export async function getSessionExpiry(c: Context<{ Bindings: Env }>): Promise<number | null> {
@@ -171,7 +223,19 @@ export async function getSessionExpiry(c: Context<{ Bindings: Env }>): Promise<n
   if (!refresh) return null;
   const payload = await verifyJwt(refresh, c.env.JWT_SECRET);
   if (!payload || payload.type !== "refresh") return null;
-  return payload.exp * 1000;
+  const hash = await hashToken(refresh);
+  const session = await c.env.DB.prepare(
+    `SELECT expires_at, created_at, absolute_expires_at
+     FROM sessions WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?`,
+  )
+    .bind(hash, payload.sub, now())
+    .first<Pick<SessionRow, "expires_at" | "created_at" | "absolute_expires_at">>();
+  if (!session) return null;
+  const absoluteExpiresAt =
+    session.absolute_expires_at ??
+    session.created_at + SESSION_ABSOLUTE_MAX_AGE * 1000;
+  if (absoluteExpiresAt <= now()) return null;
+  return Math.min(session.expires_at, absoluteExpiresAt, payload.exp * 1000);
 }
 
 export async function requireAuth(c: Context<{ Bindings: Env }>): Promise<AuthUser | Response> {

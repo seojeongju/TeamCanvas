@@ -79,7 +79,11 @@ export const api = {
     }),
 
   logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
-  refreshSession: () => request<{ ok: boolean; sessionExpiresAt: number }>("/auth/refresh", { method: "POST" }),
+  refreshSession: () =>
+    request<{ ok: boolean; sessionExpiresAt: number; absoluteExpiresAt: number }>(
+      "/auth/refresh",
+      { method: "POST" },
+    ),
 
   createOrganization: (name: string, slug?: string) =>
     request<{ organization: import("./types").Organization }>("/api/organizations", {
