@@ -5,6 +5,7 @@ import type { Env } from "../types";
 import { frontendUrl } from "../utils/email";
 import {
   oauthRedirectUri,
+  htmlRedirect,
   loginRedirect,
   completeOAuthLogin,
 } from "../utils/oauth";
@@ -377,6 +378,36 @@ app.get("/me", async (c) => {
   return c.json({ user, organizations, ...platform, sessionExpiresAt });
 });
 
+function decodeFinalizePayload(raw: string | undefined | null) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(atob(raw)) as {
+      accessToken?: string;
+      refreshToken?: string;
+      destination?: string;
+      loginUrl?: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function finalizeOAuthSession(c: Context<{ Bindings: Env }>, payloadRaw: string | undefined | null) {
+  const payload = decodeFinalizePayload(payloadRaw);
+  if (!payload?.accessToken || !payload.refreshToken || !payload.destination || !payload.loginUrl) {
+    return loginRedirect(c, "session_cookie_failed");
+  }
+
+  const established = await establishSessionFromTokens(c, payload.accessToken, payload.refreshToken);
+  if (!established) {
+    const url = new URL(payload.loginUrl);
+    url.searchParams.set("status", "401");
+    return htmlRedirect(c, url.toString(), "로그인 페이지로 이동 중…");
+  }
+
+  return htmlRedirect(c, payload.destination, "로그인을 완료하는 중…");
+}
+
 /** OAuth 콜백에서 브라우저가 Set-Cookie를 저장하지 못한 경우의 동일 출처 핸드오프 */
 app.post("/establish-session", async (c) => {
   const body = await c.req.json<{ accessToken?: string; refreshToken?: string }>().catch(() => ({}));
@@ -453,6 +484,16 @@ app.post("/establish-session", async (c) => {
   }
 
   return new Response(payload, { status: 200, headers });
+});
+
+app.post("/finalize-session", async (c) => {
+  const body = await c.req.parseBody().catch(() => ({}));
+  const payload = typeof body.payload === "string" ? body.payload : null;
+  return finalizeOAuthSession(c, payload);
+});
+
+app.get("/finalize-session", async (c) => {
+  return finalizeOAuthSession(c, c.req.query("payload"));
 });
 
 app.patch("/me", async (c) => {

@@ -63,18 +63,16 @@ export async function completeOAuthLogin(
   const session = await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
-  // 콜백과 같은 호스트로 돌려보내 쿠키 도메인 불일치를 피한다.
   const origin = new URL(c.req.url).origin;
-  const destination = `${origin}${path}`;
-  const loginUrl = `${origin}/login?error=session_cookie_failed`;
-
-  // 토큰을 base64로 넣어 스크립트 파싱/이스케이프 문제를 피한다.
-  const handoffB64 = btoa(
-    JSON.stringify({
-      accessToken: session.accessToken,
-      refreshToken: session.refreshToken,
-    }),
-  );
+  const destination = `${origin}${path}?oauth=complete&t=${Date.now()}`;
+  const loginUrl = `${origin}/login?error=session_cookie_failed&step=finalize`;
+  const handoffPayload = JSON.stringify({
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    destination,
+    loginUrl,
+  });
+  const handoffB64 = btoa(handoffPayload);
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -94,74 +92,15 @@ export async function completeOAuthLogin(
 </head>
 <body>
   <main><div class="spinner"></div><p>로그인을 완료하는 중입니다…</p></main>
+  <form id="oauth-finalize" method="post" action="/auth/finalize-session" hidden>
+    <input type="hidden" name="payload" value="${handoffB64}">
+  </form>
   <script>
-    (async () => {
-      const destination = ${JSON.stringify(destination)};
-      function fail(step, status) {
-        const url = new URL(${JSON.stringify(loginUrl)});
-        url.searchParams.set("step", step);
-        if (status) url.searchParams.set("status", String(status));
-        location.replace(url.toString());
-      }
-
-      function saveAuth(data) {
-        if (!data.user || !Array.isArray(data.organizations)) return false;
-        localStorage.setItem("teamcanvas-auth", JSON.stringify({
-          state: {
-            user: data.user,
-            organizations: data.organizations,
-            isPlatformAdmin: data.isPlatformAdmin === true,
-            platformRole: data.platformRole ?? null,
-            sessionExpiresAt: data.sessionExpiresAt ?? null,
-            isAuthenticated: true
-          },
-          version: 0
-        }));
-        if (data.organizations[0]) {
-          localStorage.setItem("teamcanvas-org", JSON.stringify({
-            state: { currentOrgId: data.organizations[0].id },
-            version: 0
-          }));
-        }
-        return true;
-      }
-
-      try {
-        const handoff = JSON.parse(atob(${JSON.stringify(handoffB64)}));
-
-        // 콜백 Set-Cookie는 유실될 수 있으므로, 동일 출처 POST로 쿠키를 확정한다.
-        let response = await fetch("/auth/establish-session", {
-          method: "POST",
-          credentials: "include",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(handoff)
-        });
-
-        if (!response.ok) {
-          // 혹시 콜백 쿠키가 살아 있으면 /auth/me로 복구 시도
-          const me = await fetch("/auth/me?oauth_check=${Date.now()}", {
-            credentials: "include",
-            cache: "no-store"
-          });
-          if (!me.ok) {
-            fail("establish", response.status);
-            return;
-          }
-          response = me;
-        }
-
-        const data = await response.json();
-        if (!saveAuth(data)) {
-          fail("save", response.status);
-          return;
-        }
-        location.replace(destination);
-      } catch (err) {
-        fail("exception", 0);
-      }
-    })();
+    document.getElementById("oauth-finalize").submit();
   </script>
+  <noscript>
+    <p><a href="/auth/finalize-session?payload=${encodeURIComponent(handoffB64)}">로그인 계속하기</a></p>
+  </noscript>
 </body>
 </html>`;
 
