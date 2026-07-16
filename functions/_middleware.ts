@@ -33,6 +33,9 @@ export async function onRequest(context: EventContext<Env, string, unknown>) {
     headers.set("Access-Control-Allow-Origin", url.origin);
     headers.set("Access-Control-Allow-Credentials", "true");
   }
+  if (url.pathname.startsWith("/auth")) {
+    headers.set("Cache-Control", "no-store");
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

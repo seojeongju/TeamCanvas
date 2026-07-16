@@ -96,7 +96,38 @@ export async function completeOAuthLogin(
           credentials: "include",
           cache: "no-store"
         });
-        location.replace(response.ok ? ${JSON.stringify(destination)} : ${JSON.stringify(loginUrl)});
+        if (!response.ok) {
+          location.replace(${JSON.stringify(loginUrl)});
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.user || !Array.isArray(data.organizations)) {
+          location.replace(${JSON.stringify(loginUrl)});
+          return;
+        }
+
+        // OAuth 직전 앱에 남아 있던 비로그인 상태보다 서버 검증 결과가 우선이다.
+        // Zustand persist 형식으로 저장해 PWA의 이전 JS가 로드되어도 즉시 로그인
+        // 상태로 복원되게 한다. 앱의 useAuthInit이 이후 서버 상태를 다시 확인한다.
+        localStorage.setItem("teamcanvas-auth", JSON.stringify({
+          state: {
+            user: data.user,
+            organizations: data.organizations,
+            isPlatformAdmin: data.isPlatformAdmin === true,
+            platformRole: data.platformRole ?? null,
+            sessionExpiresAt: data.sessionExpiresAt ?? null,
+            isAuthenticated: true
+          },
+          version: 0
+        }));
+        if (data.organizations[0]) {
+          localStorage.setItem("teamcanvas-org", JSON.stringify({
+            state: { currentOrgId: data.organizations[0].id },
+            version: 0
+          }));
+        }
+        location.replace(${JSON.stringify(destination)});
       } catch {
         location.replace(${JSON.stringify(loginUrl)});
       }

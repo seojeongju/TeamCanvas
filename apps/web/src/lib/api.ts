@@ -22,7 +22,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   health: () => request<{ status: string; db: string }>("/api/health"),
 
-  me: () => request<import("./types").AuthMeResponse>("/auth/me"),
+  me: () => request<import("./types").AuthMeResponse>("/auth/me", { cache: "no-store" }),
 
   updateProfile: (data: { name: string }) =>
     request<{ ok: boolean; user: import("./types").User }>("/auth/me", {
