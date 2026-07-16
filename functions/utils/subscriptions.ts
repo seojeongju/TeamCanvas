@@ -105,7 +105,19 @@ async function syncSubscriptionLifecycle(db: D1Database, orgId: string): Promise
   const ts = now();
 
   if (status === "trialing" && trialEndsAt != null && trialEndsAt <= ts) {
-    await assignOrgPlan(db, orgId, "plan_free", "active");
+    // 조건부 UPDATE로 여러 요청이 동시에 만료를 감지해도 한 요청만 전환·기록한다.
+    const transition = await db
+      .prepare(
+        `UPDATE organization_subscriptions
+         SET plan_id = 'plan_free', status = 'active', updated_at = ?,
+             canceled_at = NULL, current_period_start = ?, current_period_end = ?
+         WHERE organization_id = ? AND status = 'trialing'
+           AND trial_ends_at IS NOT NULL AND trial_ends_at <= ?`,
+      )
+      .bind(ts, ts, ts + 30 * 86400000, orgId, ts)
+      .run();
+    if (!transition.meta.changes) return;
+
     await writeAuditLog(db, orgId, null, "billing.trial_expired", "subscription", orgId, {
       previousPlanId: row.plan_id,
       trialEndsAt,

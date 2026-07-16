@@ -84,7 +84,7 @@ async function handleGoogleCallback(c: Context<{ Bindings: Env }>) {
   if (!code || !state) return loginRedirect(c, "invalid_callback");
 
   const stateData = await verifyOAuthState(state, c.env.JWT_SECRET);
-  if (!stateData) return loginRedirect(c, "invalid_state");
+  if (!stateData || stateData.provider !== "google") return loginRedirect(c, "invalid_state");
 
   const redirectUri = oauthRedirectUri(c, "google");
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -129,7 +129,7 @@ async function handleKakaoCallback(c: Context<{ Bindings: Env }>) {
   if (!code || !state) return loginRedirect(c, "invalid_callback");
 
   const stateData = await verifyOAuthState(state, c.env.JWT_SECRET);
-  if (!stateData) return loginRedirect(c, "invalid_state");
+  if (!stateData || stateData.provider !== "kakao") return loginRedirect(c, "invalid_state");
 
   const redirectUri = oauthRedirectUri(c, "kakao");
   const tokenBody: Record<string, string> = {
@@ -168,8 +168,23 @@ async function handleKakaoCallback(c: Context<{ Bindings: Env }>) {
   return completeOAuthLogin(c, user.id, user.email);
 }
 
-app.get("/callback/google", handleGoogleCallback);
-app.get("/callback/kakao", handleKakaoCallback);
+app.get("/callback/google", async (c) => {
+  try {
+    return await handleGoogleCallback(c);
+  } catch (error) {
+    console.error("Google OAuth callback failed", error);
+    return loginRedirect(c, "oauth_failed");
+  }
+});
+
+app.get("/callback/kakao", async (c) => {
+  try {
+    return await handleKakaoCallback(c);
+  } catch (error) {
+    console.error("Kakao OAuth callback failed", error);
+    return loginRedirect(c, "oauth_failed");
+  }
+});
 
 app.post("/register", async (c) => {
   const limited = await enforceAuthRateLimit(c, "register");

@@ -26,6 +26,7 @@ export async function upsertOAuthUser(
   providerUserId: string,
   profile: { name: string; email: string | null; avatarUrl?: string | null },
 ): Promise<AuthUser> {
+  const profileEmail = profile.email ? normalizeEmail(profile.email) : null;
   const existing = await db
     .prepare(
       "SELECT u.id, u.email, u.name, u.avatar_url FROM oauth_accounts o JOIN users u ON u.id = o.user_id WHERE o.provider = ? AND o.provider_user_id = ?",
@@ -34,11 +35,21 @@ export async function upsertOAuthUser(
     .first<{ id: string; email: string | null; name: string; avatar_url: string | null }>();
 
   if (existing) {
+    let emailForUpdate = profileEmail;
+    if (profileEmail && existing.email?.toLowerCase() !== profileEmail) {
+      const emailOwner = await db
+        .prepare("SELECT id FROM users WHERE LOWER(email) = ? AND id != ?")
+        .bind(profileEmail, existing.id)
+        .first<{ id: string }>();
+      // 이미 다른 계정이 소유한 이메일이면 기존 OAuth 연결을 유지하고 충돌만 피한다.
+      if (emailOwner) emailForUpdate = null;
+    }
+
     await db
       .prepare(
         "UPDATE users SET name = ?, email = COALESCE(?, email), avatar_url = ?, email_verified = 1, updated_at = ? WHERE id = ?",
       )
-      .bind(profile.name, profile.email, profile.avatarUrl ?? null, now(), existing.id)
+      .bind(profile.name, emailForUpdate, profile.avatarUrl ?? null, now(), existing.id)
       .run();
     const user = await db
       .prepare("SELECT id, email, name, avatar_url, email_verified FROM users WHERE id = ?")
@@ -49,10 +60,10 @@ export async function upsertOAuthUser(
 
   // If an email account already exists, link this OAuth provider to that user.
   // This prevents UNIQUE(email) violations and lets existing users use social login.
-  if (profile.email) {
+  if (profileEmail) {
     const byEmail = await db
-      .prepare("SELECT id FROM users WHERE email = ?")
-      .bind(profile.email)
+      .prepare("SELECT id FROM users WHERE LOWER(email) = ?")
+      .bind(profileEmail)
       .first<{ id: string }>();
 
     if (byEmail) {
@@ -92,7 +103,7 @@ export async function upsertOAuthUser(
     .prepare(
       "INSERT INTO users (id, email, name, avatar_url, email_verified, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)",
     )
-    .bind(userId, profile.email, profile.name, profile.avatarUrl ?? null, ts, ts)
+    .bind(userId, profileEmail, profile.name, profile.avatarUrl ?? null, ts, ts)
     .run();
 
   await db
@@ -104,7 +115,7 @@ export async function upsertOAuthUser(
 
   return toAuthUser({
     id: userId,
-    email: profile.email,
+    email: profileEmail,
     name: profile.name,
     avatar_url: profile.avatarUrl ?? null,
     email_verified: 1,

@@ -11,6 +11,11 @@ const AUDIT_LABELS: Record<string, string> = {
   "invite.link_created": "초대 링크를 생성했습니다",
   "billing.checkout_started": "구독 결제를 시작했습니다",
   "billing.subscription_activated": "구독이 활성화되었습니다",
+  "billing.subscription_updated": "구독이 갱신되거나 변경되었습니다",
+  "billing.subscription_canceled": "구독이 해지되었습니다",
+  "billing.payment_failed": "구독 결제에 실패했습니다",
+  "billing.trial_expired": "무료 체험이 만료되어 무료 플랜으로 전환되었습니다",
+  "admin.org_updated": "관리자가 조직 설정을 변경했습니다",
 };
 
 function activityLink(entityType: string | null, entityId: string | null): string | null {

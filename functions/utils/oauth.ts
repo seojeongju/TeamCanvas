@@ -64,7 +64,9 @@ export async function completeOAuthLogin(
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
   const url = `${frontendUrl(c.req.raw, c.env)}${path}`;
-  return htmlRedirect(c, url, "로그인 중…");
+  // setCookie()가 Context에 추가한 복수 Set-Cookie 헤더를 그대로 유지한다.
+  // 별도 Response를 만들면 런타임에 따라 헤더가 합쳐져 인증 쿠키가 유실될 수 있다.
+  return c.redirect(url, 302);
 }
 
 export const OAUTH_ERROR_MESSAGES: Record<string, string> = {
@@ -72,5 +74,6 @@ export const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   invalid_state: "보안 검증에 실패했습니다. 다시 시도해주세요.",
   token_exchange_failed: "인증 서버 연동에 실패했습니다. Redirect URI 설정을 확인해주세요.",
   profile_failed: "프로필 정보를 가져오지 못했습니다.",
+  oauth_failed: "소셜 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
   access_denied: "로그인이 취소되었습니다.",
 };
