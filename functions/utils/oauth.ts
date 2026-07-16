@@ -63,7 +63,9 @@ export async function completeOAuthLogin(
   await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
-  const url = `${frontendUrl(c.req.raw, c.env)}${path}`;
+  const separator = path.includes("?") ? "&" : "?";
+  const url = `${frontendUrl(c.req.raw, c.env)}${path}${separator}oauth=complete&t=${Date.now()}`;
+  c.header("Cache-Control", "no-store");
   // setCookie()가 Context에 추가한 복수 Set-Cookie 헤더를 그대로 유지한다.
   // 별도 Response를 만들면 런타임에 따라 헤더가 합쳐져 인증 쿠키가 유실될 수 있다.
   return c.redirect(url, 302);

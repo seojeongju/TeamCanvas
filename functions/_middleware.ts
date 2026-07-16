@@ -18,6 +18,13 @@ export async function onRequest(context: EventContext<Env, string, unknown>) {
   }
 
   const response = await next();
+  // OAuth 콜백에는 access/refresh 쿠키가 각각 Set-Cookie로 포함된다.
+  // 응답을 다시 생성하면 일부 런타임에서 복수 쿠키 헤더가 합쳐질 수 있으므로
+  // Hono가 만든 원본 응답을 그대로 브라우저에 전달한다.
+  if (url.pathname.startsWith("/auth/callback/")) {
+    return response;
+  }
+
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
