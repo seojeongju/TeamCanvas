@@ -63,12 +63,48 @@ export async function completeOAuthLogin(
   await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
-  const separator = path.includes("?") ? "&" : "?";
-  const url = `${frontendUrl(c.req.raw, c.env)}${path}${separator}oauth=complete&t=${Date.now()}`;
+  const frontend = frontendUrl(c.req.raw, c.env);
+  const destination = `${frontend}${path}`;
+  const loginUrl = `${frontend}/login?error=session_cookie_failed`;
   c.header("Cache-Control", "no-store");
-  // setCookie()가 Context에 추가한 복수 Set-Cookie 헤더를 그대로 유지한다.
-  // 별도 Response를 만들면 런타임에 따라 헤더가 합쳐져 인증 쿠키가 유실될 수 있다.
-  return c.redirect(url, 302);
+  c.header("Content-Type", "text/html; charset=utf-8");
+
+  // 브라우저가 콜백 응답의 쿠키를 저장한 다음 /auth/me로 실제 인증 상태를
+  // 검증한다. 성공 후 새 문서로 이동하므로 BFCache/PWA의 비로그인 상태를
+  // 재사용하지 않는다.
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TeamCanvas 로그인 중</title>
+  <style>
+    body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
+      font-family: system-ui, sans-serif; background: #f0f7ff; color: #1e3a5f; }
+    main { text-align: center; }
+    .spinner { width: 36px; height: 36px; margin: 0 auto 14px; border: 3px solid #cfe8ff;
+      border-top-color: #4a9fe8; border-radius: 999px; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <main><div class="spinner"></div><p>로그인을 완료하는 중입니다…</p></main>
+  <script>
+    (async () => {
+      try {
+        const response = await fetch("/auth/me?oauth_check=${Date.now()}", {
+          credentials: "include",
+          cache: "no-store"
+        });
+        location.replace(response.ok ? ${JSON.stringify(destination)} : ${JSON.stringify(loginUrl)});
+      } catch {
+        location.replace(${JSON.stringify(loginUrl)});
+      }
+    })();
+  </script>
+</body>
+</html>`;
+  return c.body(html);
 }
 
 export const OAUTH_ERROR_MESSAGES: Record<string, string> = {
@@ -77,5 +113,6 @@ export const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   token_exchange_failed: "인증 서버 연동에 실패했습니다. Redirect URI 설정을 확인해주세요.",
   profile_failed: "프로필 정보를 가져오지 못했습니다.",
   oauth_failed: "소셜 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
+  session_cookie_failed: "인증은 완료됐지만 로그인 세션을 확인하지 못했습니다. 다시 시도해주세요.",
   access_denied: "로그인이 취소되었습니다.",
 };
