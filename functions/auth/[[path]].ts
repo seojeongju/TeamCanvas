@@ -381,10 +381,10 @@ app.get("/me", async (c) => {
 app.post("/establish-session", async (c) => {
   const body = await c.req.json<{ accessToken?: string; refreshToken?: string }>().catch(() => ({}));
   if (!body.accessToken || !body.refreshToken) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ error: "missing_tokens" }, 401);
   }
   const established = await establishSessionFromTokens(c, body.accessToken, body.refreshToken);
-  if (!established) return c.json({ error: "Unauthorized" }, 401);
+  if (!established) return c.json({ error: "invalid_tokens" }, 401);
 
   // setCookie는 응답 헤더에만 들어가므로, 같은 요청의 getAuthUser는 아직 쿠키를 못 본다.
   const user = await c.env.DB.prepare(
@@ -398,11 +398,11 @@ app.post("/establish-session", async (c) => {
       avatar_url: string | null;
       email_verified: number;
     }>();
-  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  if (!user) return c.json({ error: "user_not_found" }, 401);
 
   const organizations = await getUserOrganizations(c.env.DB, user.id);
   const platform = await extendAuthMe(c.env.DB, user.id);
-  return c.json({
+  const payload = JSON.stringify({
     user: {
       id: user.id,
       email: user.email,
@@ -414,6 +414,45 @@ app.post("/establish-session", async (c) => {
     ...platform,
     sessionExpiresAt: established.sessionExpiresAt,
   });
+
+  // Hono setCookie + c.json 조합에서 쿠키가 빠지는 경우를 피하기 위해
+  // Set-Cookie를 명시적으로 복사한 raw Response를 반환한다.
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+  });
+  const from = c.res.headers;
+  if (typeof from.getSetCookie === "function") {
+    for (const cookie of from.getSetCookie()) {
+      headers.append("Set-Cookie", cookie);
+    }
+  } else {
+    from.forEach((value, key) => {
+      if (key.toLowerCase() === "set-cookie") headers.append("Set-Cookie", value);
+    });
+  }
+
+  // getSetCookie가 비어 있어도 토큰으로 직접 쿠키를 심는다.
+  const existingCookies =
+    typeof headers.getSetCookie === "function" ? headers.getSetCookie() : [];
+  if (existingCookies.length === 0) {
+    const secure = new URL(c.req.url).protocol === "https:";
+    const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+    const refreshMaxAge = Math.max(
+      1,
+      Math.floor((established.sessionExpiresAt - Date.now()) / 1000),
+    );
+    headers.append(
+      "Set-Cookie",
+      `access_token=${body.accessToken}; ${base}; Max-Age=3600`,
+    );
+    headers.append(
+      "Set-Cookie",
+      `refresh_token=${body.refreshToken}; ${base}; Max-Age=${refreshMaxAge}`,
+    );
+  }
+
+  return new Response(payload, { status: 200, headers });
 });
 
 app.patch("/me", async (c) => {

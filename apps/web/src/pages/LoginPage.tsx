@@ -49,6 +49,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const oauthError = params.get("error");
+  const oauthStep = params.get("step");
+  const oauthStatus = params.get("status");
   const verified = params.get("verified");
   const redirectAfterLogin = params.get("redirect");
 
@@ -116,8 +118,11 @@ export function LoginPage() {
         {(oauthError || formError) && (
           <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-center text-sm text-red-600">
             {formError ??
-              OAUTH_ERROR_MESSAGES[oauthError!] ??
-              `로그인 실패: ${oauthError}`}
+              `${OAUTH_ERROR_MESSAGES[oauthError!] ?? `로그인 실패: ${oauthError}`}${
+                oauthError === "session_cookie_failed" && (oauthStep || oauthStatus)
+                  ? ` (${[oauthStep, oauthStatus].filter(Boolean).join("/")})`
+                  : ""
+              }`}
           </div>
         )}
 

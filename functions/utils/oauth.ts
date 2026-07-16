@@ -63,18 +63,19 @@ export async function completeOAuthLogin(
   const session = await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
-  const frontend = frontendUrl(c.req.raw, c.env);
-  const destination = `${frontend}${path}`;
-  const loginUrl = `${frontend}/login?error=session_cookie_failed`;
+  // 콜백과 같은 호스트로 돌려보내 쿠키 도메인 불일치를 피한다.
+  const origin = new URL(c.req.url).origin;
+  const destination = `${origin}${path}`;
+  const loginUrl = `${origin}/login?error=session_cookie_failed`;
 
-  // 브라우저가 콜백 응답의 쿠키를 저장한 다음 /auth/me로 인증 상태를 검증한다.
-  // Cloudflare Pages에서 c.body()가 복수 Set-Cookie를 유실하는 경우가 있어
-  // htmlRedirect와 동일하게 쿠키를 명시적으로 복사한다.
-  // 그래도 /auth/me가 실패하면 동일 출처 POST로 쿠키를 재설정한다.
-  const handoff = JSON.stringify({
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
-  });
+  // 토큰을 base64로 넣어 스크립트 파싱/이스케이프 문제를 피한다.
+  const handoffB64 = btoa(
+    JSON.stringify({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    }),
+  );
+
   const html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -95,9 +96,13 @@ export async function completeOAuthLogin(
   <main><div class="spinner"></div><p>로그인을 완료하는 중입니다…</p></main>
   <script>
     (async () => {
-      const loginUrl = ${JSON.stringify(loginUrl)};
       const destination = ${JSON.stringify(destination)};
-      const handoff = ${handoff};
+      function fail(step, status) {
+        const url = new URL(${JSON.stringify(loginUrl)});
+        url.searchParams.set("step", step);
+        if (status) url.searchParams.set("status", String(status));
+        location.replace(url.toString());
+      }
 
       function saveAuth(data) {
         if (!data.user || !Array.isArray(data.organizations)) return false;
@@ -122,34 +127,38 @@ export async function completeOAuthLogin(
       }
 
       try {
-        let response = await fetch("/auth/me?oauth_check=${Date.now()}", {
+        const handoff = JSON.parse(atob(${JSON.stringify(handoffB64)}));
+
+        // 콜백 Set-Cookie는 유실될 수 있으므로, 동일 출처 POST로 쿠키를 확정한다.
+        let response = await fetch("/auth/establish-session", {
+          method: "POST",
           credentials: "include",
-          cache: "no-store"
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(handoff)
         });
 
         if (!response.ok) {
-          response = await fetch("/auth/establish-session", {
-            method: "POST",
+          // 혹시 콜백 쿠키가 살아 있으면 /auth/me로 복구 시도
+          const me = await fetch("/auth/me?oauth_check=${Date.now()}", {
             credentials: "include",
-            cache: "no-store",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(handoff)
+            cache: "no-store"
           });
-        }
-
-        if (!response.ok) {
-          location.replace(loginUrl);
-          return;
+          if (!me.ok) {
+            fail("establish", response.status);
+            return;
+          }
+          response = me;
         }
 
         const data = await response.json();
         if (!saveAuth(data)) {
-          location.replace(loginUrl);
+          fail("save", response.status);
           return;
         }
         location.replace(destination);
-      } catch {
-        location.replace(loginUrl);
+      } catch (err) {
+        fail("exception", 0);
       }
     })();
   </script>

@@ -76,7 +76,7 @@ export async function establishSessionFromTokens(
   c: Context<{ Bindings: Env }>,
   accessToken: string,
   refreshToken: string,
-): Promise<{ sessionExpiresAt: number; userId: string } | null> {
+): Promise<{ sessionExpiresAt: number; userId: string; email: string | null } | null> {
   const accessPayload = await verifyJwt(accessToken, c.env.JWT_SECRET);
   const refreshPayload = await verifyJwt(refreshToken, c.env.JWT_SECRET);
   if (!accessPayload || accessPayload.type !== "access") return null;
@@ -84,15 +84,48 @@ export async function establishSessionFromTokens(
   if (accessPayload.sub !== refreshPayload.sub) return null;
 
   const hash = await hashToken(refreshToken);
-  const session = await c.env.DB.prepare(
+  const issuedAt = now();
+  let session = await c.env.DB.prepare(
     `SELECT id, expires_at, created_at, absolute_expires_at
      FROM sessions
-     WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?
-       AND COALESCE(absolute_expires_at, created_at + ?) > ?`,
+     WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?`,
   )
-    .bind(hash, refreshPayload.sub, now(), SESSION_ABSOLUTE_MAX_AGE * 1000, now())
+    .bind(hash, refreshPayload.sub, issuedAt)
     .first<Pick<SessionRow, "id" | "expires_at" | "created_at" | "absolute_expires_at">>();
-  if (!session) return null;
+
+  // D1 읽기 지연으로 방금 INSERT한 세션이 안 보일 수 있다.
+  // JWT 서명이 유효하면 쿠키를 설정하고, 없으면 세션 행을 보장한다.
+  if (!session) {
+    const sessionExpiresAt = Math.min(
+      refreshPayload.exp * 1000,
+      issuedAt + REFRESH_IDLE_MAX_AGE * 1000,
+    );
+    const absoluteExpiresAt = issuedAt + SESSION_ABSOLUTE_MAX_AGE * 1000;
+    await c.env.DB.prepare(
+      `INSERT INTO sessions (
+         id, user_id, refresh_token_hash, user_agent, ip_address,
+         expires_at, created_at, last_used_at, absolute_expires_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        newId(),
+        refreshPayload.sub,
+        hash,
+        c.req.header("user-agent") ?? null,
+        c.req.header("cf-connecting-ip") ?? null,
+        sessionExpiresAt,
+        issuedAt,
+        issuedAt,
+        absoluteExpiresAt,
+      )
+      .run();
+    session = {
+      id: "handoff",
+      expires_at: sessionExpiresAt,
+      created_at: issuedAt,
+      absolute_expires_at: absoluteExpiresAt,
+    };
+  }
 
   const absoluteExpiresAt = sessionAbsoluteExpiry({
     id: session.id,
@@ -102,12 +135,16 @@ export async function establishSessionFromTokens(
     last_used_at: null,
     absolute_expires_at: session.absolute_expires_at,
   });
-  const refreshMaxAge = refreshMaxAgeSeconds(Math.min(session.expires_at, absoluteExpiresAt));
+  if (absoluteExpiresAt <= issuedAt) return null;
+
+  const sessionExpiresAt = Math.min(session.expires_at, absoluteExpiresAt, refreshPayload.exp * 1000);
+  const refreshMaxAge = refreshMaxAgeSeconds(sessionExpiresAt);
   const secure = new URL(c.req.url).protocol === "https:";
   setAuthTokenCookies(c, accessToken, refreshToken, secure, refreshMaxAge);
   return {
     userId: refreshPayload.sub,
-    sessionExpiresAt: Math.min(session.expires_at, absoluteExpiresAt),
+    email: refreshPayload.email ?? null,
+    sessionExpiresAt,
   };
 }
 

@@ -18,17 +18,10 @@ export async function onRequest(context: EventContext<Env, string, unknown>) {
   }
 
   const response = await next();
-  // Set-Cookie가 포함된 인증 응답은 헤더를 다시 구성하지 않는다.
-  // 일부 런타임에서 new Headers()가 복수 Set-Cookie를 합쳐 쿠키가 유실된다.
-  const setCookies =
-    typeof response.headers.getSetCookie === "function"
-      ? response.headers.getSetCookie()
-      : [];
-  if (
-    setCookies.length > 0 ||
-    url.pathname.startsWith("/auth/callback/") ||
-    url.pathname === "/auth/establish-session"
-  ) {
+
+  // /auth 응답은 Set-Cookie(access/refresh)를 포함하는 경우가 많다.
+  // 응답을 다시 만들면 런타임에 따라 복수 Set-Cookie가 합쳐져 쿠키가 유실된다.
+  if (url.pathname.startsWith("/auth")) {
     return response;
   }
 
@@ -36,10 +29,9 @@ export async function onRequest(context: EventContext<Env, string, unknown>) {
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  if (url.pathname.startsWith("/api") || url.pathname.startsWith("/auth")) {
+  if (url.pathname.startsWith("/api")) {
     headers.set("Access-Control-Allow-Origin", url.origin);
     headers.set("Access-Control-Allow-Credentials", "true");
-    headers.set("Cache-Control", "no-store");
   }
   return new Response(response.body, {
     status: response.status,
