@@ -15,14 +15,15 @@ function LoadingScreen() {
 }
 
 export function PlatformAdminGuard({ children }: { children: ReactNode }) {
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const isPlatformAdmin = useAuthStore((s) => s.isPlatformAdmin);
-  const { isFetching, isError } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const hasSession = Boolean(data?.user || user);
+  const hasAdminAccess = Boolean(data?.isPlatformAdmin) || isPlatformAdmin;
 
-  if (isLoading || isFetching) return <LoadingScreen />;
-  if (isError || !isAuthenticated) return <Navigate to="/login" replace />;
-  if (!isPlatformAdmin) return <Navigate to="/" replace />;
+  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hasSession) return <Navigate to="/login" replace />;
+  if (!hasAdminAccess) return <Navigate to="/" replace />;
 
   return children;
 }

@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      injectRegister: false,
       registerType: "autoUpdate",
       includeAssets: [
         "favicon.svg",
@@ -49,7 +50,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,ico,svg,woff2}"],
         importScripts: ["/push-handler.js"],
         navigateFallbackDenylist: [/^\/auth\//, /^\/api\//],
         runtimeCaching: [

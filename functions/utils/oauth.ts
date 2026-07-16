@@ -60,50 +60,76 @@ export async function completeOAuthLogin(
   userId: string,
   email: string | null,
 ): Promise<Response> {
-  const session = await setAuthCookies(c, userId, email);
+  await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
   const origin = new URL(c.req.url).origin;
   const destination = `${origin}${path}?oauth=complete&t=${Date.now()}`;
-  const loginUrl = `${origin}/login?error=session_cookie_failed&step=finalize`;
-  const handoffPayload = JSON.stringify({
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
-    destination,
-    loginUrl,
-  });
-  const handoffB64 = btoa(handoffPayload);
+  const fallback = `${frontendUrl(c.req.raw, c.env)}/login?error=session_cookie_failed&step=me`;
+  const safeDestination = JSON.stringify(destination);
+  const safeFallback = JSON.stringify(fallback);
 
+  // 일부 브라우저에서는 OAuth 리디렉션 직후 앱이 너무 빨리 부팅되면
+  // 방금 발급한 쿠키가 /auth/me 요청에 즉시 반영되지 않을 수 있다.
+  // 같은 출처 완료 페이지에서 /auth/me가 200이 된 뒤 앱으로 이동한다.
   const html = `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
   <meta http-equiv="Cache-Control" content="no-store">
   <title>TeamCanvas 로그인 중</title>
   <style>
     body { margin: 0; min-height: 100dvh; display: grid; place-items: center;
       font-family: system-ui, sans-serif; background: #f0f7ff; color: #1e3a5f; }
-    main { text-align: center; }
+    main { text-align: center; padding: 24px; }
     .spinner { width: 36px; height: 36px; margin: 0 auto 14px; border: 3px solid #cfe8ff;
       border-top-color: #4a9fe8; border-radius: 999px; animation: spin .8s linear infinite; }
+    p { margin: 0; font-size: 14px; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <main><div class="spinner"></div><p>로그인을 완료하는 중입니다…</p></main>
-  <form id="oauth-finalize" method="post" action="/auth/finalize-session" hidden>
-    <input type="hidden" name="payload" value="${handoffB64}">
-  </form>
+  <main>
+    <div class="spinner"></div>
+    <p>로그인을 완료하는 중입니다…</p>
+  </main>
   <script>
-    document.getElementById("oauth-finalize").submit();
+    const destination = ${safeDestination};
+    const fallback = ${safeFallback};
+    const delays = [150, 300, 500, 800, 1200, 1600, 2200, 3000];
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    (async () => {
+      for (const delay of delays) {
+        try {
+          const res = await fetch('/auth/me', {
+            credentials: 'include',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+          });
+          if (res.ok) {
+            try {
+              const data = await res.json();
+              if (data && data.user) {
+                sessionStorage.setItem('teamcanvas-oauth-bootstrap', JSON.stringify(data));
+              }
+            } catch {}
+            location.replace(destination);
+            return;
+          }
+        } catch {}
+        await sleep(delay);
+      }
+      location.replace(fallback);
+    })();
   </script>
   <noscript>
-    <p><a href="/auth/finalize-session?payload=${encodeURIComponent(handoffB64)}">로그인 계속하기</a></p>
+    <p><a href="${destination}">계속하기</a></p>
   </noscript>
 </body>
 </html>`;
-
   const headers = new Headers({
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",

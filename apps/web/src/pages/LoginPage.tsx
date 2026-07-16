@@ -43,6 +43,7 @@ function KakaoIcon() {
 }
 
 export function LoginPage() {
+  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const emailLogin = useEmailLogin();
   const emailRegister = useEmailRegister();
@@ -53,6 +54,21 @@ export function LoginPage() {
   const oauthStatus = params.get("status");
   const verified = params.get("verified");
   const redirectAfterLogin = params.get("redirect");
+  const oauthDebug = [
+    ["path", `${window.location.pathname}${window.location.search}`],
+    ["dbg_hasSession", params.get("dbg_hasSession")],
+    ["dbg_hasUserStore", params.get("dbg_hasUserStore")],
+    ["dbg_hasUserData", params.get("dbg_hasUserData")],
+    ["dbg_orgs", params.get("dbg_orgs")],
+    ["dbg_bootstrap", params.get("dbg_bootstrap")],
+    ["dbg_queryLoading", params.get("dbg_queryLoading")],
+    ["dbg_fetching", params.get("dbg_fetching")],
+    ["dbg_error", params.get("dbg_error")],
+    ["store_isAuthenticated", isAuthenticated ? "1" : "0"],
+  ]
+    .filter(([, value]) => value != null)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" | ");
 
   const { data: providers } = useQuery({
     queryKey: ["auth", "providers"],
@@ -67,7 +83,7 @@ export function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [registerDevLink, setRegisterDevLink] = useState<string | null>(null);
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if (isAuthenticated || user) return <Navigate to="/" replace />;
 
   const isPending = emailLogin.isPending || emailRegister.isPending;
 
@@ -123,6 +139,13 @@ export function LoginPage() {
                   ? ` (${[oauthStep, oauthStatus].filter(Boolean).join("/")})`
                   : ""
               }`}
+          </div>
+        )}
+
+        {oauthError === "session_cookie_failed" && oauthDebug && (
+          <div className="mb-4 rounded-2xl bg-amber-50 px-4 py-3 text-left text-[11px] text-amber-800">
+            <p className="font-semibold">OAuth Debug</p>
+            <p className="mt-1 break-all">{oauthDebug}</p>
           </div>
         )}
 

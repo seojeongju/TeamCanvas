@@ -60,7 +60,13 @@ export const useAuthStore = create<AuthState>()(
         organizations: s.organizations,
         isPlatformAdmin: s.isPlatformAdmin,
         sessionExpiresAt: s.sessionExpiresAt,
-        isAuthenticated: s.isAuthenticated,
+        // isAuthenticated는 서버(/auth/me) 검증 결과만 신뢰한다.
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<typeof current>),
+        isAuthenticated: false,
+        isLoading: true,
       }),
     },
   ),

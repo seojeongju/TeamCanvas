@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { AdminShell } from "./components/layout/AdminShell";
-import { AuthGuard, GuestGuard, AuthOnly } from "./components/auth/AuthGuard";
+import { GuestGuard, AuthOnly } from "./components/auth/AuthGuard";
 import { PlatformAdminGuard } from "./components/auth/PlatformAdminGuard";
 import { LoginPage } from "./pages/LoginPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
@@ -38,8 +38,9 @@ import { AppSettingsPage } from "./pages/settings/AppSettingsPage";
 import { PwaInstallBanner } from "./components/layout/PwaInstallBanner";
 import { LandingPage } from "./pages/LandingPage";
 import { SharedEventPage } from "./pages/SharedEventPage";
-import { useAuthInit } from "./hooks/useAuth";
+import { consumeOAuthBootstrap, useAuthInit } from "./hooks/useAuth";
 import { useAuthStore } from "./stores/authStore";
+import { useOrgStore } from "./stores/orgStore";
 
 function LoadingScreen() {
   return (
@@ -56,29 +57,65 @@ function LoadingScreen() {
 function AppRoot() {
   const [params, setParams] = useSearchParams();
   const oauthComplete = params.get("oauth") === "complete";
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { isFetching } = useAuthInit();
+  const organizations = useAuthStore((s) => s.organizations);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
+  const [bootstrapChecked, setBootstrapChecked] = useState(!oauthComplete);
+  const { data, isFetching, isLoading: queryLoading, isError } = useAuthInit();
+  const hasSession = Boolean(data?.user || user);
+  const orgCount = data?.organizations.length ?? organizations.length;
 
   useEffect(() => {
-    if (!oauthComplete || !isAuthenticated) return;
+    if (!oauthComplete) {
+      setBootstrapChecked(true);
+      return;
+    }
+
+    const bootstrap = consumeOAuthBootstrap();
+    if (bootstrap?.user) {
+      setAuth(bootstrap.user, bootstrap.organizations, {
+        isPlatformAdmin: bootstrap.isPlatformAdmin,
+        platformRole: bootstrap.platformRole,
+        sessionExpiresAt: bootstrap.sessionExpiresAt ?? null,
+      });
+      if (bootstrap.organizations[0] && !useOrgStore.getState().currentOrgId) {
+        setCurrentOrgId(bootstrap.organizations[0].id);
+      }
+    }
+    setBootstrapChecked(true);
+  }, [oauthComplete, setAuth, setCurrentOrgId]);
+
+  useEffect(() => {
+    if (!oauthComplete || !hasSession) return;
     const next = new URLSearchParams(params);
     next.delete("oauth");
     next.delete("t");
     setParams(next, { replace: true });
-  }, [oauthComplete, isAuthenticated, params, setParams]);
+  }, [oauthComplete, hasSession, params, setParams]);
 
-  if (isLoading || isFetching) return <LoadingScreen />;
-  if (oauthComplete && !isAuthenticated) {
-    return <Navigate to="/login?error=session_cookie_failed&step=me" replace />;
+  if (!bootstrapChecked || ((queryLoading || isFetching) && !hasSession)) return <LoadingScreen />;
+  if (oauthComplete && !hasSession) {
+    const debug = new URLSearchParams({
+      error: "session_cookie_failed",
+      step: "me",
+      dbg_hasSession: hasSession ? "1" : "0",
+      dbg_hasUserStore: user ? "1" : "0",
+      dbg_hasUserData: data?.user ? "1" : "0",
+      dbg_orgs: String(orgCount),
+      dbg_bootstrap: bootstrapChecked ? "1" : "0",
+      dbg_queryLoading: queryLoading ? "1" : "0",
+      dbg_fetching: isFetching ? "1" : "0",
+      dbg_error: isError ? "1" : "0",
+      dbg_storeAuthenticated: isAuthenticated ? "1" : "0",
+    });
+    return <Navigate to={`/login?${debug.toString()}`} replace />;
   }
-  if (!isAuthenticated) return <LandingPage />;
+  if (!hasSession) return <LandingPage />;
+  if (orgCount === 0) return <Navigate to="/onboarding" replace />;
 
-  return (
-    <AuthGuard>
-      <AppShell />
-    </AuthGuard>
-  );
+  return <AppShell />;
 }
 
 function AdminLayout() {

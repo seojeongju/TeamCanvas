@@ -15,36 +15,38 @@ function LoadingScreen() {
 }
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const organizations = useAuthStore((s) => s.organizations);
-  const { isFetching, isError } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const hasSession = Boolean(data?.user || user);
+  const orgCount = data?.organizations.length ?? organizations.length;
 
-  if (isLoading || isFetching) return <LoadingScreen />;
-  if (isError || !isAuthenticated) return <Navigate to="/login" replace />;
-  if (organizations.length === 0) return <Navigate to="/onboarding" replace />;
+  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hasSession) return <Navigate to="/login" replace />;
+  if (orgCount === 0) return <Navigate to="/onboarding" replace />;
 
   return children;
 }
 
 export function AuthOnly({ children }: { children: ReactNode }) {
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { isFetching, isError } = useAuthInit();
+  const user = useAuthStore((s) => s.user);
+  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const hasSession = Boolean(data?.user || user);
 
-  if (isLoading || isFetching) return <LoadingScreen />;
-  if (isError || !isAuthenticated) return <Navigate to="/login" replace />;
+  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hasSession) return <Navigate to="/login" replace />;
 
   return children;
 }
 
 export function GuestGuard({ children }: { children: ReactNode }) {
+  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const { isFetching } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const hasSession = Boolean(data?.user || user || isAuthenticated);
 
-  if (isLoading || isFetching) return <LoadingScreen />;
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (hasSession) return <Navigate to="/" replace />;
 
   return children;
 }

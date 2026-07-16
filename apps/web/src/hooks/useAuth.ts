@@ -3,9 +3,26 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../stores/authStore";
 import { useOrgStore } from "../stores/orgStore";
+import type { AuthMeResponse } from "../lib/types";
 
 function isOAuthComplete(search: string): boolean {
   return new URLSearchParams(search).get("oauth") === "complete";
+}
+
+const OAUTH_BOOTSTRAP_KEY = "teamcanvas-oauth-bootstrap";
+
+export function consumeOAuthBootstrap(): AuthMeResponse | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = sessionStorage.getItem(OAUTH_BOOTSTRAP_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(OAUTH_BOOTSTRAP_KEY);
+    return JSON.parse(raw) as AuthMeResponse;
+  } catch {
+    sessionStorage.removeItem(OAUTH_BOOTSTRAP_KEY);
+    return null;
+  }
 }
 
 export function useAuthInit() {
@@ -17,12 +34,29 @@ export function useAuthInit() {
   const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
 
   return useQuery({
-    queryKey: ["auth", "me", oauthComplete ? params.toString() : "default"],
+    // queryKey를 oauth 파라미터와 분리한다. URL에서 oauth=complete를 제거할 때
+    // 이전 401 캐시가 재사용되어 로그인 직후 다시 로그아웃되는 문제를 방지한다.
+    queryKey: ["auth", "me"],
     queryFn: async () => {
       const attempts = oauthComplete ? 4 : 1;
       let lastError: unknown;
 
       try {
+        if (oauthComplete) {
+          const bootstrap = consumeOAuthBootstrap();
+          if (bootstrap?.user) {
+            setAuth(bootstrap.user, bootstrap.organizations, {
+              isPlatformAdmin: bootstrap.isPlatformAdmin,
+              platformRole: bootstrap.platformRole,
+              sessionExpiresAt: bootstrap.sessionExpiresAt ?? null,
+            });
+            if (bootstrap.organizations[0] && !useOrgStore.getState().currentOrgId) {
+              setCurrentOrgId(bootstrap.organizations[0].id);
+            }
+            return bootstrap;
+          }
+        }
+
         for (let i = 0; i < attempts; i++) {
           try {
             const data = await api.me();
@@ -50,8 +84,9 @@ export function useAuthInit() {
       }
     },
     retry: false,
-    staleTime: oauthComplete ? 0 : 60_000,
-    refetchOnMount: oauthComplete ? "always" : true,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
   });
 }
 

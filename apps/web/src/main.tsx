@@ -9,6 +9,37 @@ import { initPwaInstallListener } from "./lib/pwaInstallStore";
 initViewportGuards();
 initPwaInstallListener();
 
+async function disableLegacyServiceWorkers() {
+  if (!("serviceWorker" in navigator)) return;
+
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  } catch (error) {
+    console.warn("Failed to unregister service workers", error);
+  }
+
+  if (!("caches" in window)) return;
+
+  try {
+    const cacheKeys = await caches.keys();
+    await Promise.all(
+      cacheKeys
+        .filter((key) =>
+          key.includes("workbox") ||
+          key.includes("precache") ||
+          key.includes("api-cache") ||
+          key.includes("api-data-cache"),
+        )
+        .map((key) => caches.delete(key)),
+    );
+  } catch (error) {
+    console.warn("Failed to clear legacy caches", error);
+  }
+}
+
+void disableLegacyServiceWorkers();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
