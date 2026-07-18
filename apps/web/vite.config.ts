@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      injectRegister: false,
+      // 자동 등록 복구. autoUpdate로 새 배포 SW가 빠르게 활성화된다.
       registerType: "autoUpdate",
       includeAssets: [
         "favicon.svg",
@@ -50,10 +50,17 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,ico,svg,woff2}"],
+        // index.html은 해시 버전으로 precache되어 배포마다 갱신된다.
+        globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
         importScripts: ["/push-handler.js"],
-        navigateFallbackDenylist: [/^\/auth\//, /^\/api\//],
+        navigateFallback: "index.html",
+        // OAuth/API는 SW가 SPA로 폴백하거나 캐시하면 안 된다.
+        navigateFallbackDenylist: [/^\/auth\b/, /^\/api\b/],
         runtimeCaching: [
+          {
+            urlPattern: /^\/auth\b/,
+            handler: "NetworkOnly",
+          },
           {
             urlPattern: /^\/api\/organizations\/[^/]+\/(tasks|events)/,
             handler: "StaleWhileRevalidate",
@@ -63,7 +70,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^\/api\//,
+            urlPattern: /^\/api\b/,
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
