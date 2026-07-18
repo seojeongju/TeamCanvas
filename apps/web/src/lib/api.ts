@@ -1,5 +1,15 @@
 const API_BASE = "";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const isFormData = options.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
@@ -13,7 +23,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((err as { error?: string }).error ?? "Request failed");
+    throw new ApiError((err as { error?: string }).error ?? "Request failed", res.status);
   }
 
   return res.json() as Promise<T>;

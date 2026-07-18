@@ -38,7 +38,7 @@ import { AppSettingsPage } from "./pages/settings/AppSettingsPage";
 import { PwaInstallBanner } from "./components/layout/PwaInstallBanner";
 import { LandingPage } from "./pages/LandingPage";
 import { SharedEventPage } from "./pages/SharedEventPage";
-import { consumeOAuthBootstrap, useAuthInit } from "./hooks/useAuth";
+import { consumeOAuthBootstrap, useAuthHydrated, useAuthInit } from "./hooks/useAuth";
 import { useAuthStore } from "./stores/authStore";
 import { useOrgStore } from "./stores/orgStore";
 
@@ -57,13 +57,14 @@ function LoadingScreen() {
 function AppRoot() {
   const [params, setParams] = useSearchParams();
   const oauthComplete = params.get("oauth") === "complete";
+  const hydrated = useAuthHydrated();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const organizations = useAuthStore((s) => s.organizations);
   const setAuth = useAuthStore((s) => s.setAuth);
   const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
   const [bootstrapChecked, setBootstrapChecked] = useState(!oauthComplete);
-  const { data, isFetching, isLoading: queryLoading, isError } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading, isError, isPending } = useAuthInit();
   const hasSession = Boolean(data?.user || user);
   const orgCount = data?.organizations.length ?? organizations.length;
 
@@ -95,7 +96,9 @@ function AppRoot() {
     setParams(next, { replace: true });
   }, [oauthComplete, hasSession, params, setParams]);
 
-  if (!bootstrapChecked || ((queryLoading || isFetching) && !hasSession)) return <LoadingScreen />;
+  if (!hydrated || !bootstrapChecked || ((queryLoading || isFetching || isPending) && !hasSession)) {
+    return <LoadingScreen />;
+  }
   if (oauthComplete && !hasSession) {
     const debug = new URLSearchParams({
       error: "session_cookie_failed",

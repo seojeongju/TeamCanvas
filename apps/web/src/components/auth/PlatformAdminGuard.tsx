@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../../stores/authStore";
-import { useAuthInit } from "../../hooks/useAuth";
+import { useAuthHydrated, useAuthInit } from "../../hooks/useAuth";
 
 function LoadingScreen() {
   return (
@@ -15,13 +15,16 @@ function LoadingScreen() {
 }
 
 export function PlatformAdminGuard({ children }: { children: ReactNode }) {
+  const hydrated = useAuthHydrated();
   const user = useAuthStore((s) => s.user);
   const isPlatformAdmin = useAuthStore((s) => s.isPlatformAdmin);
-  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading, isPending } = useAuthInit();
   const hasSession = Boolean(data?.user || user);
   const hasAdminAccess = Boolean(data?.isPlatformAdmin) || isPlatformAdmin;
 
-  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hydrated || ((queryLoading || isFetching || isPending) && !hasSession)) {
+    return <LoadingScreen />;
+  }
   if (!hasSession) return <Navigate to="/login" replace />;
   if (!hasAdminAccess) return <Navigate to="/" replace />;
 

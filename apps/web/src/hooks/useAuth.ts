@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { useAuthStore } from "../stores/authStore";
 import { useOrgStore } from "../stores/orgStore";
 import type { AuthMeResponse } from "../lib/types";
@@ -25,68 +26,105 @@ export function consumeOAuthBootstrap(): AuthMeResponse | null {
   }
 }
 
+function useAuthStoreHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(() => useAuthStore.persist.hasHydrated());
+
+  useEffect(() => {
+    if (hydrated) return;
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, [hydrated]);
+
+  return hydrated;
+}
+
+export function useAuthHydrated(): boolean {
+  return useAuthStoreHydrated();
+}
+
+function applyAuthSuccess(data: AuthMeResponse) {
+  useAuthStore.getState().setAuth(data.user, data.organizations, {
+    isPlatformAdmin: data.isPlatformAdmin,
+    platformRole: data.platformRole,
+    sessionExpiresAt: data.sessionExpiresAt ?? null,
+  });
+  if (data.organizations[0] && !useOrgStore.getState().currentOrgId) {
+    useOrgStore.getState().setCurrentOrgId(data.organizations[0].id);
+  }
+}
+
 export function useAuthInit() {
   const [params] = useSearchParams();
   const oauthComplete = isOAuthComplete(params.toString());
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const hydrated = useAuthStoreHydrated();
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const setLoading = useAuthStore((s) => s.setLoading);
-  const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
 
   return useQuery({
-    // queryKey를 oauth 파라미터와 분리한다. URL에서 oauth=complete를 제거할 때
-    // 이전 401 캐시가 재사용되어 로그인 직후 다시 로그아웃되는 문제를 방지한다.
     queryKey: ["auth", "me"],
+    enabled: hydrated,
     queryFn: async () => {
-      const attempts = oauthComplete ? 4 : 1;
+      const attempts = oauthComplete ? 4 : 3;
       let lastError: unknown;
 
       try {
         if (oauthComplete) {
           const bootstrap = consumeOAuthBootstrap();
           if (bootstrap?.user) {
-            setAuth(bootstrap.user, bootstrap.organizations, {
-              isPlatformAdmin: bootstrap.isPlatformAdmin,
-              platformRole: bootstrap.platformRole,
-              sessionExpiresAt: bootstrap.sessionExpiresAt ?? null,
-            });
-            if (bootstrap.organizations[0] && !useOrgStore.getState().currentOrgId) {
-              setCurrentOrgId(bootstrap.organizations[0].id);
+            applyAuthSuccess(bootstrap);
+            // 부트스트랩으로 UI는 즉시 열되, 쿠키 세션이 실제로 유효한지 확인한다.
+            try {
+              const verified = await api.me();
+              applyAuthSuccess(verified);
+              return verified;
+            } catch (err) {
+              const unauthorized =
+                err instanceof ApiError
+                  ? err.status === 401
+                  : err instanceof Error && /unauthorized/i.test(err.message);
+              if (unauthorized) {
+                clearAuth();
+                throw err instanceof Error ? err : new Error("Unauthorized");
+              }
+              // 일시적 네트워크 오류면 부트스트랩으로 진행하고, 이후 요청에서 재검증한다.
+              return bootstrap;
             }
-            return bootstrap;
           }
         }
 
         for (let i = 0; i < attempts; i++) {
           try {
             const data = await api.me();
-            setAuth(data.user, data.organizations, {
-              isPlatformAdmin: data.isPlatformAdmin,
-              platformRole: data.platformRole,
-              sessionExpiresAt: data.sessionExpiresAt ?? null,
-            });
-            if (data.organizations[0] && !useOrgStore.getState().currentOrgId) {
-              setCurrentOrgId(data.organizations[0].id);
-            }
+            applyAuthSuccess(data);
             return data;
           } catch (err) {
             lastError = err;
             if (i < attempts - 1) {
-              await new Promise((resolve) => setTimeout(resolve, 300 * (i + 1)));
+              await new Promise((resolve) => setTimeout(resolve, 250 * (i + 1)));
             }
           }
         }
 
-        clearAuth();
+        // 네트워크 오류 등으로 실패하면 로컬 세션을 바로 지우지 않는다.
+        // 실제 미인증(401)일 때만 clearAuth 한다.
+        const unauthorized =
+          lastError instanceof ApiError
+            ? lastError.status === 401
+            : lastError instanceof Error && /unauthorized/i.test(lastError.message);
+
+        if (unauthorized) {
+          clearAuth();
+        }
+
         throw lastError instanceof Error ? lastError : new Error("Unauthorized");
       } finally {
         setLoading(false);
       }
     },
     retry: false,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: "always",
+    staleTime: 30_000,
+    refetchOnMount: true,
   });
 }
 

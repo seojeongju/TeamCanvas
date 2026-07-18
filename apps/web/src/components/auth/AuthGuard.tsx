@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../../stores/authStore";
-import { useAuthInit } from "../../hooks/useAuth";
+import { useAuthHydrated, useAuthInit } from "../../hooks/useAuth";
 
 function LoadingScreen() {
   return (
@@ -15,13 +15,16 @@ function LoadingScreen() {
 }
 
 export function AuthGuard({ children }: { children: ReactNode }) {
+  const hydrated = useAuthHydrated();
   const user = useAuthStore((s) => s.user);
   const organizations = useAuthStore((s) => s.organizations);
-  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading, isPending } = useAuthInit();
   const hasSession = Boolean(data?.user || user);
   const orgCount = data?.organizations.length ?? organizations.length;
 
-  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hydrated || ((queryLoading || isFetching || isPending) && !hasSession)) {
+    return <LoadingScreen />;
+  }
   if (!hasSession) return <Navigate to="/login" replace />;
   if (orgCount === 0) return <Navigate to="/onboarding" replace />;
 
@@ -29,23 +32,29 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 }
 
 export function AuthOnly({ children }: { children: ReactNode }) {
+  const hydrated = useAuthHydrated();
   const user = useAuthStore((s) => s.user);
-  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading, isPending } = useAuthInit();
   const hasSession = Boolean(data?.user || user);
 
-  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hydrated || ((queryLoading || isFetching || isPending) && !hasSession)) {
+    return <LoadingScreen />;
+  }
   if (!hasSession) return <Navigate to="/login" replace />;
 
   return children;
 }
 
 export function GuestGuard({ children }: { children: ReactNode }) {
+  const hydrated = useAuthHydrated();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { data, isFetching, isLoading: queryLoading } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading, isPending } = useAuthInit();
   const hasSession = Boolean(data?.user || user || isAuthenticated);
 
-  if ((queryLoading || isFetching) && !hasSession) return <LoadingScreen />;
+  if (!hydrated || ((queryLoading || isFetching || isPending) && !hasSession)) {
+    return <LoadingScreen />;
+  }
   if (hasSession) return <Navigate to="/" replace />;
 
   return children;

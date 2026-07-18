@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { Env } from "../types";
 import { frontendUrl } from "./email";
-import { setAuthCookies } from "./auth";
+import { appendAuthCookieHeaders, setAuthCookies } from "./auth";
 import { getUserOrganizations } from "./db";
 
 export function oauthRedirectUri(c: Context<{ Bindings: Env }>, provider: "google" | "kakao"): string {
@@ -60,7 +60,7 @@ export async function completeOAuthLogin(
   userId: string,
   email: string | null,
 ): Promise<Response> {
-  await setAuthCookies(c, userId, email);
+  const session = await setAuthCookies(c, userId, email);
   const organizations = await getUserOrganizations(c.env.DB, userId);
   const path = organizations.length > 0 ? "/" : "/onboarding";
   const origin = new URL(c.req.url).origin;
@@ -68,6 +68,7 @@ export async function completeOAuthLogin(
   const fallback = `${frontendUrl(c.req.raw, c.env)}/login?error=session_cookie_failed&step=me`;
   const safeDestination = JSON.stringify(destination);
   const safeFallback = JSON.stringify(fallback);
+  const secure = new URL(c.req.url).protocol === "https:";
 
   // 일부 브라우저에서는 OAuth 리디렉션 직후 앱이 너무 빨리 부팅되면
   // 방금 발급한 쿠키가 /auth/me 요청에 즉시 반영되지 않을 수 있다.
@@ -134,6 +135,14 @@ export async function completeOAuthLogin(
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
   });
+  // Hono setCookie 복사에 의존하지 않고 쿠키를 명시적으로 심어 새로고침 후에도 세션이 유지되게 한다.
+  appendAuthCookieHeaders(
+    headers,
+    session.accessToken,
+    session.refreshToken,
+    session.sessionExpiresAt,
+    secure,
+  );
   appendContextCookies(headers, c);
   return new Response(html, { status: 200, headers });
 }

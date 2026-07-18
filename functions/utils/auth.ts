@@ -300,6 +300,20 @@ function setAuthTokenCookies(
   setCookie(c, "refresh_token", refreshToken, { ...cookieOpts, maxAge: refreshMaxAge });
 }
 
+/** raw Response에 인증 쿠키를 직접 심는다. Hono setCookie → 새 Response 복사 과정에서 유실되는 경우를 막는다. */
+export function appendAuthCookieHeaders(
+  headers: Headers,
+  accessToken: string,
+  refreshToken: string,
+  sessionExpiresAt: number,
+  secure: boolean,
+): void {
+  const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+  const refreshMaxAge = Math.max(1, Math.floor((sessionExpiresAt - Date.now()) / 1000));
+  headers.append("Set-Cookie", `access_token=${accessToken}; ${base}; Max-Age=${ACCESS_MAX_AGE}`);
+  headers.append("Set-Cookie", `refresh_token=${refreshToken}; ${base}; Max-Age=${refreshMaxAge}`);
+}
+
 /** OAuth 완료 시 브라우저가 쿠키를 확실히 저장하도록 HTTP 302 + 명시적 Set-Cookie */
 export function redirectWithAuthCookies(
   destination: string,
@@ -312,10 +326,7 @@ export function redirectWithAuthCookies(
     Location: destination,
     "Cache-Control": "no-store",
   });
-  const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
-  const refreshMaxAge = Math.max(1, Math.floor((sessionExpiresAt - Date.now()) / 1000));
-  headers.append("Set-Cookie", `access_token=${accessToken}; ${base}; Max-Age=${ACCESS_MAX_AGE}`);
-  headers.append("Set-Cookie", `refresh_token=${refreshToken}; ${base}; Max-Age=${refreshMaxAge}`);
+  appendAuthCookieHeaders(headers, accessToken, refreshToken, sessionExpiresAt, secure);
   return new Response(null, { status: 302, headers });
 }
 
