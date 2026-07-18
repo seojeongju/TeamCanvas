@@ -18,6 +18,7 @@ import {
   refreshAuthSession,
   establishSessionFromTokens,
   redirectWithAuthCookies,
+  renewAuthCookiePersistence,
 } from "../utils/auth";
 import { upsertOAuthUser, getUserOrganizations, registerEmailUser, loginEmailUser, resolveDisplayName } from "../utils/db";
 import { extendAuthMe } from "../routes/admin";
@@ -373,9 +374,12 @@ app.post("/dev", async (c) => {
 app.get("/me", async (c) => {
   const user = await getAuthUser(c);
   if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+  // 브라우저가 세션 쿠키로 들고 있던 경우에도 Max-Age를 다시 심어 앱 종료 후 유지한다.
+  const renewedExpiresAt = await renewAuthCookiePersistence(c);
   const organizations = await getUserOrganizations(c.env.DB, user.id);
   const platform = await extendAuthMe(c.env.DB, user.id);
-  const sessionExpiresAt = await getSessionExpiry(c);
+  const sessionExpiresAt = renewedExpiresAt ?? (await getSessionExpiry(c));
   return c.json({ user, organizations, ...platform, sessionExpiresAt });
 });
 

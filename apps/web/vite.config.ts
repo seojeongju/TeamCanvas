@@ -58,11 +58,13 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/auth\b/, /^\/api\b/],
         runtimeCaching: [
           {
-            urlPattern: /^\/auth\b/,
+            // Workbox RegExp는 전체 URL에 매칭되므로 pathname 기준으로 판별한다.
+            urlPattern: ({ url }) => url.pathname.startsWith("/auth"),
             handler: "NetworkOnly",
           },
           {
-            urlPattern: /^\/api\/organizations\/[^/]+\/(tasks|events)/,
+            urlPattern: ({ url }) =>
+              /^\/api\/organizations\/[^/]+\/(tasks|events)/.test(url.pathname),
             handler: "StaleWhileRevalidate",
             options: {
               cacheName: "api-data-cache-v2",
@@ -70,7 +72,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^\/api\b/,
+            urlPattern: ({ url }) => url.pathname.startsWith("/api"),
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",

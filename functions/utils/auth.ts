@@ -295,12 +295,21 @@ function setAuthTokenCookies(
   secure: boolean,
   refreshMaxAge: number,
 ): void {
-  const cookieOpts = { httpOnly: true, secure, sameSite: "Lax" as const, path: "/" };
+  const cookieOpts = {
+    httpOnly: true,
+    secure,
+    sameSite: "Lax" as const,
+    path: "/",
+  };
   setCookie(c, "access_token", accessToken, { ...cookieOpts, maxAge: ACCESS_MAX_AGE });
   setCookie(c, "refresh_token", refreshToken, { ...cookieOpts, maxAge: refreshMaxAge });
 }
 
-/** raw Response에 인증 쿠키를 직접 심는다. Hono setCookie → 새 Response 복사 과정에서 유실되는 경우를 막는다. */
+function cookieExpires(maxAgeSec: number): string {
+  return new Date(Date.now() + maxAgeSec * 1000).toUTCString();
+}
+
+/** raw Response에 인증 쿠키를 직접 심는다. Max-Age + Expires로 브라우저 종료 후에도 유지. */
 export function appendAuthCookieHeaders(
   headers: Headers,
   accessToken: string,
@@ -309,9 +318,78 @@ export function appendAuthCookieHeaders(
   secure: boolean,
 ): void {
   const base = `Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
-  const refreshMaxAge = Math.max(1, Math.floor((sessionExpiresAt - Date.now()) / 1000));
-  headers.append("Set-Cookie", `access_token=${accessToken}; ${base}; Max-Age=${ACCESS_MAX_AGE}`);
-  headers.append("Set-Cookie", `refresh_token=${refreshToken}; ${base}; Max-Age=${refreshMaxAge}`);
+  // sessionExpiresAt 기반 계산이 시계 오차로 1초가 되는 것을 피하고, 의도한 TTL을 그대로 쓴다.
+  const refreshMaxAge = Math.min(
+    REFRESH_IDLE_MAX_AGE,
+    Math.max(1, Math.floor((sessionExpiresAt - Date.now()) / 1000)),
+  );
+  headers.append(
+    "Set-Cookie",
+    `access_token=${accessToken}; ${base}; Max-Age=${ACCESS_MAX_AGE}; Expires=${cookieExpires(ACCESS_MAX_AGE)}`,
+  );
+  headers.append(
+    "Set-Cookie",
+    `refresh_token=${refreshToken}; ${base}; Max-Age=${refreshMaxAge}; Expires=${cookieExpires(refreshMaxAge)}`,
+  );
+}
+
+/**
+ * 유효한 세션이 있으면 브라우저 쿠키 Max-Age를 다시 심어
+ * 앱 종료 후에도 세션이 유지되도록 한다. (세션 쿠키로 남는 경우 방지)
+ */
+export async function renewAuthCookiePersistence(
+  c: Context<{ Bindings: Env }>,
+): Promise<number | null> {
+  const refresh = getCookie(c, "refresh_token");
+  if (!refresh) return null;
+
+  const refreshPayload = await verifyJwt(refresh, c.env.JWT_SECRET);
+  if (!refreshPayload || refreshPayload.type !== "refresh") return null;
+
+  const hash = await hashToken(refresh);
+  const issuedAt = now();
+  const session = await c.env.DB.prepare(
+    `SELECT id, user_id, expires_at, created_at, last_used_at, absolute_expires_at
+     FROM sessions
+     WHERE refresh_token_hash = ? AND user_id = ? AND expires_at > ?
+       AND COALESCE(absolute_expires_at, created_at + ?) > ?`,
+  )
+    .bind(hash, refreshPayload.sub, issuedAt, SESSION_ABSOLUTE_MAX_AGE * 1000, issuedAt)
+    .first<SessionRow>();
+  if (!session) return null;
+
+  const absoluteExpiresAt = sessionAbsoluteExpiry(session);
+  const sessionExpiresAt = Math.min(
+    issuedAt + REFRESH_IDLE_MAX_AGE * 1000,
+    absoluteExpiresAt,
+    refreshPayload.exp * 1000,
+  );
+  if (sessionExpiresAt <= issuedAt) return null;
+
+  await c.env.DB.prepare(
+    `UPDATE sessions
+     SET expires_at = ?, last_used_at = ?,
+         absolute_expires_at = COALESCE(absolute_expires_at, ?)
+     WHERE id = ?`,
+  )
+    .bind(sessionExpiresAt, issuedAt, absoluteExpiresAt, session.id)
+    .run();
+
+  const refreshMaxAge = refreshMaxAgeSeconds(sessionExpiresAt);
+  const secure = new URL(c.req.url).protocol === "https:";
+
+  let accessToken = getCookie(c, "access_token");
+  const accessPayload = accessToken ? await verifyJwt(accessToken, c.env.JWT_SECRET) : null;
+  if (!accessPayload || accessPayload.type !== "access") {
+    accessToken = await signJwt(
+      { sub: refreshPayload.sub, email: refreshPayload.email, type: "access" },
+      c.env.JWT_SECRET,
+      ACCESS_MAX_AGE,
+    );
+  }
+
+  setAuthTokenCookies(c, accessToken!, refresh, secure, refreshMaxAge);
+  return sessionExpiresAt;
 }
 
 /** OAuth 완료 시 브라우저가 쿠키를 확실히 저장하도록 HTTP 302 + 명시적 Set-Cookie */
