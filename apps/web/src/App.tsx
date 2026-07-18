@@ -59,12 +59,11 @@ function AppRoot() {
   const oauthComplete = params.get("oauth") === "complete";
   const hydrated = useAuthHydrated();
   const user = useAuthStore((s) => s.user);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const organizations = useAuthStore((s) => s.organizations);
   const setAuth = useAuthStore((s) => s.setAuth);
   const setCurrentOrgId = useOrgStore((s) => s.setCurrentOrgId);
   const [bootstrapChecked, setBootstrapChecked] = useState(!oauthComplete);
-  const { data, isFetching, isLoading: queryLoading, isError, isPending } = useAuthInit();
+  const { data, isFetching, isLoading: queryLoading, isPending } = useAuthInit();
   const hasSession = Boolean(data?.user || user);
   const orgCount = data?.organizations.length ?? organizations.length;
 
@@ -100,20 +99,7 @@ function AppRoot() {
     return <LoadingScreen />;
   }
   if (oauthComplete && !hasSession) {
-    const debug = new URLSearchParams({
-      error: "session_cookie_failed",
-      step: "me",
-      dbg_hasSession: hasSession ? "1" : "0",
-      dbg_hasUserStore: user ? "1" : "0",
-      dbg_hasUserData: data?.user ? "1" : "0",
-      dbg_orgs: String(orgCount),
-      dbg_bootstrap: bootstrapChecked ? "1" : "0",
-      dbg_queryLoading: queryLoading ? "1" : "0",
-      dbg_fetching: isFetching ? "1" : "0",
-      dbg_error: isError ? "1" : "0",
-      dbg_storeAuthenticated: isAuthenticated ? "1" : "0",
-    });
-    return <Navigate to={`/login?${debug.toString()}`} replace />;
+    return <Navigate to="/login?error=session_cookie_failed&step=me" replace />;
   }
   if (!hasSession) return <LandingPage />;
   if (orgCount === 0) return <Navigate to="/onboarding" replace />;
