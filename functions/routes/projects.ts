@@ -1637,8 +1637,8 @@ projectRoutes.post("/projects/:projectId/duplicate", async (c) => {
   if (feature instanceof Response) return feature;
 
   const body = await c.req
-    .json<{ name?: string; includeTasks?: boolean }>()
-    .catch(() => ({} as { name?: string; includeTasks?: boolean }));
+    .json<{ name?: string; includeTasks?: boolean; includeMilestones?: boolean; includeSchedules?: boolean }>()
+    .catch(() => ({} as { name?: string; includeTasks?: boolean; includeMilestones?: boolean; includeSchedules?: boolean }));
 
   const { duplicateProject } = await import("../utils/duplicateProject");
   try {
@@ -1648,11 +1648,75 @@ projectRoutes.post("/projects/:projectId/duplicate", async (c) => {
       orgId,
       name: body.name,
       includeTasks: body.includeTasks,
+      includeMilestones: body.includeMilestones,
+      includeSchedules: body.includeSchedules,
     });
     return c.json(result, 201);
   } catch (err) {
     const message = err instanceof Error ? err.message : "duplicate_failed";
     if (message === "not_found") return c.json({ error: "not found" }, 404);
+    throw err;
+  }
+});
+
+projectRoutes.post("/projects/:projectId/copy-from-project", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const targetProjectId = c.req.param("projectId");
+
+  const target = await getProjectOr404(c.env.DB, targetProjectId);
+  if (!target) return c.json({ error: "not found" }, 404);
+
+  const orgId = target.organization_id as string;
+  const member = await requireOrgPermission(c, user.id, orgId, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const targetRole = await requireProjectRole(
+    c,
+    user.id,
+    member.role,
+    targetProjectId,
+    orgId,
+    canProjectWriteContent,
+  );
+  if (targetRole instanceof Response) return targetRole;
+
+  const feature = await requireOrgFeature(c, orgId, "tasks");
+  if (feature instanceof Response) return feature;
+
+  const body = await c.req
+    .json<{
+      sourceProjectId: string;
+      includeMilestones?: boolean;
+      includeSchedules?: boolean;
+      resetStatus?: boolean;
+    }>()
+    .catch(() => ({} as { sourceProjectId: string }));
+
+  const sourceProjectId = body.sourceProjectId?.trim();
+  if (!sourceProjectId) return c.json({ error: "sourceProjectId required" }, 400);
+
+  const sourceAccess = await requireProjectAccess(c, user.id, member.role, sourceProjectId, orgId);
+  if (sourceAccess) return sourceAccess;
+
+  const { copyProjectWork } = await import("../utils/copyProjectWork");
+  try {
+    const result = await copyProjectWork(c.env.DB, {
+      sourceProjectId,
+      targetProjectId,
+      actorId: user.id,
+      orgId,
+      includeMilestones: body.includeMilestones,
+      includeSchedules: body.includeSchedules,
+      resetStatus: body.resetStatus,
+    });
+    return c.json({ ok: true, ...result });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "copy_failed";
+    if (message === "source_not_found" || message === "target_not_found") {
+      return c.json({ error: "not found" }, 404);
+    }
+    if (message === "same_project") return c.json({ error: "same_project" }, 400);
     throw err;
   }
 });

@@ -297,11 +297,38 @@ export function useDuplicateProject() {
       projectId: string;
       name?: string;
       includeTasks?: boolean;
+      includeMilestones?: boolean;
+      includeSchedules?: boolean;
     }) => api.duplicateProject(projectId, data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["projects", orgId] });
       qc.invalidateQueries({ queryKey: ["project", vars.projectId] });
       qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+    },
+  });
+}
+
+export function useCopyProjectWorkFrom() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: ({
+      targetProjectId,
+      ...data
+    }: {
+      targetProjectId: string;
+      sourceProjectId: string;
+      includeMilestones?: boolean;
+      includeSchedules?: boolean;
+      resetStatus?: boolean;
+    }) => api.copyProjectWorkFrom(targetProjectId, data),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects", orgId] });
+      qc.invalidateQueries({ queryKey: ["project", vars.targetProjectId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+      qc.invalidateQueries({ queryKey: ["project-milestones", vars.targetProjectId] });
+      qc.invalidateQueries({ queryKey: ["project-activities", vars.targetProjectId] });
+      qc.invalidateQueries({ queryKey: ["events", orgId] });
     },
   });
 }

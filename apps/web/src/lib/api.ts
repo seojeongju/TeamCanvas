@@ -609,7 +609,12 @@ export const api = {
 
   duplicateProject: (
     projectId: string,
-    data?: { name?: string; includeTasks?: boolean },
+    data?: {
+      name?: string;
+      includeTasks?: boolean;
+      includeMilestones?: boolean;
+      includeSchedules?: boolean;
+    },
   ) =>
     request<{ id: string; milestoneCount: number; taskCount: number }>(
       `/api/projects/${projectId}/duplicate`,
@@ -618,6 +623,25 @@ export const api = {
         body: JSON.stringify(data ?? {}),
       },
     ),
+
+  copyProjectWorkFrom: (
+    targetProjectId: string,
+    data: {
+      sourceProjectId: string;
+      includeMilestones?: boolean;
+      includeSchedules?: boolean;
+      resetStatus?: boolean;
+    },
+  ) =>
+    request<{
+      ok: boolean;
+      milestoneCount: number;
+      taskCount: number;
+      subtaskCount: number;
+    }>(`/api/projects/${targetProjectId}/copy-from-project`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   linkTasksToProject: (projectId: string, taskIds: string[]) =>
     request<{ ok: boolean; linked: number }>(`/api/projects/${projectId}/link-tasks`, {

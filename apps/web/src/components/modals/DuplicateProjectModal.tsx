@@ -17,11 +17,13 @@ export function DuplicateProjectModal({ open, onClose, project }: Props) {
   const duplicate = useDuplicateProject();
   const [name, setName] = useState("");
   const [includeTasks, setIncludeTasks] = useState(true);
+  const [includeSchedules, setIncludeSchedules] = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setName(`${project.name} (복사)`);
     setIncludeTasks(true);
+    setIncludeSchedules(true);
   }, [open, project.name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,6 +33,8 @@ export function DuplicateProjectModal({ open, onClose, project }: Props) {
       projectId: project.id,
       name: name.trim(),
       includeTasks,
+      includeMilestones: true,
+      includeSchedules,
     });
     onClose();
     navigate(`/projects/${result.id}`);
@@ -40,7 +44,7 @@ export function DuplicateProjectModal({ open, onClose, project }: Props) {
     <Modal open={open} onClose={onClose} title="프로젝트 복제">
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-navy-600">
-          마일스톤 구조를 복사합니다. 업무는 선택에 따라 미완료 상태로 복제됩니다.
+          마일스톤·업무·하위 업무·체크리스트·의존 관계를 복사합니다. 업무 상태는 할 일로 초기화됩니다.
         </p>
 
         <Input
@@ -58,7 +62,18 @@ export function DuplicateProjectModal({ open, onClose, project }: Props) {
             onChange={(e) => setIncludeTasks(e.target.checked)}
             className="h-4 w-4 rounded border-sky-200"
           />
-          연결된 업무도 함께 복제 (상태는 할 일로 초기화)
+          업무·체크리스트·하위 업무 포함
+        </label>
+
+        <label className="flex items-center gap-2 text-sm text-navy-700">
+          <input
+            type="checkbox"
+            checked={includeSchedules}
+            onChange={(e) => setIncludeSchedules(e.target.checked)}
+            className="h-4 w-4 rounded border-sky-200"
+            disabled={!includeTasks}
+          />
+          연결된 일정(캘린더) 포함
         </label>
 
         <Button type="submit" fullWidth disabled={duplicate.isPending || !name.trim()}>

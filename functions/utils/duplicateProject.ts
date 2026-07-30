@@ -1,4 +1,5 @@
-import { insertProjectActivity, logProjectCreated } from "./projectActivities";
+import { logProjectCreated } from "./projectActivities";
+import { copyProjectWork } from "./copyProjectWork";
 import { newId, now } from "./helpers";
 
 export async function duplicateProject(
@@ -9,6 +10,8 @@ export async function duplicateProject(
     orgId: string;
     name?: string;
     includeTasks?: boolean;
+    includeMilestones?: boolean;
+    includeSchedules?: boolean;
   },
 ): Promise<{ id: string; milestoneCount: number; taskCount: number }> {
   const source = await db
@@ -51,85 +54,37 @@ export async function duplicateProject(
     .bind(projectId, opts.actorId, ts)
     .run();
 
-  const { results: milestones } = await db
-    .prepare(
-      `SELECT title, description, due_at, sort_order FROM project_milestones
-       WHERE project_id = ? ORDER BY sort_order ASC, created_at ASC`,
-    )
-    .bind(opts.sourceProjectId)
-    .all();
-
   let milestoneCount = 0;
-  for (const row of milestones ?? []) {
-    const m = row as Record<string, unknown>;
-    await db
-      .prepare(
-        `INSERT INTO project_milestones (
-          id, project_id, title, description, due_at, status, sort_order, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-      )
-      .bind(
-        newId(),
-        projectId,
-        m.title,
-        m.description,
-        m.due_at,
-        m.sort_order ?? milestoneCount,
-        ts,
-        ts,
-      )
-      .run();
-    milestoneCount++;
-  }
-
   let taskCount = 0;
-  if (opts.includeTasks !== false) {
-    const { results: tasks } = await db
-      .prepare(
-        `SELECT title, description, priority, due_at, sort_order FROM tasks
-         WHERE project_id = ? ORDER BY sort_order ASC, created_at ASC`,
-      )
-      .bind(opts.sourceProjectId)
-      .all();
 
-    for (const row of tasks ?? []) {
-      const t = row as Record<string, unknown>;
-      await db
-        .prepare(
-          `INSERT INTO tasks (
-            id, organization_id, team_id, project_id, creator_id, assignee_id, title, description,
-            status, priority, due_at, event_id, sort_order, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?, NULL, ?, ?, ?)`,
-        )
-        .bind(
-          newId(),
-          opts.orgId,
-          source.team_id,
-          projectId,
-          opts.actorId,
-          opts.actorId,
-          t.title,
-          t.description,
-          t.priority ?? "medium",
-          t.due_at,
-          t.sort_order ?? taskCount,
-          ts,
-          ts,
-        )
-        .run();
-      taskCount++;
-    }
+  if (opts.includeTasks !== false) {
+    const copied = await copyProjectWork(db, {
+      sourceProjectId: opts.sourceProjectId,
+      targetProjectId: projectId,
+      actorId: opts.actorId,
+      orgId: opts.orgId,
+      includeMilestones: opts.includeMilestones !== false,
+      includeSchedules: opts.includeSchedules !== false,
+      resetStatus: true,
+      activitySummary: `「${source.name as string}」에서 복제됨`,
+    });
+    milestoneCount = copied.milestoneCount;
+    taskCount = copied.taskCount + copied.subtaskCount;
+  } else if (opts.includeMilestones !== false) {
+    const copied = await copyProjectWork(db, {
+      sourceProjectId: opts.sourceProjectId,
+      targetProjectId: projectId,
+      actorId: opts.actorId,
+      orgId: opts.orgId,
+      includeMilestones: true,
+      includeSchedules: opts.includeSchedules !== false,
+      resetStatus: true,
+      activitySummary: `「${source.name as string}」에서 마일스톤 복제됨`,
+    });
+    milestoneCount = copied.milestoneCount;
   }
 
   await logProjectCreated(db, opts.orgId, projectId, opts.actorId, newName);
-  await insertProjectActivity(db, {
-    projectId,
-    organizationId: opts.orgId,
-    actorId: opts.actorId,
-    action: "created",
-    summary: `「${source.name as string}」에서 복제됨`,
-    field: "duplicate",
-  });
 
   return { id: projectId, milestoneCount, taskCount };
 }
