@@ -117,7 +117,7 @@ export function TasksPage() {
   };
 
   const handleDuplicate = async (task: Task) => {
-    await duplicateTask.mutateAsync({ taskId: task.id });
+    await duplicateTask.mutateAsync({ taskId: task.id, includeSubtasks: false });
   };
 
   return (

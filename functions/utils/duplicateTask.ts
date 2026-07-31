@@ -217,7 +217,8 @@ export async function duplicateTask(
 
   if (!source) throw new Error("not_found");
 
-  const includeSubtasks = opts.includeSubtasks !== false;
+  // 업무 복사는 상위 업무만 — 하위 진행 항목(하위업무)은 기본 제외
+  const includeSubtasks = opts.includeSubtasks === true;
   const includeSchedules = opts.includeSchedules !== false;
   const resetStatus = opts.resetStatus !== false;
   const ts = now();

@@ -123,7 +123,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   };
 
   const handleDuplicate = async () => {
-    await duplicateTask.mutateAsync({ taskId: task.id });
+    await duplicateTask.mutateAsync({ taskId: task.id, includeSubtasks: false });
     onClose();
   };
 
