@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
+import { AssigneeBadge } from "../ui/AssigneeBadge";
 import { useLinkTasksToProject, useTasks } from "../../hooks/useData";
 import { cn } from "../../lib/cn";
 import type { Project } from "../../lib/types";
@@ -94,7 +95,14 @@ export function LinkTasksToProjectModal({ open, onClose, project }: Props) {
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-navy-900">{task.title}</span>
                     {task.assignee && (
-                      <span className="text-xs text-navy-500">담당 {task.assignee}</span>
+                      <span className="mt-1 inline-flex">
+                        <AssigneeBadge
+                          name={task.assignee}
+                          assigneeId={task.assigneeId}
+                          variant="name"
+                          size="sm"
+                        />
+                      </span>
                     )}
                   </span>
                 </label>

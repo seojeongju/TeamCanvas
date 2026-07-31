@@ -14,7 +14,6 @@ import {
   advanceStatus,
   formatTaskCreatedAt,
   getDueClass,
-  getInitials,
   getPriorityClass,
   getPriorityLabel,
   regressStatus,
@@ -30,6 +29,7 @@ import { useCurrentOrgRole, useHasPermission } from "../../hooks/usePermissions"
 import { useAuthStore } from "../../stores/authStore";
 import type { Task, TaskStatus } from "../../lib/types";
 import { TaskSubtasksSection } from "./TaskSubtasksSection";
+import { AssigneeBadge } from "../ui/AssigneeBadge";
 
 interface TaskCardProps {
   task: Task;
@@ -260,10 +260,12 @@ export function TaskCard({
 
                 <div className="mt-2.5 space-y-1.5 border-t border-sky-50 pt-2.5">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[9px] font-bold text-primary-600">
-                      {getInitials(task.assignee)}
-                    </span>
-                    <span className="truncate text-xs text-navy-600">{task.assignee}</span>
+                    <AssigneeBadge
+                      name={task.assignee}
+                      assigneeId={task.assigneeId}
+                      variant="chip"
+                      size="md"
+                    />
                   </div>
                   {(task.subtaskCount ?? 0) > 0 && !subtasksExpanded && (
                     <div>

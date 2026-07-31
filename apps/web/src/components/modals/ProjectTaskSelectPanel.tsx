@@ -4,6 +4,7 @@ import { useTasks } from "../../hooks/useData";
 import { taskStatusLabel } from "../../lib/statusVisuals";
 import { cn } from "../../lib/cn";
 import type { Project, Task } from "../../lib/types";
+import { AssigneeBadge } from "../ui/AssigneeBadge";
 
 type Props = {
   projects: Project[];
@@ -212,10 +213,18 @@ function TaskPickRow({
       />
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-navy-900">{task.title}</span>
-        <span className="mt-0.5 flex flex-wrap gap-1.5 text-[11px] text-navy-500">
+        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-navy-500">
           <span>{taskStatusLabel(task.status)}</span>
           {task.due && <span>· 마감 {task.due}</span>}
           {(task.subtaskCount ?? 0) > 0 && <span>· 하위 {task.subtaskCount}건</span>}
+          {task.assignee && (
+            <AssigneeBadge
+              name={task.assignee}
+              assigneeId={task.assigneeId}
+              variant="name"
+              size="sm"
+            />
+          )}
         </span>
       </span>
     </label>

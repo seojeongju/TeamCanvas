@@ -37,6 +37,7 @@ import { TaskLinkedEventSection } from "./TaskLinkedEventSection";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
 import type { Task, TaskPriority, TaskStatus } from "../../lib/types";
 import { cn } from "../../lib/cn";
+import { AssigneeBadge } from "../ui/AssigneeBadge";
 
 interface TaskDetailSheetProps {
   task: Task | null;
@@ -226,21 +227,33 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
 
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-navy-700">담당자</label>
-            <select
-              value={assigneeId}
-              onChange={(e) => {
-                setAssigneeId(e.target.value);
-                save({ assigneeId: e.target.value || null });
-              }}
-              className={selectClass}
-            >
-              <option value="">미배정</option>
-              {members.map((m) => (
-                <option key={m.user_id} value={m.user_id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <AssigneeBadge
+                name={
+                  assigneeId
+                    ? (members.find((m) => m.user_id === assigneeId)?.name ?? task.assignee)
+                    : "미배정"
+                }
+                assigneeId={assigneeId || null}
+                variant="avatar"
+                size="md"
+              />
+              <select
+                value={assigneeId}
+                onChange={(e) => {
+                  setAssigneeId(e.target.value);
+                  save({ assigneeId: e.target.value || null });
+                }}
+                className={cn(selectClass, "flex-1")}
+              >
+                <option value="">미배정</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">

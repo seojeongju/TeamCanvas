@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckSquare } from "lucide-react";
 import { useEventLinkedTasks } from "../../hooks/useData";
 import { TASK_COLUMNS } from "../../lib/taskUtils";
+import { AssigneeBadge } from "../ui/AssigneeBadge";
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
   TASK_COLUMNS.map((c) => [c.id, c.label]),
@@ -32,9 +33,19 @@ export function EventLinkedTasksSection({ eventId }: { eventId: string }) {
               onClick={() => navigate(`/tasks?task=${encodeURIComponent(t.id)}`)}
               className="flex w-full items-center justify-between gap-2 rounded-xl bg-white/80 px-3 py-2 text-left hover:bg-white"
             >
-              <span className="truncate text-sm font-medium text-navy-800">{t.title}</span>
-              <span className="shrink-0 text-[10px] text-navy-500">
-                {STATUS_LABEL[t.status] ?? t.status} · {t.assignee}
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-navy-800">
+                {t.title}
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                <span className="text-[10px] text-navy-500">
+                  {STATUS_LABEL[t.status] ?? t.status}
+                </span>
+                <AssigneeBadge
+                  name={t.assignee}
+                  assigneeId={t.assigneeId}
+                  variant="name"
+                  size="sm"
+                />
               </span>
             </button>
           </li>

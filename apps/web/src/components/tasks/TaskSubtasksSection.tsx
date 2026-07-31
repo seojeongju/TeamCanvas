@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Calendar, CheckCircle2, ListTree, Plus, Trash2, User } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
+import { AssigneeBadge } from "../ui/AssigneeBadge";
 import {
   useCreateTaskSubtask,
   useDeleteTask,
@@ -239,7 +240,12 @@ export function TaskSubtasksSection({
                       </span>
                     )}
                     {!compact && sub.assignee && sub.assignee !== "미배정" && (
-                      <span className="text-[10px] text-navy-400">담당 {sub.assignee}</span>
+                      <AssigneeBadge
+                        name={sub.assignee}
+                        assigneeId={sub.assigneeId}
+                        variant="name"
+                        size="sm"
+                      />
                     )}
                     {!compact && sub.due && (
                       <span className="text-[10px] text-navy-400">마감 {sub.due}</span>
