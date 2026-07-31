@@ -42,6 +42,19 @@ export function formatTaskCreatedAt(createdAt: number): string {
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
 }
 
+/** 하위 업무·협업 이력용 작성일시 (같은 해면 M/D HH:mm) */
+export function formatTaskCreatedDateTime(createdAt: number): string {
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "";
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const now = new Date();
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
+  }
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${hh}:${mm}`;
+}
+
 export function getInitials(name: string) {
   const trimmed = name.trim();
   if (!trimmed || trimmed === "미배정") return "?";

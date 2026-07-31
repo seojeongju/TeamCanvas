@@ -1687,9 +1687,10 @@ app.get("/tasks/:taskId/subtasks", async (c) => {
   if (member instanceof Response) return member;
 
   const { results } = await c.env.DB.prepare(
-    `SELECT t.*, u.name as assignee_name
+    `SELECT t.*, u.name as assignee_name, c.name as creator_name
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
+     LEFT JOIN users c ON c.id = t.creator_id
      WHERE t.parent_task_id = ?
      ORDER BY t.sort_order, t.created_at ASC`,
   )
@@ -1716,6 +1717,8 @@ app.get("/tasks/:taskId/subtasks", async (c) => {
       status: taskStatus,
       assigneeId: r.assignee_id,
       assignee: r.assignee_name ?? "미배정",
+      creatorId: (r.creator_id as string | null) ?? null,
+      creatorName: (r.creator_name as string | null) ?? null,
       dueAt,
       due,
       isOverdue,

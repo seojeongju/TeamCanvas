@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Calendar, CheckCircle2, ListTree, Plus, Trash2 } from "lucide-react";
+import { Calendar, CheckCircle2, ListTree, Plus, Trash2, User } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -10,7 +10,7 @@ import {
   useUpdateTaskSubtaskTitle,
 } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
-import { formatTaskCreatedAt, TASK_COLUMNS } from "../../lib/taskUtils";
+import { formatTaskCreatedDateTime, TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { TaskStatus } from "../../lib/types";
 
@@ -149,7 +149,8 @@ export function TaskSubtasksSection({
             const done = sub.status === "done";
             const isEditing = editingId === sub.id;
             const createdLabel =
-              sub.createdAt != null ? formatTaskCreatedAt(sub.createdAt) : "";
+              sub.createdAt != null ? formatTaskCreatedDateTime(sub.createdAt) : "";
+            const creatorLabel = sub.creatorName?.trim() || "작성자 없음";
             return (
               <div
                 key={sub.id}
@@ -221,13 +222,25 @@ export function TaskSubtasksSection({
                         ))}
                       </select>
                     )}
+                    <span
+                      className="inline-flex max-w-full items-center gap-0.5 truncate rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-600"
+                      title={`작성자 ${creatorLabel}`}
+                    >
+                      <User className="h-3 w-3 shrink-0 opacity-70" strokeWidth={2} />
+                      {creatorLabel}
+                    </span>
                     {createdLabel && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] text-navy-400">
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-600"
+                        title={`작성 ${createdLabel}`}
+                      >
                         <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
-                        작성 {createdLabel}
+                        {createdLabel}
                       </span>
                     )}
-                    {!compact && <span className="text-[10px] text-navy-400">{sub.assignee}</span>}
+                    {!compact && sub.assignee && sub.assignee !== "미배정" && (
+                      <span className="text-[10px] text-navy-400">담당 {sub.assignee}</span>
+                    )}
                     {!compact && sub.due && (
                       <span className="text-[10px] text-navy-400">마감 {sub.due}</span>
                     )}

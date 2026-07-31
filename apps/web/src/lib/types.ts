@@ -460,6 +460,8 @@ export type TaskSubtask = {
   status: TaskStatus;
   assigneeId?: string | null;
   assignee: string;
+  creatorId?: string | null;
+  creatorName?: string | null;
   dueAt?: number | null;
   due: string;
   isOverdue?: boolean;
