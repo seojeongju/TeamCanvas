@@ -1721,6 +1721,7 @@ app.get("/tasks/:taskId/subtasks", async (c) => {
       isOverdue,
       sortOrder: r.sort_order ?? 0,
       parentTaskId: taskId,
+      createdAt: r.created_at as number,
     };
   });
 

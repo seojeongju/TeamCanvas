@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, ListTree, Plus, Trash2 } from "lucide-react";
+import { Calendar, CheckCircle2, ListTree, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
@@ -10,7 +10,7 @@ import {
   useUpdateTaskSubtaskTitle,
 } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
-import { TASK_COLUMNS } from "../../lib/taskUtils";
+import { formatTaskCreatedAt, TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { TaskStatus } from "../../lib/types";
 
@@ -83,7 +83,7 @@ export function TaskSubtasksSection({
     <div
       className={cn(
         "rounded-2xl border border-sky-100/80 bg-sky-50/40",
-        compact ? "mt-2 p-2.5" : "mt-4 p-4",
+        compact ? "p-2.5" : "mt-4 p-4",
       )}
     >
       <div className={cn("flex items-start justify-between gap-3", compact ? "mb-2" : "mb-3")}>
@@ -136,6 +136,8 @@ export function TaskSubtasksSection({
           subtasks.map((sub) => {
             const done = sub.status === "done";
             const isEditing = editingId === sub.id;
+            const createdLabel =
+              sub.createdAt != null ? formatTaskCreatedAt(sub.createdAt) : "";
             return (
               <div
                 key={sub.id}
@@ -186,8 +188,8 @@ export function TaskSubtasksSection({
                       {sub.title}
                     </button>
                   )}
-                  {!compact && (
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {!compact && (
                       <select
                         value={sub.status}
                         disabled={!canWrite}
@@ -206,10 +208,18 @@ export function TaskSubtasksSection({
                           </option>
                         ))}
                       </select>
-                      <span className="text-[10px] text-navy-400">{sub.assignee}</span>
-                      {sub.due && <span className="text-[10px] text-navy-400">마감 {sub.due}</span>}
-                    </div>
-                  )}
+                    )}
+                    {createdLabel && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-navy-400">
+                        <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
+                        작성 {createdLabel}
+                      </span>
+                    )}
+                    {!compact && <span className="text-[10px] text-navy-400">{sub.assignee}</span>}
+                    {!compact && sub.due && (
+                      <span className="text-[10px] text-navy-400">마감 {sub.due}</span>
+                    )}
+                  </div>
                 </div>
 
                 {canWrite && (

@@ -141,228 +141,255 @@ export function TaskCard({
   };
 
   const paddingClass = compact ? "p-3" : "p-3.5";
+  const subtaskSummary =
+    (task.subtaskCount ?? 0) > 0
+      ? `${task.subtaskDoneCount ?? 0}/${task.subtaskCount}`
+      : "추가";
 
   return (
-    <div className={cn("relative overflow-hidden rounded-2xl", inFolder && "rounded-xl")}>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-4 text-xs font-medium">
-        <span className={cn("text-emerald-600", offsetX > 20 ? "opacity-100" : "opacity-0")}>
-          {task.status === "todo" || task.status === "on_hold" ? "진행 →" : "완료 →"}
-        </span>
-        <span className={cn("text-sky-600", offsetX < -20 ? "opacity-100" : "opacity-0")}>
-          ← 되돌리기
-        </span>
-      </div>
+    <div className={cn(inFolder && "rounded-xl")}>
+      <div className={cn("relative overflow-hidden rounded-2xl", inFolder && "rounded-xl")}>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-4 text-xs font-medium">
+          <span className={cn("text-emerald-600", offsetX > 20 ? "opacity-100" : "opacity-0")}>
+            {task.status === "todo" || task.status === "on_hold" ? "진행 →" : "완료 →"}
+          </span>
+          <span className={cn("text-sky-600", offsetX < -20 ? "opacity-100" : "opacity-0")}>
+            ← 되돌리기
+          </span>
+        </div>
 
-      <GlassCard
-        className={cn(
-          "relative overflow-hidden p-0 transition-transform",
-          compact && "shadow-sm",
-          workToneCardClass(workTone),
-        )}
-      >
-        <div
-          className="flex"
-          style={{ transform: swiping ? `translateX(${offsetX}px)` : undefined }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchEnd}
+        <GlassCard
+          className={cn(
+            "relative overflow-hidden p-0 transition-transform",
+            compact && "shadow-sm",
+            workToneCardClass(workTone),
+          )}
         >
-          <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
+          <div
+            className="flex"
+            style={{ transform: swiping ? `translateX(${offsetX}px)` : undefined }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+          >
+            <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
 
-          <div className={cn("min-w-0 flex-1", paddingClass)}>
-            <button
-              type="button"
-              onClick={toggleSubtasks}
-              aria-expanded={subtasksExpanded}
-              className="w-full text-left"
-            >
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {!isBoard && (
+            <div className={cn("min-w-0 flex-1", paddingClass)}>
+              <button
+                type="button"
+                onClick={toggleSubtasks}
+                aria-expanded={subtasksExpanded}
+                className="w-full text-left"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {!isBoard && (
+                        <span
+                          className={cn(
+                            "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                            workToneBadgeClass(workTone),
+                          )}
+                        >
+                          {taskStatusLabel(task.status)}
+                        </span>
+                      )}
                       <span
                         className={cn(
                           "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                          workToneBadgeClass(workTone),
+                          getPriorityClass(task.priority),
                         )}
                       >
-                        {taskStatusLabel(task.status)}
+                        {getPriorityLabel(task.priority)}
                       </span>
-                    )}
-                    <span
+                      {task.teamName && (
+                        <span className="max-w-[7rem] truncate rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
+                          {task.teamName}
+                        </span>
+                      )}
+                      {(task.attachmentCount ?? 0) > 0 && (
+                        <span className="inline-flex items-center gap-0.5 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
+                          <Paperclip className="h-3 w-3" />
+                          {task.attachmentCount}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                        <ListTree className="h-3 w-3" />
+                        {subtaskSummary}
+                      </span>
+                    </div>
+
+                    <p
+                      title={task.title}
                       className={cn(
-                        "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                        getPriorityClass(task.priority),
+                        "mt-1.5 font-semibold leading-snug [word-break:keep-all]",
+                        isBoard
+                          ? "line-clamp-2 text-sm text-navy-900"
+                          : cn(
+                              compact ? "line-clamp-2 text-sm" : "line-clamp-3 text-[15px]",
+                              workToneTitleClass(workTone),
+                            ),
                       )}
                     >
-                      {getPriorityLabel(task.priority)}
-                    </span>
-                    {task.teamName && (
-                      <span className="max-w-[7rem] truncate rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
-                        {task.teamName}
-                      </span>
+                      {task.title}
+                    </p>
+
+                    {task.labels && task.labels.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {task.labels.map((label) => (
+                          <span
+                            key={label.id}
+                            className="max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
+                            style={{ backgroundColor: label.color }}
+                            title={label.name}
+                          >
+                            {label.name}
+                          </span>
+                        ))}
+                      </div>
                     )}
-                    {(task.attachmentCount ?? 0) > 0 && (
-                      <span className="inline-flex items-center gap-0.5 rounded-md bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-500">
-                        <Paperclip className="h-3 w-3" />
-                        {task.attachmentCount}
-                      </span>
-                    )}
-                    <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                      <ListTree className="h-3 w-3" />
-                      {(task.subtaskCount ?? 0) > 0
-                        ? `${task.subtaskDoneCount ?? 0}/${task.subtaskCount}`
-                        : "하위"}
-                    </span>
                   </div>
+                </div>
 
-                  <p
-                    title={task.title}
-                    className={cn(
-                      "mt-1.5 font-semibold leading-snug [word-break:keep-all]",
-                      isBoard
-                        ? "line-clamp-2 text-sm text-navy-900"
-                        : cn(
-                            compact ? "line-clamp-2 text-sm" : "line-clamp-3 text-[15px]",
-                            workToneTitleClass(workTone),
-                          ),
-                    )}
-                  >
-                    {task.title}
-                  </p>
-
-                  {task.labels && task.labels.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {task.labels.map((label) => (
-                        <span
-                          key={label.id}
-                          className="max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white"
-                          style={{ backgroundColor: label.color }}
-                          title={label.name}
-                        >
-                          {label.name}
+                <div className="mt-2.5 space-y-1.5 border-t border-sky-50 pt-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[9px] font-bold text-primary-600">
+                      {getInitials(task.assignee)}
+                    </span>
+                    <span className="truncate text-xs text-navy-600">{task.assignee}</span>
+                  </div>
+                  {(task.subtaskCount ?? 0) > 0 && !subtasksExpanded && (
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-[10px] text-navy-500">
+                        <span>하위 진행</span>
+                        <span>
+                          {task.subtaskDoneCount ?? 0}/{task.subtaskCount}
                         </span>
-                      ))}
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-sky-100">
+                        <div
+                          className="h-full rounded-full bg-emerald-400"
+                          style={{
+                            width: `${Math.round(
+                              ((task.subtaskDoneCount ?? 0) / (task.subtaskCount ?? 1)) * 100,
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {(task.createdAt != null || task.due) && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {task.createdAt != null && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-navy-500">
+                          <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
+                          작성 {formatTaskCreatedAt(task.createdAt)}
+                        </span>
+                      )}
+                      {task.due && (
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium",
+                            getDueClass(task),
+                          )}
+                        >
+                          <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
+                          마감 {task.due}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
+              </button>
 
+              <button
+                type="button"
+                onClick={toggleSubtasks}
+                aria-expanded={subtasksExpanded}
+                className={cn(
+                  "mt-2 flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs font-medium transition",
+                  subtasksExpanded
+                    ? "bg-emerald-100/90 text-emerald-800"
+                    : "bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100/80",
+                )}
+              >
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <ListTree className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    하위 업무 {subtaskSummary}
+                    <span className="ml-1 font-normal text-emerald-600/80">
+                      · {subtasksExpanded ? "접기" : "카드 아래로 펼치기"}
+                    </span>
+                  </span>
+                </span>
                 <ChevronDown
                   className={cn(
-                    "mt-0.5 h-4 w-4 shrink-0 text-navy-300 transition-transform",
+                    "h-4 w-4 shrink-0 transition-transform",
                     subtasksExpanded && "rotate-180",
                   )}
                   strokeWidth={2}
                   aria-hidden
                 />
-              </div>
-
-              <div className="mt-2.5 space-y-1.5 border-t border-sky-50 pt-2.5">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-400/15 text-[9px] font-bold text-primary-600">
-                    {getInitials(task.assignee)}
-                  </span>
-                  <span className="truncate text-xs text-navy-600">{task.assignee}</span>
-                </div>
-                {(task.subtaskCount ?? 0) > 0 && !subtasksExpanded && (
-                  <div>
-                    <div className="mb-1 flex items-center justify-between text-[10px] text-navy-500">
-                      <span>하위 진행</span>
-                      <span>
-                        {task.subtaskDoneCount ?? 0}/{task.subtaskCount}
-                      </span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-sky-100">
-                      <div
-                        className="h-full rounded-full bg-emerald-400"
-                        style={{
-                          width: `${Math.round(
-                            ((task.subtaskDoneCount ?? 0) / (task.subtaskCount ?? 1)) * 100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {(task.createdAt != null || task.due) && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {task.createdAt != null && (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-navy-500">
-                        <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
-                        작성 {formatTaskCreatedAt(task.createdAt)}
-                      </span>
-                    )}
-                    {task.due && (
-                      <span
-                        className={cn(
-                          "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium",
-                          getDueClass(task),
-                        )}
-                      >
-                        <Calendar className="h-3 w-3 opacity-70" strokeWidth={2} />
-                        마감 {task.due}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </button>
-
-            {subtasksExpanded && (
-              <TaskSubtasksSection
-                taskId={task.id}
-                compact
-                enabled={subtasksExpanded}
-                autoFocusAdd
-              />
-            )}
-
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => onOpen(task)}
-                className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
-              >
-                <Eye className="h-3.5 w-3.5" />
-                상세
               </button>
-              {canWrite && onDuplicate && (
+
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => void handleDuplicate()}
-                  disabled={duplicating}
-                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-white/80 py-2 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 transition hover:bg-white disabled:opacity-60"
+                  onClick={() => onOpen(task)}
+                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
                 >
-                  <Copy className="h-3.5 w-3.5" />
-                  {duplicating ? "복사 중" : "복사"}
+                  <Eye className="h-3.5 w-3.5" />
+                  상세
                 </button>
-              )}
-              {canWrite && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(task)}
-                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-primary-400/10 py-2 text-xs font-medium text-primary-600 transition hover:bg-primary-400/20"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  수정
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  type="button"
-                  onClick={() => void handleDelete()}
-                  disabled={deleting}
-                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-red-50 py-2 text-xs font-medium text-red-600 transition hover:bg-red-100 disabled:opacity-60"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  {deleting ? "삭제 중" : "삭제"}
-                </button>
-              )}
+                {canWrite && onDuplicate && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDuplicate()}
+                    disabled={duplicating}
+                    className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-white/80 py-2 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 transition hover:bg-white disabled:opacity-60"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {duplicating ? "복사 중" : "복사"}
+                  </button>
+                )}
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => onEdit(task)}
+                    className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-primary-400/10 py-2 text-xs font-medium text-primary-600 transition hover:bg-primary-400/20"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    수정
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete()}
+                    disabled={deleting}
+                    className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-red-50 py-2 text-xs font-medium text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deleting ? "삭제 중" : "삭제"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+        </GlassCard>
+      </div>
+
+      {subtasksExpanded && (
+        <div className="relative ml-2 mt-1.5 border-l-2 border-emerald-200/90 pl-3 sm:ml-3">
+          <TaskSubtasksSection
+            taskId={task.id}
+            compact
+            enabled={subtasksExpanded}
+            autoFocusAdd
+          />
         </div>
-      </GlassCard>
+      )}
     </div>
   );
 }

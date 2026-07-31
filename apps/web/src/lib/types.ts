@@ -465,6 +465,7 @@ export type TaskSubtask = {
   isOverdue?: boolean;
   sortOrder?: number;
   parentTaskId: string;
+  createdAt?: number;
 };
 
 export type TaskDependency = {
