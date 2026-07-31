@@ -8,8 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      // 자동 등록 복구. autoUpdate로 새 배포 SW가 빠르게 활성화된다.
+      // autoUpdate: 새 SW 감지 시 자동 활성화·리로드. 등록은 virtual:pwa-register로 수행.
       registerType: "autoUpdate",
+      injectRegister: false,
       includeAssets: [
         "favicon.svg",
         "favicon-16.png",
@@ -52,6 +53,7 @@ export default defineConfig({
       workbox: {
         // index.html은 해시 버전으로 precache되어 배포마다 갱신된다.
         globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
+        cleanupOutdatedCaches: true,
         importScripts: ["/push-handler.js"],
         navigateFallback: "index.html",
         // OAuth/API는 SW가 SPA로 폴백하거나 캐시하면 안 된다.

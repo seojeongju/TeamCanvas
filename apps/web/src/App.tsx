@@ -36,6 +36,7 @@ import { AdminPlansPage } from "./pages/admin/AdminPlansPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AppSettingsPage } from "./pages/settings/AppSettingsPage";
 import { PwaInstallBanner } from "./components/layout/PwaInstallBanner";
+import { PwaUpdateBanner } from "./components/layout/PwaUpdateBanner";
 import { LandingPage } from "./pages/LandingPage";
 import { SharedEventPage } from "./pages/SharedEventPage";
 import { consumeOAuthBootstrap, useAuthHydrated, useAuthInit } from "./hooks/useAuth";
@@ -119,6 +120,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <PwaInstallBanner />
+      <PwaUpdateBanner />
       <Routes>
         <Route
           path="/login"

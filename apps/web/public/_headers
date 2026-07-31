@@ -1,3 +1,17 @@
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: no-store
+
+/registerSW.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+  CDN-Cache-Control: no-store
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=0, must-revalidate
+
 /favicon*.png
   Cache-Control: public, max-age=0, must-revalidate
 
@@ -8,9 +22,6 @@
   Cache-Control: public, max-age=0, must-revalidate
 
 /icon-*.png
-  Cache-Control: public, max-age=0, must-revalidate
-
-/manifest.webmanifest
   Cache-Control: public, max-age=0, must-revalidate
 
 /*
