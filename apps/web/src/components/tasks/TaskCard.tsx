@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Calendar, ChevronDown, Copy, Eye, ListTree, Paperclip, Pencil, Trash2 } from "lucide-react";
+import { Calendar, ChevronDown, Copy, Eye, ListTree, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
 import {
@@ -65,6 +65,7 @@ export function TaskCard({
   const [duplicating, setDuplicating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+  const [addFocusKey, setAddFocusKey] = useState(0);
   const workTone = taskWorkTone(task);
 
   const deleteTask = useDeleteTask();
@@ -110,6 +111,11 @@ export function TaskCard({
       return;
     }
     setSubtasksExpanded((v) => !v);
+  };
+
+  const openAddSubtask = () => {
+    setSubtasksExpanded(true);
+    setAddFocusKey((k) => k + 1);
   };
 
   const handleDuplicate = async () => {
@@ -342,6 +348,16 @@ export function TaskCard({
                   <Eye className="h-3.5 w-3.5" />
                   상세
                 </button>
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={openAddSubtask}
+                    className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-emerald-50 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    업무추가
+                  </button>
+                )}
                 {canWrite && onDuplicate && (
                   <button
                     type="button"
@@ -386,7 +402,8 @@ export function TaskCard({
             taskId={task.id}
             compact
             enabled={subtasksExpanded}
-            autoFocusAdd
+            autoFocusAdd={addFocusKey > 0}
+            focusKey={addFocusKey}
           />
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Calendar, CheckCircle2, ListTree, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -22,6 +22,8 @@ type Props = {
   compact?: boolean;
   /** false면 하위 업무 API를 호출하지 않음 (접힌 카드) */
   enabled?: boolean;
+  /** 값이 바뀔 때마다 추가 입력란에 포커스 */
+  focusKey?: number;
 };
 
 export function TaskSubtasksSection({
@@ -29,6 +31,7 @@ export function TaskSubtasksSection({
   autoFocusAdd = false,
   compact = false,
   enabled = true,
+  focusKey = 0,
 }: Props) {
   const { data, isLoading } = useTaskSubtasks(taskId, { enabled });
   const create = useCreateTaskSubtask();
@@ -39,16 +42,25 @@ export function TaskSubtasksSection({
   const [title, setTitle] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   const subtasks = data?.subtasks ?? [];
   const doneCount = subtasks.filter((s) => s.status === "done").length;
   const progress = subtasks.length > 0 ? Math.round((doneCount / subtasks.length) * 100) : 0;
+
+  useEffect(() => {
+    if (!enabled || !canWrite) return;
+    if (!autoFocusAdd && focusKey <= 0) return;
+    const id = window.setTimeout(() => addInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(id);
+  }, [enabled, canWrite, autoFocusAdd, focusKey]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !canWrite) return;
     await create.mutateAsync({ taskId, title: title.trim() });
     setTitle("");
+    addInputRef.current?.focus();
   };
 
   const toggleDone = (subId: string, status: TaskStatus) => {
@@ -241,11 +253,12 @@ export function TaskSubtasksSection({
       {canWrite && (
         <form onSubmit={handleAdd} className={cn("flex gap-2", compact ? "mt-2" : "mt-3")}>
           <Input
+            ref={addInputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={compact ? "진행 항목 추가…" : "진행 항목 추가 (예: 초안 작성, 리뷰 요청…)"}
             className={cn("flex-1 text-sm", compact ? "!min-h-9" : "!min-h-10")}
-            autoFocus={autoFocusAdd}
+            autoFocus={autoFocusAdd && focusKey <= 0}
           />
           <Button
             type="submit"
