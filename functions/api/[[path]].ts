@@ -1155,7 +1155,9 @@ app.get("/organizations/:orgId/tasks", async (c) => {
 
   let sql = `SELECT t.*, u.name as assignee_name, tm.name as team_name,
        p.name as project_name,
-       e.id as le_id, e.title as le_title, e.start_at as le_start_at, e.end_at as le_end_at, e.all_day as le_all_day
+       e.id as le_id, e.title as le_title, e.start_at as le_start_at, e.end_at as le_end_at, e.all_day as le_all_day,
+       (SELECT COUNT(*) FROM tasks s WHERE s.parent_task_id = t.id) as subtask_count,
+       (SELECT COUNT(*) FROM tasks s WHERE s.parent_task_id = t.id AND s.status = 'done') as subtask_done_count
      FROM tasks t
      LEFT JOIN users u ON u.id = t.assignee_id
      LEFT JOIN teams tm ON tm.id = t.team_id
@@ -1252,6 +1254,8 @@ app.get("/organizations/:orgId/tasks", async (c) => {
       sortOrder: r.sort_order ?? 0,
       createdAt: r.created_at as number,
       updatedAt: r.updated_at as number,
+      subtaskCount: Number(r.subtask_count ?? 0),
+      subtaskDoneCount: Number(r.subtask_done_count ?? 0),
     };
   });
 

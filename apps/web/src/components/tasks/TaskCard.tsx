@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Calendar, ChevronRight, Copy, Eye, Paperclip, Pencil } from "lucide-react";
+import { Calendar, ChevronRight, Copy, Eye, ListTree, Paperclip, Pencil } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
 import {
@@ -148,6 +148,12 @@ export function TaskCard({
                         {task.attachmentCount}
                       </span>
                     )}
+                    {(task.subtaskCount ?? 0) > 0 && (
+                      <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                        <ListTree className="h-3 w-3" />
+                        {task.subtaskDoneCount ?? 0}/{task.subtaskCount}
+                      </span>
+                    )}
                   </div>
 
                   <p
@@ -195,6 +201,26 @@ export function TaskCard({
                   </span>
                   <span className="truncate text-xs text-navy-600">{task.assignee}</span>
                 </div>
+                {(task.subtaskCount ?? 0) > 0 && (
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-[10px] text-navy-500">
+                      <span>하위 진행</span>
+                      <span>
+                        {task.subtaskDoneCount ?? 0}/{task.subtaskCount}
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-sky-100">
+                      <div
+                        className="h-full rounded-full bg-emerald-400"
+                        style={{
+                          width: `${Math.round(
+                            ((task.subtaskDoneCount ?? 0) / (task.subtaskCount ?? 1)) * 100,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 {(task.createdAt != null || task.due) && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     {task.createdAt != null && (

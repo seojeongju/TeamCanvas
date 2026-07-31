@@ -1,92 +1,226 @@
 import { useState } from "react";
-import { ListTree, Plus } from "lucide-react";
+import { CheckCircle2, ListTree, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import {
   useCreateTaskSubtask,
+  useDeleteTask,
   useTaskSubtasks,
   useUpdateTaskSubtaskStatus,
+  useUpdateTaskSubtaskTitle,
 } from "../../hooks/useData";
+import { useHasPermission } from "../../hooks/usePermissions";
 import { TASK_COLUMNS } from "../../lib/taskUtils";
 import { cn } from "../../lib/cn";
 import type { TaskStatus } from "../../lib/types";
 
-export function TaskSubtasksSection({ taskId }: { taskId: string }) {
-  const { data } = useTaskSubtasks(taskId);
+type Props = {
+  taskId: string;
+  /** 상세 진입 시 입력란에 포커스 */
+  autoFocusAdd?: boolean;
+};
+
+export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
+  const { data, isLoading } = useTaskSubtasks(taskId);
   const create = useCreateTaskSubtask();
   const updateStatus = useUpdateTaskSubtaskStatus();
+  const updateTitle = useUpdateTaskSubtaskTitle();
+  const deleteTask = useDeleteTask();
+  const canWrite = useHasPermission("tasks:write");
   const [title, setTitle] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   const subtasks = data?.subtasks ?? [];
   const doneCount = subtasks.filter((s) => s.status === "done").length;
+  const progress = subtasks.length > 0 ? Math.round((doneCount / subtasks.length) * 100) : 0;
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !canWrite) return;
     await create.mutateAsync({ taskId, title: title.trim() });
     setTitle("");
   };
 
-  return (
-    <div className="mt-4 border-t border-sky-100/80 pt-4">
-      <div className="mb-3 flex items-center gap-2">
-        <ListTree className="h-4 w-4 text-navy-600" />
-        <h3 className="text-sm font-semibold text-navy-800">
-          서브태스크 {subtasks.length > 0 ? `${doneCount}/${subtasks.length}` : ""}
-        </h3>
-      </div>
+  const toggleDone = (subId: string, status: TaskStatus) => {
+    if (!canWrite) return;
+    updateStatus.mutate({
+      subtaskId: subId,
+      parentTaskId: taskId,
+      status: status === "done" ? "todo" : "done",
+    });
+  };
 
-      <div className="space-y-1.5">
-        {subtasks.length === 0 ? (
-          <p className="text-xs text-navy-500">하위 작업을 추가해 보세요.</p>
-        ) : (
-          subtasks.map((sub) => (
-            <div
-              key={sub.id}
-              className="flex items-center gap-2 rounded-xl bg-sky-50/80 px-2 py-1.5"
-            >
-              <select
-                value={sub.status}
-                onChange={(e) =>
-                  updateStatus.mutate({
-                    subtaskId: sub.id,
-                    parentTaskId: taskId,
-                    status: e.target.value as TaskStatus,
-                  })
-                }
-                className="shrink-0 rounded-lg border-0 bg-white/80 px-1.5 py-1 text-[10px] font-medium text-navy-700"
-              >
-                {TASK_COLUMNS.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {col.label}
-                  </option>
-                ))}
-              </select>
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-sm",
-                  sub.status === "done" ? "text-navy-400 line-through" : "text-navy-800",
-                )}
-              >
-                {sub.title}
-              </span>
-              <span className="shrink-0 text-[10px] text-navy-400">{sub.assignee}</span>
-            </div>
-          ))
+  const saveTitle = async (subId: string) => {
+    const next = editTitle.trim();
+    if (!next) {
+      setEditingId(null);
+      return;
+    }
+    const current = subtasks.find((s) => s.id === subId);
+    if (current && current.title !== next) {
+      await updateTitle.mutateAsync({ subtaskId: subId, parentTaskId: taskId, title: next });
+    }
+    setEditingId(null);
+  };
+
+  const handleDelete = async (subId: string, subTitle: string) => {
+    if (!canWrite) return;
+    if (!window.confirm(`「${subTitle}」하위 업무를 삭제할까요?`)) return;
+    await deleteTask.mutateAsync(subId);
+  };
+
+  return (
+    <div className="mt-4 rounded-2xl border border-sky-100/80 bg-sky-50/40 p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <ListTree className="h-4 w-4 text-primary-500" />
+            <h3 className="text-sm font-semibold text-navy-800">하위 업무 · 진행 상황</h3>
+          </div>
+          <p className="mt-1 text-xs text-navy-500">
+            세부 진행 항목을 추가해 업무 진행 내용을 파악하세요.
+          </p>
+        </div>
+        {subtasks.length > 0 && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-navy-700 ring-1 ring-sky-100">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            {doneCount}/{subtasks.length}
+          </span>
         )}
       </div>
 
-      <form onSubmit={handleAdd} className="mt-3 flex gap-2">
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="서브태스크 제목"
-          className="!min-h-9 flex-1 text-sm"
-        />
-        <Button type="submit" disabled={create.isPending || !title.trim()} className="shrink-0">
-          <Plus className="h-4 w-4" />
-        </Button>
-      </form>
+      {subtasks.length > 0 && (
+        <div className="mb-3">
+          <div className="mb-1 flex items-center justify-between text-[11px] text-navy-500">
+            <span>진행률</span>
+            <span className="font-medium text-navy-700">{progress}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white ring-1 ring-sky-100">
+            <div
+              className="h-full rounded-full bg-primary-400 transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        {isLoading ? (
+          <p className="py-2 text-center text-xs text-navy-500">불러오는 중...</p>
+        ) : subtasks.length === 0 ? (
+          <p className="rounded-xl bg-white/70 px-3 py-3 text-center text-xs text-navy-500">
+            아직 하위 업무가 없습니다. 아래에서 진행 항목을 추가해 보세요.
+          </p>
+        ) : (
+          subtasks.map((sub) => {
+            const done = sub.status === "done";
+            const isEditing = editingId === sub.id;
+            return (
+              <div
+                key={sub.id}
+                className={cn(
+                  "flex items-start gap-2 rounded-xl bg-white/90 px-2.5 py-2 ring-1 ring-sky-100/80",
+                  done && "opacity-80",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={done}
+                  disabled={!canWrite}
+                  onChange={() => toggleDone(sub.id, sub.status)}
+                  className="mt-1 h-4 w-4 rounded border-sky-300 text-primary-500"
+                  aria-label="완료 토글"
+                />
+
+                <div className="min-w-0 flex-1">
+                  {isEditing ? (
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onBlur={() => void saveTitle(sub.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void saveTitle(sub.id);
+                        }
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      autoFocus
+                      className="w-full rounded-lg border border-primary-200 bg-white px-2 py-1 text-sm outline-none"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!canWrite}
+                      onClick={() => {
+                        setEditingId(sub.id);
+                        setEditTitle(sub.title);
+                      }}
+                      className={cn(
+                        "w-full text-left text-sm",
+                        done ? "text-navy-400 line-through" : "text-navy-800",
+                        canWrite && "hover:text-primary-600",
+                      )}
+                    >
+                      {sub.title}
+                    </button>
+                  )}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <select
+                      value={sub.status}
+                      disabled={!canWrite}
+                      onChange={(e) =>
+                        updateStatus.mutate({
+                          subtaskId: sub.id,
+                          parentTaskId: taskId,
+                          status: e.target.value as TaskStatus,
+                        })
+                      }
+                      className="rounded-lg border-0 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-700"
+                    >
+                      {TASK_COLUMNS.map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {col.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-navy-400">{sub.assignee}</span>
+                    {sub.due && <span className="text-[10px] text-navy-400">마감 {sub.due}</span>}
+                  </div>
+                </div>
+
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(sub.id, sub.title)}
+                    className="mt-0.5 rounded-lg p-1 text-navy-400 hover:bg-red-50 hover:text-red-500"
+                    aria-label="하위 업무 삭제"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {canWrite && (
+        <form onSubmit={handleAdd} className="mt-3 flex gap-2">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="진행 항목 추가 (예: 초안 작성, 리뷰 요청…)"
+            className="!min-h-10 flex-1 text-sm"
+            autoFocus={autoFocusAdd}
+          />
+          <Button type="submit" disabled={create.isPending || !title.trim()} className="shrink-0">
+            <Plus className="h-4 w-4" />
+            추가
+          </Button>
+        </form>
+      )}
     </div>
   );
 }

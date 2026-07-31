@@ -211,6 +211,8 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
             />
           </div>
 
+          <TaskSubtasksSection taskId={task.id} autoFocusAdd />
+
           <Input
             label="마감일"
             type="date"
@@ -328,7 +330,6 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
           <TaskLinkedEventSection task={task} />
         </div>
         <TaskChecklistSection taskId={task.id} />
-        <TaskSubtasksSection taskId={task.id} />
         <TaskDependenciesSection task={task} />
         <EntityFilesSection entityType="task" entityId={task.id} />
 

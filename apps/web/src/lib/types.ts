@@ -450,6 +450,7 @@ export type Task = {
   attachmentCount?: number;
   parentTaskId?: string | null;
   subtaskCount?: number;
+  subtaskDoneCount?: number;
   blockedByCount?: number;
 };
 

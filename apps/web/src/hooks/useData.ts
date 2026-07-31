@@ -796,6 +796,19 @@ export function useUpdateTaskSubtaskStatus() {
   });
 }
 
+export function useUpdateTaskSubtaskTitle() {
+  const qc = useQueryClient();
+  const orgId = useCurrentOrgId();
+  return useMutation({
+    mutationFn: (vars: { subtaskId: string; parentTaskId: string; title: string }) =>
+      api.updateTask(vars.subtaskId, { title: vars.title }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["task-subtasks", v.parentTaskId] });
+      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
+    },
+  });
+}
+
 export function useTaskDependencies(taskId: string | undefined) {
   return useQuery({
     queryKey: ["task-dependencies", taskId],
@@ -1018,6 +1031,7 @@ export function useDeleteTask() {
       qc.invalidateQueries({ queryKey: ["projects", orgId] });
       qc.invalidateQueries({ queryKey: ["project"] });
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["task-subtasks"] });
     },
   });
 }
