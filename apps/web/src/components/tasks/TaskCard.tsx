@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Calendar, ChevronRight, Eye, Paperclip, Pencil } from "lucide-react";
+import { Calendar, ChevronRight, Copy, Eye, Paperclip, Pencil } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
 import {
@@ -25,6 +25,7 @@ interface TaskCardProps {
   task: Task;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite?: boolean;
   compact?: boolean;
@@ -39,6 +40,7 @@ export function TaskCard({
   task,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   canWrite = true,
   compact,
@@ -49,6 +51,7 @@ export function TaskCard({
   const startX = useRef(0);
   const [offsetX, setOffsetX] = useState(0);
   const [swiping, setSwiping] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const workTone = taskWorkTone(task);
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -69,6 +72,16 @@ export function TaskCard({
     }
     setOffsetX(0);
     setSwiping(false);
+  };
+
+  const handleDuplicate = async () => {
+    if (!onDuplicate || duplicating) return;
+    setDuplicating(true);
+    try {
+      await onDuplicate(task);
+    } finally {
+      setDuplicating(false);
+    }
   };
 
   const paddingClass = compact ? "p-3" : "p-3.5";
@@ -213,8 +226,19 @@ export function TaskCard({
                 className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
               >
                 <Eye className="h-3.5 w-3.5" />
-                상세보기
+                상세
               </button>
+              {canWrite && onDuplicate && (
+                <button
+                  type="button"
+                  onClick={() => void handleDuplicate()}
+                  disabled={duplicating}
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-white/80 py-2 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 transition hover:bg-white disabled:opacity-60"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {duplicating ? "복사 중" : "복사"}
+                </button>
+              )}
               {canWrite && (
                 <button
                   type="button"

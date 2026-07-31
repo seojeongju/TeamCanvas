@@ -28,6 +28,7 @@ interface TaskBoardViewProps {
   tasks: Task[];
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onMove: (taskId: string, status: TaskStatus, sortOrder: number) => void;
   onCreate?: () => void;
@@ -50,6 +51,7 @@ export function TaskBoardView({
   tasks,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   onMove,
   onCreate,
@@ -138,6 +140,7 @@ export function TaskBoardView({
           resetKey={`${activeColumn}-${tasks.length}`}
           onOpen={onOpen}
           onEdit={onEdit}
+          onDuplicate={onDuplicate}
           onStatusChange={onStatusChange}
           canWrite={canWrite}
         />
@@ -161,6 +164,7 @@ export function TaskBoardView({
                   resetKey={`${col.id}-${tasks.length}`}
                   onOpen={onOpen}
                   onEdit={onEdit}
+                  onDuplicate={onDuplicate}
                   onStatusChange={onStatusChange}
                   canWrite={canWrite}
                 />
@@ -192,6 +196,7 @@ function DroppableColumn({
   resetKey,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   canWrite,
 }: {
@@ -200,6 +205,7 @@ function DroppableColumn({
   resetKey: string;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite?: boolean;
 }) {
@@ -237,6 +243,7 @@ function DroppableColumn({
                       variant="board"
                       onOpen={onOpen}
                       onEdit={onEdit}
+                      onDuplicate={onDuplicate}
                       onStatusChange={onStatusChange}
                       canWrite={canWrite}
                     />
@@ -257,6 +264,7 @@ function TaskColumn({
   resetKey,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   canWrite,
 }: {
@@ -265,6 +273,7 @@ function TaskColumn({
   resetKey: string;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite?: boolean;
 }) {
@@ -287,6 +296,7 @@ function TaskColumn({
               variant="board"
               onOpen={onOpen}
               onEdit={onEdit}
+              onDuplicate={onDuplicate}
               onStatusChange={onStatusChange}
               canWrite={canWrite}
             />

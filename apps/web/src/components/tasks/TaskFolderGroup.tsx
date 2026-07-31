@@ -34,6 +34,7 @@ export function TaskFolderGroup({
   group,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   canWrite,
   byLabel = false,
@@ -41,6 +42,7 @@ export function TaskFolderGroup({
   group: TaskFolderGroupData;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite: boolean;
   /** 라벨 폴더 UI (완료 프로젝트) */
@@ -60,6 +62,7 @@ export function TaskFolderGroup({
         task={group.tasks[0]}
         onOpen={onOpen}
         onEdit={onEdit}
+        onDuplicate={onDuplicate}
         onStatusChange={onStatusChange}
         canWrite={canWrite}
         compact
@@ -113,6 +116,7 @@ export function TaskFolderGroup({
               task={task}
               onOpen={onOpen}
               onEdit={onEdit}
+              onDuplicate={onDuplicate}
               onStatusChange={onStatusChange}
               canWrite={canWrite}
               compact

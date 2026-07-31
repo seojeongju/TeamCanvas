@@ -19,6 +19,7 @@ interface TaskListViewProps {
   tasks: Task[];
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onCreate?: () => void;
   canWrite?: boolean;
@@ -51,6 +52,7 @@ export function TaskListView({
   tasks,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   onCreate,
   canWrite = true,
@@ -124,6 +126,7 @@ export function TaskListView({
                   group={folderGroup}
                   onOpen={onOpen}
                   onEdit={onEdit}
+                  onDuplicate={onDuplicate}
                   onStatusChange={onStatusChange}
                   canWrite={canWrite}
                   byLabel={activeTab === "done"}

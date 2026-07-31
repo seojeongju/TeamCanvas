@@ -7,6 +7,7 @@ interface SortableTaskCardProps {
   task: Task;
   onOpen: (task: Task) => void;
   onEdit: (task: Task) => void;
+  onDuplicate?: (task: Task) => void | Promise<void>;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   canWrite?: boolean;
   variant?: "default" | "board";
@@ -16,6 +17,7 @@ export function SortableTaskCard({
   task,
   onOpen,
   onEdit,
+  onDuplicate,
   onStatusChange,
   canWrite,
   variant,
@@ -38,6 +40,7 @@ export function SortableTaskCard({
         variant={variant}
         onOpen={onOpen}
         onEdit={onEdit}
+        onDuplicate={onDuplicate}
         onStatusChange={onStatusChange}
         canWrite={canWrite}
       />

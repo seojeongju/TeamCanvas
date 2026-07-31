@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FolderKanban, MessageSquare, Pencil, Trash2, X } from "lucide-react";
+import { FolderKanban, MessageSquare, Pencil, Trash2, X, Copy } from "lucide-react";
 import { ConvertTaskToProjectModal } from "../modals/ConvertTaskToProjectModal";
 import {
   canDeleteEntity,
@@ -14,6 +14,7 @@ import {
   useCreateTaskComment,
   useDeleteTask,
   useDeleteTaskComment,
+  useDuplicateTask,
   useEvent,
   useEventAttendees,
   useProjects,
@@ -47,6 +48,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
   const navigate = useNavigate();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const duplicateTask = useDuplicateTask();
   const createComment = useCreateTaskComment();
   const updateComment = useUpdateTaskComment();
   const deleteComment = useDeleteTaskComment();
@@ -119,6 +121,11 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
     onClose();
   };
 
+  const handleDuplicate = async () => {
+    await duplicateTask.mutateAsync({ taskId: task.id });
+    onClose();
+  };
+
   const selectClass =
     "min-h-12 w-full rounded-2xl border border-sky-200/80 bg-white/80 px-4 text-[15px] text-navy-800 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";
 
@@ -130,6 +137,17 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
         <div className="mb-4 flex items-start justify-between gap-3">
           <h2 className="text-lg font-bold text-navy-900">업무 상세</h2>
           <div className="flex items-center gap-1">
+            {canWrite && (
+              <button
+                type="button"
+                onClick={() => void handleDuplicate()}
+                disabled={duplicateTask.isPending}
+                className="flex h-10 items-center gap-1 rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-sky-100/60 disabled:opacity-60"
+              >
+                <Copy className="h-4 w-4" />
+                {duplicateTask.isPending ? "복사 중..." : "복사"}
+              </button>
+            )}
             {canWrite && onEdit && (
               <button
                 type="button"

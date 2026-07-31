@@ -2282,6 +2282,70 @@ app.post("/tasks/:taskId/comments/:commentId/reactions", async (c) => {
   return c.json(result);
 });
 
+app.post("/tasks/:taskId/duplicate", async (c) => {
+  const user = await requireAuth(c);
+  if (user instanceof Response) return user;
+  const taskId = c.req.param("taskId");
+
+  const task = await c.env.DB.prepare(
+    "SELECT organization_id, project_id FROM tasks WHERE id = ?",
+  )
+    .bind(taskId)
+    .first<{ organization_id: string; project_id: string | null }>();
+  if (!task) return c.json({ error: "Not found" }, 404);
+
+  const member = await requireOrgPermission(c, user.id, task.organization_id, "tasks:write");
+  if (member instanceof Response) return member;
+
+  const feature = await requireOrgFeature(c, task.organization_id, "tasks");
+  if (feature instanceof Response) return feature;
+
+  if (task.project_id) {
+    const { getProjectMemberRole, canProjectWriteContent } = await import("../utils/projectAccess");
+    const role = await getProjectMemberRole(
+      c.env.DB,
+      user.id,
+      member.role,
+      task.project_id,
+      task.organization_id,
+    );
+    if (role === null || !canProjectWriteContent(role)) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+  }
+
+  const body = await c.req
+    .json<{ includeSubtasks?: boolean; includeSchedules?: boolean; resetStatus?: boolean }>()
+    .catch(
+      () =>
+        ({} as {
+          includeSubtasks?: boolean;
+          includeSchedules?: boolean;
+          resetStatus?: boolean;
+        }),
+    );
+
+  const { duplicateTask } = await import("../utils/duplicateTask");
+  try {
+    const result = await duplicateTask(c.env.DB, {
+      sourceTaskId: taskId,
+      actorId: user.id,
+      includeSubtasks: body.includeSubtasks,
+      includeSchedules: body.includeSchedules,
+      resetStatus: body.resetStatus,
+    });
+
+    const { bumpOrgSyncSafe } = await import("../utils/orgSync");
+    await bumpOrgSyncSafe(c.env, task.organization_id, ["tasks", "activity", "events"]);
+
+    return c.json(result, 201);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "duplicate_failed";
+    if (message === "not_found") return c.json({ error: "Not found" }, 404);
+    throw err;
+  }
+});
+
 app.delete("/tasks/:taskId", async (c) => {
   const user = await requireAuth(c);
   if (user instanceof Response) return user;

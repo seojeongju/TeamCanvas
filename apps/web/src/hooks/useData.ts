@@ -900,6 +900,29 @@ export function useDisconnectGoogleCalendar() {
   });
 }
 
+export function useDuplicateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      ...data
+    }: {
+      taskId: string;
+      includeSubtasks?: boolean;
+      includeSchedules?: boolean;
+      resetStatus?: boolean;
+    }) => api.duplicateTask(taskId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project"] });
+      qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["task-subtasks"] });
+      qc.invalidateQueries({ queryKey: ["task-checklist"] });
+    },
+  });
+}
+
 export function useCreateTask() {
   const qc = useQueryClient();
   const orgId = useCurrentOrgId();

@@ -522,6 +522,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  duplicateTask: (
+    taskId: string,
+    data?: { includeSubtasks?: boolean; includeSchedules?: boolean; resetStatus?: boolean },
+  ) =>
+    request<{ id: string; subtaskCount: number }>(`/api/tasks/${taskId}/duplicate`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
+
   getTaskSubtasks: (taskId: string) =>
     request<{ subtasks: import("./types").TaskSubtask[] }>(`/api/tasks/${taskId}/subtasks`),
 

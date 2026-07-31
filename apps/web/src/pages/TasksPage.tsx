@@ -12,7 +12,7 @@ import { TaskFilterBar } from "../components/tasks/TaskFilterBar";
 import { TaskListView } from "../components/tasks/TaskListView";
 import { TaskSummaryBar } from "../components/tasks/TaskSummaryBar";
 import { TaskViewSwitcher } from "../components/tasks/TaskViewSwitcher";
-import { useProjects, useTaskLabels, useTasks, useTeams, useUpdateTask } from "../hooks/useData";
+import { useProjects, useTaskLabels, useTasks, useTeams, useUpdateTask, useDuplicateTask } from "../hooks/useData";
 import { useAuthStore } from "../stores/authStore";
 import { computeTaskSummary, filterTasks } from "../lib/taskUtils";
 import type { Task, TaskFilters, TaskStatus, TaskViewMode } from "../lib/types";
@@ -24,6 +24,7 @@ export function TasksPage() {
   const { data: projectsData } = useProjects();
   const { data: labelsData } = useTaskLabels();
   const updateTask = useUpdateTask();
+  const duplicateTask = useDuplicateTask();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [viewMode, setViewMode] = useState<TaskViewMode>("list");
@@ -115,6 +116,10 @@ export function TasksPage() {
     updateTask.mutate(patch);
   };
 
+  const handleDuplicate = async (task: Task) => {
+    await duplicateTask.mutateAsync({ taskId: task.id });
+  };
+
   return (
     <div className="space-y-3 pb-4">
       <PageHeader
@@ -173,6 +178,7 @@ export function TasksPage() {
           tasks={tasks}
           onOpen={setSelectedTask}
           onEdit={setEditTask}
+          onDuplicate={canWrite ? handleDuplicate : undefined}
           onStatusChange={handleStatusChange}
           onMove={handleMove}
           onCreate={() => openCreate("todo")}
@@ -185,6 +191,7 @@ export function TasksPage() {
           tasks={tasks}
           onOpen={setSelectedTask}
           onEdit={setEditTask}
+          onDuplicate={canWrite ? handleDuplicate : undefined}
           onStatusChange={handleStatusChange}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}

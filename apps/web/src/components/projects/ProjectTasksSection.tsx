@@ -10,7 +10,7 @@ import { TaskDetailSheet } from "../tasks/TaskDetailSheet";
 import { TaskEmptyState } from "../tasks/TaskEmptyState";
 import { TaskListView } from "../tasks/TaskListView";
 import { TaskViewSwitcher } from "../tasks/TaskViewSwitcher";
-import { useTasks, useUpdateTask } from "../../hooks/useData";
+import { useDuplicateTask, useTasks, useUpdateTask } from "../../hooks/useData";
 import { useHasPermission } from "../../hooks/usePermissions";
 import { canWriteProjectContent } from "../../lib/projectUtils";
 import type { Project, Task, TaskStatus, TaskViewMode } from "../../lib/types";
@@ -23,6 +23,7 @@ type Props = {
 export function ProjectTasksSection({ project }: Props) {
   const { data, isLoading } = useTasks({ projectId: project.id });
   const updateTask = useUpdateTask();
+  const duplicateTask = useDuplicateTask();
   const canWriteTasks = useHasPermission("tasks:write");
   const canWrite = canWriteTasks && canWriteProjectContent(project.currentUserRole);
 
@@ -53,6 +54,10 @@ export function ProjectTasksSection({ project }: Props) {
     const patch: { id: string; status?: TaskStatus; sortOrder: number } = { id: taskId, sortOrder };
     if (task.status !== status) patch.status = status;
     updateTask.mutate(patch);
+  };
+
+  const handleDuplicate = async (task: Task) => {
+    await duplicateTask.mutateAsync({ taskId: task.id });
   };
 
   return (
@@ -117,22 +122,6 @@ export function ProjectTasksSection({ project }: Props) {
               </div>
               <button
                 type="button"
-                onClick={() => setShowCopyWork(true)}
-                className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-white/80 px-3 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 hover:bg-white"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                가져오기
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSendWork(true)}
-                className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-white/80 px-3 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 hover:bg-white"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                내보내기
-              </button>
-              <button
-                type="button"
                 onClick={() => setShowLink(true)}
                 className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-white/80 px-3 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 hover:bg-white"
               >
@@ -154,6 +143,7 @@ export function ProjectTasksSection({ project }: Props) {
           tasks={tasks}
           onOpen={setSelectedTask}
           onEdit={setEditTask}
+          onDuplicate={canWrite ? handleDuplicate : undefined}
           onStatusChange={handleStatusChange}
           onMove={handleMove}
           onCreate={() => openCreate("todo")}
@@ -164,6 +154,7 @@ export function ProjectTasksSection({ project }: Props) {
           tasks={tasks}
           onOpen={setSelectedTask}
           onEdit={setEditTask}
+          onDuplicate={canWrite ? handleDuplicate : undefined}
           onStatusChange={handleStatusChange}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
