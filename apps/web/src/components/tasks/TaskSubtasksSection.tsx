@@ -18,10 +18,19 @@ type Props = {
   taskId: string;
   /** 상세 진입 시 입력란에 포커스 */
   autoFocusAdd?: boolean;
+  /** 카드 인라인 펼침용 축소 UI */
+  compact?: boolean;
+  /** false면 하위 업무 API를 호출하지 않음 (접힌 카드) */
+  enabled?: boolean;
 };
 
-export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
-  const { data, isLoading } = useTaskSubtasks(taskId);
+export function TaskSubtasksSection({
+  taskId,
+  autoFocusAdd = false,
+  compact = false,
+  enabled = true,
+}: Props) {
+  const { data, isLoading } = useTaskSubtasks(taskId, { enabled });
   const create = useCreateTaskSubtask();
   const updateStatus = useUpdateTaskSubtaskStatus();
   const updateTitle = useUpdateTaskSubtaskTitle();
@@ -71,16 +80,25 @@ export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
   };
 
   return (
-    <div className="mt-4 rounded-2xl border border-sky-100/80 bg-sky-50/40 p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <div
+      className={cn(
+        "rounded-2xl border border-sky-100/80 bg-sky-50/40",
+        compact ? "mt-2 p-2.5" : "mt-4 p-4",
+      )}
+    >
+      <div className={cn("flex items-start justify-between gap-3", compact ? "mb-2" : "mb-3")}>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <ListTree className="h-4 w-4 text-primary-500" />
-            <h3 className="text-sm font-semibold text-navy-800">하위 업무 · 진행 상황</h3>
+            <ListTree className={cn("text-primary-500", compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+            <h3 className={cn("font-semibold text-navy-800", compact ? "text-xs" : "text-sm")}>
+              하위 업무 · 진행 상황
+            </h3>
           </div>
-          <p className="mt-1 text-xs text-navy-500">
-            세부 진행 항목을 추가해 업무 진행 내용을 파악하세요.
-          </p>
+          {!compact && (
+            <p className="mt-1 text-xs text-navy-500">
+              세부 진행 항목을 추가해 업무 진행 내용을 파악하세요.
+            </p>
+          )}
         </div>
         {subtasks.length > 0 && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-navy-700 ring-1 ring-sky-100">
@@ -91,7 +109,7 @@ export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
       </div>
 
       {subtasks.length > 0 && (
-        <div className="mb-3">
+        <div className={cn(compact ? "mb-2" : "mb-3")}>
           <div className="mb-1 flex items-center justify-between text-[11px] text-navy-500">
             <span>진행률</span>
             <span className="font-medium text-navy-700">{progress}%</span>
@@ -109,8 +127,10 @@ export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
         {isLoading ? (
           <p className="py-2 text-center text-xs text-navy-500">불러오는 중...</p>
         ) : subtasks.length === 0 ? (
-          <p className="rounded-xl bg-white/70 px-3 py-3 text-center text-xs text-navy-500">
-            아직 하위 업무가 없습니다. 아래에서 진행 항목을 추가해 보세요.
+          <p className="rounded-xl bg-white/70 px-3 py-2.5 text-center text-xs text-navy-500">
+            {canWrite
+              ? "아직 하위 업무가 없습니다. 아래에서 진행 항목을 추가해 보세요."
+              : "아직 하위 업무가 없습니다."}
           </p>
         ) : (
           subtasks.map((sub) => {
@@ -166,28 +186,30 @@ export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
                       {sub.title}
                     </button>
                   )}
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <select
-                      value={sub.status}
-                      disabled={!canWrite}
-                      onChange={(e) =>
-                        updateStatus.mutate({
-                          subtaskId: sub.id,
-                          parentTaskId: taskId,
-                          status: e.target.value as TaskStatus,
-                        })
-                      }
-                      className="rounded-lg border-0 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-700"
-                    >
-                      {TASK_COLUMNS.map((col) => (
-                        <option key={col.id} value={col.id}>
-                          {col.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-[10px] text-navy-400">{sub.assignee}</span>
-                    {sub.due && <span className="text-[10px] text-navy-400">마감 {sub.due}</span>}
-                  </div>
+                  {!compact && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <select
+                        value={sub.status}
+                        disabled={!canWrite}
+                        onChange={(e) =>
+                          updateStatus.mutate({
+                            subtaskId: sub.id,
+                            parentTaskId: taskId,
+                            status: e.target.value as TaskStatus,
+                          })
+                        }
+                        className="rounded-lg border-0 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-navy-700"
+                      >
+                        {TASK_COLUMNS.map((col) => (
+                          <option key={col.id} value={col.id}>
+                            {col.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[10px] text-navy-400">{sub.assignee}</span>
+                      {sub.due && <span className="text-[10px] text-navy-400">마감 {sub.due}</span>}
+                    </div>
+                  )}
                 </div>
 
                 {canWrite && (
@@ -207,17 +229,22 @@ export function TaskSubtasksSection({ taskId, autoFocusAdd = false }: Props) {
       </div>
 
       {canWrite && (
-        <form onSubmit={handleAdd} className="mt-3 flex gap-2">
+        <form onSubmit={handleAdd} className={cn("flex gap-2", compact ? "mt-2" : "mt-3")}>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="진행 항목 추가 (예: 초안 작성, 리뷰 요청…)"
-            className="!min-h-10 flex-1 text-sm"
+            placeholder={compact ? "진행 항목 추가…" : "진행 항목 추가 (예: 초안 작성, 리뷰 요청…)"}
+            className={cn("flex-1 text-sm", compact ? "!min-h-9" : "!min-h-10")}
             autoFocus={autoFocusAdd}
           />
-          <Button type="submit" disabled={create.isPending || !title.trim()} className="shrink-0">
+          <Button
+            type="submit"
+            disabled={create.isPending || !title.trim()}
+            className="shrink-0"
+            aria-label="추가"
+          >
             <Plus className="h-4 w-4" />
-            추가
+            {!compact && "추가"}
           </Button>
         </form>
       )}

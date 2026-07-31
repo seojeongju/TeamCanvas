@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Calendar, ChevronRight, Copy, Eye, ListTree, Paperclip, Pencil } from "lucide-react";
+import { Calendar, ChevronDown, Copy, Eye, ListTree, Paperclip, Pencil, Trash2 } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
 import {
@@ -19,7 +19,17 @@ import {
   getPriorityLabel,
   regressStatus,
 } from "../../lib/taskUtils";
+import {
+  canDeleteEntity,
+  COLLABORATION_DELETE_MESSAGE,
+  isOrgAdminRole,
+  taskHasCollaborationLinks,
+} from "../../lib/deletePermissions";
+import { useDeleteTask } from "../../hooks/useData";
+import { useCurrentOrgRole, useHasPermission } from "../../hooks/usePermissions";
+import { useAuthStore } from "../../stores/authStore";
 import type { Task, TaskStatus } from "../../lib/types";
+import { TaskSubtasksSection } from "./TaskSubtasksSection";
 
 interface TaskCardProps {
   task: Task;
@@ -49,10 +59,27 @@ export function TaskCard({
 }: TaskCardProps) {
   const isBoard = variant === "board";
   const startX = useRef(0);
+  const suppressClick = useRef(false);
   const [offsetX, setOffsetX] = useState(0);
   const [swiping, setSwiping] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const workTone = taskWorkTone(task);
+
+  const deleteTask = useDeleteTask();
+  const user = useAuthStore((s) => s.user);
+  const orgRole = useCurrentOrgRole();
+  const canDeletePerm = useHasPermission("tasks:delete");
+  const isAdmin = isOrgAdminRole(orgRole);
+  const canDelete =
+    canDeleteEntity({
+      isOrgAdmin: isAdmin,
+      hasAdminDeletePermission: canDeletePerm,
+      isCreator: !!task.creatorId && task.creatorId === user?.id,
+      hasCollaborationLinks: taskHasCollaborationLinks(task),
+    }) &&
+    (isAdmin || canDeletePerm || (canWrite && task.creatorId === user?.id));
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
@@ -65,13 +92,24 @@ export function TaskCard({
   };
 
   const handleTouchEnd = () => {
-    if (offsetX > SWIPE_THRESHOLD && task.status !== "done") {
-      onStatusChange(task, advanceStatus(task.status));
-    } else if (offsetX < -SWIPE_THRESHOLD && task.status !== "todo" && task.status !== "on_hold") {
-      onStatusChange(task, regressStatus(task.status));
+    if (Math.abs(offsetX) > SWIPE_THRESHOLD) {
+      suppressClick.current = true;
+      if (offsetX > SWIPE_THRESHOLD && task.status !== "done") {
+        onStatusChange(task, advanceStatus(task.status));
+      } else if (offsetX < -SWIPE_THRESHOLD && task.status !== "todo" && task.status !== "on_hold") {
+        onStatusChange(task, regressStatus(task.status));
+      }
     }
     setOffsetX(0);
     setSwiping(false);
+  };
+
+  const toggleSubtasks = () => {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    setSubtasksExpanded((v) => !v);
   };
 
   const handleDuplicate = async () => {
@@ -81,6 +119,24 @@ export function TaskCard({
       await onDuplicate(task);
     } finally {
       setDuplicating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!canDelete || deleting) return;
+    if (!window.confirm(`「${task.title}」업무를 삭제할까요?`)) return;
+    setDeleting(true);
+    try {
+      await deleteTask.mutateAsync(task.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "삭제에 실패했습니다.";
+      window.alert(
+        message.toLowerCase().includes("collaborat") || message.includes("연결된")
+          ? COLLABORATION_DELETE_MESSAGE
+          : message,
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -115,7 +171,12 @@ export function TaskCard({
           <div className={cn("w-1 shrink-0", workToneAccentClass(workTone))} aria-hidden />
 
           <div className={cn("min-w-0 flex-1", paddingClass)}>
-            <button type="button" onClick={() => onOpen(task)} className="w-full text-left">
+            <button
+              type="button"
+              onClick={toggleSubtasks}
+              aria-expanded={subtasksExpanded}
+              className="w-full text-left"
+            >
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -148,12 +209,12 @@ export function TaskCard({
                         {task.attachmentCount}
                       </span>
                     )}
-                    {(task.subtaskCount ?? 0) > 0 && (
-                      <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                        <ListTree className="h-3 w-3" />
-                        {task.subtaskDoneCount ?? 0}/{task.subtaskCount}
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                      <ListTree className="h-3 w-3" />
+                      {(task.subtaskCount ?? 0) > 0
+                        ? `${task.subtaskDoneCount ?? 0}/${task.subtaskCount}`
+                        : "하위"}
+                    </span>
                   </div>
 
                   <p
@@ -187,8 +248,11 @@ export function TaskCard({
                   )}
                 </div>
 
-                <ChevronRight
-                  className="mt-0.5 h-4 w-4 shrink-0 text-navy-300"
+                <ChevronDown
+                  className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0 text-navy-300 transition-transform",
+                    subtasksExpanded && "rotate-180",
+                  )}
                   strokeWidth={2}
                   aria-hidden
                 />
@@ -201,7 +265,7 @@ export function TaskCard({
                   </span>
                   <span className="truncate text-xs text-navy-600">{task.assignee}</span>
                 </div>
-                {(task.subtaskCount ?? 0) > 0 && (
+                {(task.subtaskCount ?? 0) > 0 && !subtasksExpanded && (
                   <div>
                     <div className="mb-1 flex items-center justify-between text-[10px] text-navy-500">
                       <span>하위 진행</span>
@@ -245,11 +309,20 @@ export function TaskCard({
               </div>
             </button>
 
-            <div className="mt-2 flex gap-2">
+            {subtasksExpanded && (
+              <TaskSubtasksSection
+                taskId={task.id}
+                compact
+                enabled={subtasksExpanded}
+                autoFocusAdd
+              />
+            )}
+
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => onOpen(task)}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
+                className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-sky-100/70 py-2 text-xs font-medium text-navy-700 transition hover:bg-sky-100"
               >
                 <Eye className="h-3.5 w-3.5" />
                 상세
@@ -259,7 +332,7 @@ export function TaskCard({
                   type="button"
                   onClick={() => void handleDuplicate()}
                   disabled={duplicating}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-white/80 py-2 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 transition hover:bg-white disabled:opacity-60"
+                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-white/80 py-2 text-xs font-medium text-navy-700 ring-1 ring-sky-100/90 transition hover:bg-white disabled:opacity-60"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   {duplicating ? "복사 중" : "복사"}
@@ -269,10 +342,21 @@ export function TaskCard({
                 <button
                   type="button"
                   onClick={() => onEdit(task)}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-primary-400/10 py-2 text-xs font-medium text-primary-600 transition hover:bg-primary-400/20"
+                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-primary-400/10 py-2 text-xs font-medium text-primary-600 transition hover:bg-primary-400/20"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   수정
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={deleting}
+                  className="inline-flex min-w-[4.5rem] flex-1 items-center justify-center gap-1 rounded-xl bg-red-50 py-2 text-xs font-medium text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deleting ? "삭제 중" : "삭제"}
                 </button>
               )}
             </div>

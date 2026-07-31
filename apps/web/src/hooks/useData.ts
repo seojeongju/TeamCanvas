@@ -752,11 +752,11 @@ export function useDeleteChecklistItem() {
   });
 }
 
-export function useTaskSubtasks(taskId: string | undefined) {
+export function useTaskSubtasks(taskId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["task-subtasks", taskId],
     queryFn: () => api.getTaskSubtasks(taskId!),
-    enabled: !!taskId,
+    enabled: !!taskId && (options?.enabled ?? true),
   });
 }
 
