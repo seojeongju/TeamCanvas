@@ -1690,6 +1690,7 @@ projectRoutes.post("/projects/:projectId/copy-from-project", async (c) => {
       includeMilestones?: boolean;
       includeSchedules?: boolean;
       resetStatus?: boolean;
+      taskIds?: string[];
     }>()
     .catch(() => ({} as { sourceProjectId: string }));
 
@@ -1698,6 +1699,11 @@ projectRoutes.post("/projects/:projectId/copy-from-project", async (c) => {
 
   const sourceAccess = await requireProjectAccess(c, user.id, member.role, sourceProjectId, orgId);
   if (sourceAccess) return sourceAccess;
+
+  const taskIds = Array.isArray(body.taskIds)
+    ? body.taskIds.filter((id): id is string => typeof id === "string" && !!id.trim())
+    : undefined;
+  if (taskIds && taskIds.length > 100) return c.json({ error: "too many tasks" }, 400);
 
   const { copyProjectWork } = await import("../utils/copyProjectWork");
   try {
@@ -1709,6 +1715,7 @@ projectRoutes.post("/projects/:projectId/copy-from-project", async (c) => {
       includeMilestones: body.includeMilestones,
       includeSchedules: body.includeSchedules,
       resetStatus: body.resetStatus,
+      taskIds,
     });
     return c.json({ ok: true, ...result });
   } catch (err) {
@@ -1717,6 +1724,8 @@ projectRoutes.post("/projects/:projectId/copy-from-project", async (c) => {
       return c.json({ error: "not found" }, 404);
     }
     if (message === "same_project") return c.json({ error: "same_project" }, 400);
+    if (message === "nothing_selected") return c.json({ error: "nothing_selected" }, 400);
+    if (message === "invalid_task_ids") return c.json({ error: "invalid_task_ids" }, 400);
     throw err;
   }
 });

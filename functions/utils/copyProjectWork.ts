@@ -253,6 +253,8 @@ export async function copyProjectWork(
     includeMilestones?: boolean;
     includeSchedules?: boolean;
     resetStatus?: boolean;
+    /** 지정 시 해당 상위 업무(+하위 업무)만 복사. 미지정 시 전체 복사 */
+    taskIds?: string[];
     activitySummary?: string;
   },
 ): Promise<{ milestoneCount: number; taskCount: number; subtaskCount: number }> {
@@ -277,6 +279,13 @@ export async function copyProjectWork(
   const includeMilestones = opts.includeMilestones !== false;
   const includeSchedules = opts.includeSchedules !== false;
   const resetStatus = opts.resetStatus !== false;
+  const selectedTaskIds = opts.taskIds
+    ? [...new Set(opts.taskIds.filter((id) => typeof id === "string" && id.trim()))]
+    : null;
+  if (selectedTaskIds && selectedTaskIds.length === 0 && !includeMilestones) {
+    throw new Error("nothing_selected");
+  }
+
   const ts = now();
   const teamId = target.team_id ?? source.team_id;
 
@@ -345,6 +354,14 @@ export async function copyProjectWork(
     .bind(opts.sourceProjectId)
     .all<TaskRow>();
 
+  const selectedRootIds = selectedTaskIds ? new Set(selectedTaskIds) : null;
+  if (selectedRootIds) {
+    for (const id of selectedRootIds) {
+      const row = (allTasks ?? []).find((t) => t.id === id);
+      if (!row || row.parent_task_id) throw new Error("invalid_task_ids");
+    }
+  }
+
   const taskIdMap = new Map<string, string>();
   let taskCount = 0;
   let subtaskCount = 0;
@@ -361,6 +378,7 @@ export async function copyProjectWork(
 
   for (const row of allTasks ?? []) {
     if (row.parent_task_id) continue;
+    if (selectedRootIds && !selectedRootIds.has(row.id)) continue;
     const newTaskId = await copyTaskRow(db, row, { ...taskOpts, parentTaskId: null });
     taskIdMap.set(row.id, newTaskId);
     taskCount++;

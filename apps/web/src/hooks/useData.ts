@@ -321,6 +321,7 @@ export function useCopyProjectWorkFrom() {
       includeMilestones?: boolean;
       includeSchedules?: boolean;
       resetStatus?: boolean;
+      taskIds?: string[];
     }) => api.copyProjectWorkFrom(targetProjectId, data),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["projects", orgId] });

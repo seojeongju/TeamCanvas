@@ -640,6 +640,7 @@ export const api = {
       includeMilestones?: boolean;
       includeSchedules?: boolean;
       resetStatus?: boolean;
+      taskIds?: string[];
     },
   ) =>
     request<{
