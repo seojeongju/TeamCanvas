@@ -16,7 +16,7 @@ function formatDueLabel(dueAt: number): string {
 }
 
 const FILTER_EMPTY_LABEL: Record<DashboardTaskFilter, string> = {
-  all: "진행 중인 내 업무가 없습니다.",
+  all: "미완료인 내 업무가 없습니다.",
   todo: "할 일 상태의 내 업무가 없습니다.",
   doing: "진행 중인 내 업무가 없습니다.",
   on_hold: "보류 중인 내 업무가 없습니다.",
@@ -46,11 +46,11 @@ export function MyTasksCard({ taskFilter = "all" }: Props) {
     .slice(0, 5);
 
   const tasksLink =
-    taskFilter === "all" || taskFilter === "overdue"
-      ? taskFilter === "overdue"
-        ? "/tasks?overdue=1"
-        : "/tasks"
-      : `/tasks?status=${taskFilter}`;
+    taskFilter === "overdue"
+      ? "/tasks?overdue=1"
+      : taskFilter === "all"
+        ? "/tasks"
+        : `/tasks?status=${taskFilter}`;
 
   if (isLoading) {
     return <GlassCard className="p-4 text-sm text-navy-600">업무 불러오는 중...</GlassCard>;

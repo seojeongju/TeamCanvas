@@ -18,7 +18,7 @@ import { projectWorkTone, workToneTitleClass } from "../../lib/statusVisuals";
 import { cn } from "../../lib/cn";
 
 const FILTER_EMPTY_LABEL: Record<DashboardProjectFilter, string> = {
-  all: "진행 중인 프로젝트가 없습니다",
+  all: "운영 중인 프로젝트가 없습니다",
   planning: "계획 단계 프로젝트가 없습니다",
   active: "진행 중인 프로젝트가 없습니다",
   on_hold: "보류 중인 프로젝트가 없습니다",
