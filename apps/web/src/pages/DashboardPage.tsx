@@ -98,10 +98,29 @@ export function DashboardPage() {
     saveDashboardWidgetPrefs(prefs);
   }, []);
 
-  const handleStatusFiltersChange = useCallback((filters: DashboardStatusFilters) => {
-    setStatusFilters(filters);
-    saveDashboardStatusFilters(filters);
-  }, []);
+  const handleStatusFiltersChange = useCallback(
+    (filters: DashboardStatusFilters) => {
+      setStatusFilters(filters);
+      saveDashboardStatusFilters(filters);
+
+      const reveal: DashboardWidgetId[] = [];
+      if (filters.task !== statusFilters.task && widgetPrefs.hidden.includes("my_tasks")) {
+        reveal.push("my_tasks");
+      }
+      if (filters.project !== statusFilters.project && widgetPrefs.hidden.includes("projects")) {
+        reveal.push("projects");
+      }
+      if (reveal.length > 0) {
+        const nextPrefs = {
+          ...widgetPrefs,
+          hidden: widgetPrefs.hidden.filter((id) => !reveal.includes(id)),
+        };
+        setWidgetPrefs(nextPrefs);
+        saveDashboardWidgetPrefs(nextPrefs);
+      }
+    },
+    [statusFilters.project, statusFilters.task, widgetPrefs],
+  );
 
   const visibleWidgets = useMemo(() => getVisibleDashboardWidgets(widgetPrefs), [widgetPrefs]);
 
@@ -153,9 +172,11 @@ export function DashboardPage() {
     switch (id) {
       case "projects":
         return (
-          <DashboardWidgetSection key={id} title="프로젝트" linkTo="/projects">
-            <ProjectsOverviewCard projectFilter={statusFilters.project} />
-          </DashboardWidgetSection>
+          <div key={id} id="dashboard-projects">
+            <DashboardWidgetSection title="프로젝트" linkTo="/projects">
+              <ProjectsOverviewCard projectFilter={statusFilters.project} />
+            </DashboardWidgetSection>
+          </div>
         );
       case "today_events":
         return (
@@ -192,9 +213,11 @@ export function DashboardPage() {
         );
       case "my_tasks":
         return (
-          <DashboardWidgetSection key={id} title="내 업무" subtitle="나에게 배정된 업무" linkTo="/tasks">
-            <MyTasksCard taskFilter={statusFilters.task} />
-          </DashboardWidgetSection>
+          <div key={id} id="dashboard-my-tasks">
+            <DashboardWidgetSection title="내 업무" subtitle="나에게 배정된 업무" linkTo="/tasks">
+              <MyTasksCard taskFilter={statusFilters.task} />
+            </DashboardWidgetSection>
+          </div>
         );
       case "insights":
         return (

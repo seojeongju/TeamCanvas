@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { RotateCcw } from "lucide-react";
 import { GlassCard } from "../ui/GlassCard";
 import { cn } from "../../lib/cn";
@@ -73,14 +74,31 @@ export function DashboardStatusFilterBar({ filters, taskCounts, projectCounts, o
   const myOpenTotal = taskCounts.all;
   const myAllTotal =
     taskCounts.todo + taskCounts.doing + taskCounts.on_hold + taskCounts.done;
+  const prevFilters = useRef(filters);
+
+  useEffect(() => {
+    const prev = prevFilters.current;
+    prevFilters.current = filters;
+    if (prev.task !== filters.task) {
+      document.getElementById("dashboard-my-tasks")?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    } else if (prev.project !== filters.project) {
+      document.getElementById("dashboard-projects")?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [filters]);
 
   return (
-    <GlassCard className="space-y-3 p-3">
+    <GlassCard className="space-y-3 overflow-visible p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-xs font-semibold text-navy-700">상태 필터</p>
           <p className="mt-0.5 text-[10px] text-navy-400">
-            아래 위젯(내 업무·프로젝트)에 바로 적용됩니다
+            바로 아래 내 업무·프로젝트 위젯에 적용됩니다
           </p>
         </div>
         {hasActive && (
@@ -102,7 +120,7 @@ export function DashboardStatusFilterBar({ filters, taskCounts, projectCounts, o
             (미완료 {myOpenTotal} · 전체 {myAllTotal})
           </span>
         </p>
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-wrap gap-1.5">
           {TASK_FILTER_OPTIONS.map((opt) => (
             <FilterChip
               key={opt.id}
@@ -123,7 +141,7 @@ export function DashboardStatusFilterBar({ filters, taskCounts, projectCounts, o
             (운영중 {projectCounts.all})
           </span>
         </p>
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-wrap gap-1.5">
           {PROJECT_FILTER_OPTIONS.map((opt) => (
             <FilterChip
               key={opt.id}

@@ -22,11 +22,14 @@ export const DASHBOARD_WIDGET_LABELS: Record<DashboardWidgetId, string> = {
   activity: "최근 활동",
 };
 
+/** 상태 필터와 연동되는 위젯 — 홈에서 필터 바로 아래에 고정 노출 */
+export const DASHBOARD_FILTER_LINKED_WIDGETS: DashboardWidgetId[] = ["my_tasks", "projects"];
+
 export const DEFAULT_DASHBOARD_WIDGET_ORDER: DashboardWidgetId[] = [
+  "my_tasks",
   "projects",
   "today_events",
   "week_milestones",
-  "my_tasks",
   "insights",
   "activity",
 ];
@@ -86,7 +89,11 @@ export function saveDashboardWidgetPrefs(prefs: DashboardWidgetPrefs): void {
 
 export function getVisibleDashboardWidgets(prefs: DashboardWidgetPrefs): DashboardWidgetId[] {
   const hidden = new Set(prefs.hidden);
-  return prefs.order.filter((id) => !hidden.has(id));
+  const visible = prefs.order.filter((id) => !hidden.has(id));
+  // 내 업무·프로젝트는 상태 필터 직하에 두어 필터 클릭 결과가 바로 보이게 한다.
+  const pinned = DASHBOARD_FILTER_LINKED_WIDGETS.filter((id) => visible.includes(id));
+  const rest = visible.filter((id) => !DASHBOARD_FILTER_LINKED_WIDGETS.includes(id));
+  return [...pinned, ...rest];
 }
 
 export function toggleDashboardWidgetHidden(
