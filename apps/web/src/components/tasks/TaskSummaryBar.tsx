@@ -12,7 +12,7 @@ interface TaskSummaryBarProps {
 
 type StatKey = "dueToday" | "overdue" | "mine" | "doing";
 
-/** 팀/라벨/프로젝트 선택만 유지하고 요약 카드 필터는 단독 적용 */
+/** 팀/라벨/프로젝트 선택만 유지 */
 function preservedScope(filters: TaskFilters): Pick<TaskFilters, "teamId" | "labelId" | "projectId"> {
   return {
     teamId: filters.teamId,
@@ -37,6 +37,10 @@ function isDoingActive(f: TaskFilters) {
   return f.status === "doing" && !f.overdue && !f.dueToday && f.assignee !== "me";
 }
 
+/**
+ * 전체 현황 바로가기 — 조직 전체 건수 기준.
+ * 클릭 시 해당 보기만 단독 적용 (범위 필터의 상태 탭과 역할이 다름).
+ */
 export function TaskSummaryBar({
   dueToday,
   overdue,
@@ -127,33 +131,36 @@ export function TaskSummaryBar({
   };
 
   return (
-    <div className="grid grid-cols-4 gap-1.5">
-      {items.map((item) => {
-        const interactive = Boolean(onFilterChange && filters);
-        return (
-          <button
-            key={item.key}
-            type="button"
-            disabled={!interactive}
-            onClick={() => handleClick(item.key)}
-            className={cn(
-              "flex flex-col items-center rounded-2xl border px-1 py-2.5 transition",
-              item.active
-                ? "border-primary-300/80 bg-primary-400/10 shadow-sm"
-                : "border-sky-100/90 bg-white/70 hover:bg-white/90",
-              interactive && "active:scale-[0.98]",
-              !interactive && "cursor-default",
-            )}
-          >
-            <span className={cn("text-lg font-bold leading-none tabular-nums", item.accent)}>
-              {item.value}
-            </span>
-            <span className="mt-1 text-center text-[10px] font-medium leading-tight text-navy-500">
-              {item.label}
-            </span>
-          </button>
-        );
-      })}
+    <div className="space-y-1.5">
+      <p className="px-0.5 text-[10px] font-medium text-navy-400">전체 현황 · 탭하면 바로가기</p>
+      <div className="grid grid-cols-4 gap-1.5">
+        {items.map((item) => {
+          const interactive = Boolean(onFilterChange && filters);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              disabled={!interactive}
+              onClick={() => handleClick(item.key)}
+              className={cn(
+                "flex flex-col items-center rounded-2xl border px-1 py-2.5 transition",
+                item.active
+                  ? "border-primary-300/80 bg-primary-400/10 shadow-sm"
+                  : "border-sky-100/90 bg-white/70 hover:bg-white/90",
+                interactive && "active:scale-[0.98]",
+                !interactive && "cursor-default",
+              )}
+            >
+              <span className={cn("text-lg font-bold leading-none tabular-nums", item.accent)}>
+                {item.value}
+              </span>
+              <span className="mt-1 text-center text-[10px] font-medium leading-tight text-navy-500">
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

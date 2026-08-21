@@ -76,11 +76,7 @@ export function TaskListView({
     setSectionPages({});
   }, [tasks]);
 
-  useEffect(() => {
-    if (counts[activeTab] > 0) return;
-    const fallback = TASK_COLUMNS.find((c) => counts[c.id] > 0);
-    if (fallback && fallback.id !== activeTab) setActiveTab(fallback.id);
-  }, [counts, activeTab, setActiveTab]);
+  // 사용자가 선택한 상태 탭은 비어 있어도 유지 (빈 안내 문구 표시)
 
   if (tasks.length === 0) {
     return <TaskEmptyState onCreate={onCreate} />;

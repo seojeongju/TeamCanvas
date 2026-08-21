@@ -2,8 +2,6 @@ import type { ReactNode } from "react";
 import { AlertTriangle, ChevronDown, RotateCcw, User } from "lucide-react";
 import { TaskSavedFiltersMenu } from "./TaskSavedFiltersMenu";
 import { cn } from "../../lib/cn";
-import { taskStatusLabel } from "../../lib/statusVisuals";
-import { TASK_COLUMNS } from "../../lib/taskUtils";
 import type { Project, TaskFilters, TaskLabel, Team } from "../../lib/types";
 
 interface TaskFilterBarProps {
@@ -80,6 +78,10 @@ function FilterSelect({
   );
 }
 
+/**
+ * 범위 필터 전용 — 담당/지연/팀/프로젝트/라벨.
+ * 할 일·진행 중·보류·완료 상태는 하단 상태 탭에서만 선택.
+ */
 export function TaskFilterBar({ filters, teams, projects = [], labels = [], onChange }: TaskFilterBarProps) {
   const mine = filters.assignee === "me";
   const hasActiveFilter =
@@ -92,82 +94,68 @@ export function TaskFilterBar({ filters, teams, projects = [], labels = [], onCh
     !!filters.status;
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <QuickChip
-        active={mine}
-        onClick={() => onChange({ ...filters, assignee: mine ? "all" : "me" })}
-      >
-        <User className="h-3.5 w-3.5" />
-        내 업무
-      </QuickChip>
-
-      <QuickChip
-        active={!!filters.overdue}
-        activeClass="!bg-red-500"
-        onClick={() =>
-          onChange({ ...filters, overdue: !filters.overdue, dueToday: false, status: undefined })
-        }
-      >
-        <AlertTriangle className="h-3.5 w-3.5" />
-        지연
-      </QuickChip>
-
-      {TASK_COLUMNS.map((col) => (
+    <div className="space-y-1.5">
+      <p className="px-0.5 text-[10px] font-medium text-navy-400">범위 필터</p>
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <QuickChip
-          key={col.id}
-          active={filters.status === col.id}
+          active={mine}
+          onClick={() => onChange({ ...filters, assignee: mine ? "all" : "me" })}
+        >
+          <User className="h-3.5 w-3.5" />
+          내 업무
+        </QuickChip>
+
+        <QuickChip
+          active={!!filters.overdue}
+          activeClass="!bg-red-500"
           onClick={() =>
-            onChange({
-              ...filters,
-              status: filters.status === col.id ? undefined : col.id,
-              overdue: false,
-              dueToday: false,
-            })
+            onChange({ ...filters, overdue: !filters.overdue, dueToday: false })
           }
         >
-          {taskStatusLabel(col.id)}
+          <AlertTriangle className="h-3.5 w-3.5" />
+          지연
         </QuickChip>
-      ))}
 
-      {teams.length > 0 && (
-        <FilterSelect
-          value={filters.teamId ?? ""}
-          placeholder="전체 팀"
-          options={teams.map((t) => ({ value: t.id, label: t.name }))}
-          onChange={(teamId) => onChange({ ...filters, teamId: teamId || undefined })}
-        />
-      )}
+        {teams.length > 0 && (
+          <FilterSelect
+            value={filters.teamId ?? ""}
+            placeholder="전체 팀"
+            options={teams.map((t) => ({ value: t.id, label: t.name }))}
+            onChange={(teamId) => onChange({ ...filters, teamId: teamId || undefined })}
+          />
+        )}
 
-      {projects.length > 0 && (
-        <FilterSelect
-          value={filters.projectId ?? ""}
-          placeholder="전체 프로젝트"
-          options={projects.map((p) => ({ value: p.id, label: p.name }))}
-          onChange={(projectId) => onChange({ ...filters, projectId: projectId || undefined })}
-        />
-      )}
+        {projects.length > 0 && (
+          <FilterSelect
+            value={filters.projectId ?? ""}
+            placeholder="전체 프로젝트"
+            options={projects.map((p) => ({ value: p.id, label: p.name }))}
+            onChange={(projectId) => onChange({ ...filters, projectId: projectId || undefined })}
+          />
+        )}
 
-      {labels.length > 0 && (
-        <FilterSelect
-          value={filters.labelId ?? ""}
-          placeholder="전체 라벨"
-          options={labels.map((l) => ({ value: l.id, label: l.name }))}
-          onChange={(labelId) => onChange({ ...filters, labelId: labelId || undefined })}
-        />
-      )}
+        {labels.length > 0 && (
+          <FilterSelect
+            value={filters.labelId ?? ""}
+            placeholder="전체 라벨"
+            options={labels.map((l) => ({ value: l.id, label: l.name }))}
+            onChange={(labelId) => onChange({ ...filters, labelId: labelId || undefined })}
+          />
+        )}
 
-      {hasActiveFilter && (
-        <button
-          type="button"
-          onClick={() => onChange({ assignee: "all" })}
-          className="inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 text-xs font-medium text-navy-500 transition hover:bg-sky-50 hover:text-navy-700"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          초기화
-        </button>
-      )}
+        {hasActiveFilter && (
+          <button
+            type="button"
+            onClick={() => onChange({ assignee: "all" })}
+            className="inline-flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 text-xs font-medium text-navy-500 transition hover:bg-sky-50 hover:text-navy-700"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            초기화
+          </button>
+        )}
 
-      <TaskSavedFiltersMenu filters={filters} onApply={onChange} />
+        <TaskSavedFiltersMenu filters={filters} onApply={onChange} />
+      </div>
     </div>
   );
 }

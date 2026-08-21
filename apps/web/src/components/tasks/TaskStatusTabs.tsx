@@ -81,56 +81,59 @@ const STATUS_TAB_THEME: Record<
 
 export function TaskStatusTabs({ active, onChange, counts, className }: TaskStatusTabsProps) {
   return (
-    <div
-      className={cn("flex gap-1.5 rounded-2xl bg-sky-100/50 p-1", className)}
-      role="tablist"
-      aria-label="업무 상태"
-    >
-      {TASK_COLUMNS.map((col) => {
-        const count = counts[col.id];
-        const isActive = active === col.id;
-        const theme = STATUS_TAB_THEME[col.id];
-        return (
-          <button
-            key={col.id}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onChange(col.id)}
-            className={cn(
-              "group flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-xs font-semibold transition-all duration-200",
-              isActive
-                ? cn("shadow-sm", theme.activeBg, theme.activeText)
-                : cn(
-                    theme.inactiveText,
-                    theme.hoverBg,
-                    theme.hoverText,
-                    theme.hoverShadow,
-                    "hover:-translate-y-px",
-                  ),
-            )}
-          >
-            <span
+    <div className={cn("space-y-1.5", className)}>
+      <p className="px-0.5 text-[10px] font-medium text-navy-400">상태별 보기</p>
+      <div
+        className="flex gap-1.5 rounded-2xl bg-sky-100/50 p-1"
+        role="tablist"
+        aria-label="업무 상태"
+      >
+        {TASK_COLUMNS.map((col) => {
+          const count = counts[col.id];
+          const isActive = active === col.id;
+          const theme = STATUS_TAB_THEME[col.id];
+          return (
+            <button
+              key={col.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(col.id)}
               className={cn(
-                "h-0.5 w-6 rounded-full transition-all duration-200",
-                isActive ? theme.indicator : cn("bg-transparent", theme.indicatorHover),
-              )}
-              aria-hidden
-            />
-            <span className="transition-colors duration-200">{col.label}</span>
-            <span
-              className={cn(
-                "rounded-full px-1.5 py-px text-[10px] font-medium tabular-nums transition-colors duration-200",
+                "group flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-xs font-semibold transition-all duration-200",
                 isActive
-                  ? theme.activeBadge
-                  : cn(theme.inactiveBadge, theme.hoverBadge),
+                  ? cn("shadow-sm", theme.activeBg, theme.activeText)
+                  : cn(
+                      theme.inactiveText,
+                      theme.hoverBg,
+                      theme.hoverText,
+                      theme.hoverShadow,
+                      "hover:-translate-y-px",
+                    ),
               )}
             >
-              {count}
-            </span>
-          </button>
-        );
-      })}
+              <span
+                className={cn(
+                  "h-0.5 w-6 rounded-full transition-all duration-200",
+                  isActive ? theme.indicator : cn("bg-transparent", theme.indicatorHover),
+                )}
+                aria-hidden
+              />
+              <span className="transition-colors duration-200">{col.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-px text-[10px] font-medium tabular-nums transition-colors duration-200",
+                  isActive
+                    ? theme.activeBadge
+                    : cn(theme.inactiveBadge, theme.hoverBadge),
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

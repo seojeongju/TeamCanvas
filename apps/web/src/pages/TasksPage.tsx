@@ -10,12 +10,18 @@ import { TaskBoardView } from "../components/tasks/TaskBoardView";
 import { TaskDetailSheet } from "../components/tasks/TaskDetailSheet";
 import { TaskFilterBar } from "../components/tasks/TaskFilterBar";
 import { TaskListView } from "../components/tasks/TaskListView";
+import { taskCountsByStatus } from "../components/tasks/TaskStatusTabs";
 import { TaskSummaryBar } from "../components/tasks/TaskSummaryBar";
 import { TaskViewSwitcher } from "../components/tasks/TaskViewSwitcher";
 import { useProjects, useTaskLabels, useTasks, useTeams, useUpdateTask, useDuplicateTask } from "../hooks/useData";
 import { useAuthStore } from "../stores/authStore";
-import { computeTaskSummary, filterTasks } from "../lib/taskUtils";
+import { computeTaskSummary, filterTasks, TASK_COLUMNS } from "../lib/taskUtils";
 import type { Task, TaskFilters, TaskStatus, TaskViewMode } from "../lib/types";
+
+function firstNonEmptyStatus(tasks: Task[]): TaskStatus {
+  const counts = taskCountsByStatus(tasks);
+  return TASK_COLUMNS.find((c) => counts[c.id] > 0)?.id ?? "todo";
+}
 
 export function TasksPage() {
   const userId = useAuthStore((s) => s.user?.id);
@@ -40,13 +46,20 @@ export function TasksPage() {
   const teams = teamsData?.teams ?? [];
   const projects = projectsData?.projects ?? [];
   const labels = labelsData?.labels ?? [];
-  /** 상태 탭 건수용 — status 필터는 제외 (탭이 상태별로 나눠 보여 줌) */
-  const tasks = useMemo(
+
+  /** 범위 필터만 적용 (상태는 하단 탭에서 분리) */
+  const scopedTasks = useMemo(
     () => filterTasks(allTasks, { ...filters, status: undefined }, userId),
     [allTasks, filters, userId],
   );
   const summary = useMemo(() => computeTaskSummary(allTasks, userId), [allTasks, userId]);
   const hasTasks = allTasks.length > 0;
+
+  const activeStatus = filters.status ?? "todo";
+  const visibleCount = useMemo(
+    () => scopedTasks.filter((t) => t.status === activeStatus).length,
+    [scopedTasks, activeStatus],
+  );
 
   const openCreate = (status: TaskStatus = "todo") => {
     setCreateStatus(status);
@@ -96,17 +109,42 @@ export function TasksPage() {
     );
   }, [filters.status, filters.overdue, filtersReady, setSearchParams]);
 
+  /**
+   * 범위 필터(담당/지연/팀 등)가 바뀌었을 때만 상태 탭을 보정.
+   * 상태 탭만 바꾼 경우(빈 탭 클릭 포함)에는 재실행하지 않음.
+   */
+  useEffect(() => {
+    if (!filtersReady) return;
+    const scoped = filterTasks(allTasks, { ...filters, status: undefined }, userId);
+    if (scoped.length === 0) return;
+    const counts = taskCountsByStatus(scoped);
+    if (filters.status && counts[filters.status] > 0) return;
+    const next = firstNonEmptyStatus(scoped);
+    if (next !== filters.status) {
+      setFilters((f) => ({ ...f, status: next }));
+    }
+    // filters.status는 deps에서 제외 — 사용자가 빈 상태 탭을 유지할 수 있게 함
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filtersReady,
+    allTasks,
+    userId,
+    filters.assignee,
+    filters.overdue,
+    filters.dueToday,
+    filters.teamId,
+    filters.projectId,
+    filters.labelId,
+  ]);
+
   const handleStatusTabChange = (status: TaskStatus) => {
-    // 지연/오늘마감 등 다른 필터는 유지한 채 상태 탭만 전환
     setFilters((f) => ({ ...f, status }));
   };
 
-  /** 상태 변경 후 해당 탭으로 이동해 목록에서 사라진 것처럼 보이지 않게 함 */
   const revealTaskStatus = (status: TaskStatus) => {
     setFilters((f) => ({
       ...f,
       status,
-      // 완료 업무는 지연/오늘마감 필터에서 제외되므로 해제
       ...(status === "done" ? { overdue: false, dueToday: false } : {}),
     }));
   };
@@ -176,9 +214,9 @@ export function TasksPage() {
           <TaskViewSwitcher value={viewMode} onChange={setViewMode} />
           {hasTasks && (
             <span className="shrink-0 text-xs text-navy-500">
-              {tasks.length !== allTasks.length
-                ? `${tasks.length}건 표시`
-                : `${allTasks.length}건`}
+              {scopedTasks.length !== allTasks.length
+                ? `범위 ${scopedTasks.length}건 · 이 탭 ${visibleCount}건`
+                : `이 탭 ${visibleCount}건`}
             </span>
           )}
         </div>
@@ -195,7 +233,7 @@ export function TasksPage() {
 
       {viewMode === "board" ? (
         <TaskBoardView
-          tasks={tasks}
+          tasks={scopedTasks}
           onOpen={setSelectedTask}
           onEdit={setEditTask}
           onDuplicate={canWrite ? handleDuplicate : undefined}
@@ -203,19 +241,19 @@ export function TasksPage() {
           onMove={handleMove}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
-          statusTab={filters.status}
+          statusTab={activeStatus}
           onStatusTabChange={handleStatusTabChange}
         />
       ) : (
         <TaskListView
-          tasks={tasks}
+          tasks={scopedTasks}
           onOpen={setSelectedTask}
           onEdit={setEditTask}
           onDuplicate={canWrite ? handleDuplicate : undefined}
           onStatusChange={handleStatusChange}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
-          statusTab={filters.status}
+          statusTab={activeStatus}
           onStatusTabChange={handleStatusTabChange}
         />
       )}
