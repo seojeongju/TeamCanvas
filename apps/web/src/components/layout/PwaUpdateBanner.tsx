@@ -5,6 +5,9 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { bindPwaUpdate } from "../../lib/pwaUpdate";
 import { cn } from "../../lib/cn";
 
+const RELOAD_UI_MS = 400;
+const STUCK_FALLBACK_MS = 5_000;
+
 function hasBottomNav(pathname: string): boolean {
   if (/^\/(login|forgot-password|reset-password|verify-email|onboarding)(\/|$)/.test(pathname)) {
     return false;
@@ -16,24 +19,34 @@ function hasBottomNav(pathname: string): boolean {
 
 /**
  * PWA 서비스 워커 등록 + 주기적 업데이트 검사.
- * autoUpdate 모드에서는 새 버전이 활성화되면 자동으로 새로고침된다.
- * 드물게 waiting 상태만 남는 경우를 위해 배너도 제공한다.
+ * autoUpdate: 새 SW 활성화 시 onNeedReload → 안내 배너 후 새로고침.
+ * 수동 "앱 새로고침"도 동일 배너를 잠깐 보여 준 뒤 반드시 reload 한다.
  */
 export function PwaUpdateBanner() {
   const location = useLocation();
   const cleanupRef = useRef<(() => void) | null>(null);
   const [updating, setUpdating] = useState(false);
+  const reloadScheduled = useRef(false);
 
-  const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
+  const scheduleReload = () => {
+    if (reloadScheduled.current) return;
+    reloadScheduled.current = true;
+    setUpdating(true);
+    window.setTimeout(() => {
+      window.location.reload();
+    }, RELOAD_UI_MS);
+  };
+
+  useRegisterSW({
     immediate: true,
+    // autoUpdate 모드에서 제공하면 기본 reload 대신 이 콜백이 호출된다.
+    onNeedReload() {
+      scheduleReload();
+    },
     onRegisteredSW(swUrl, registration) {
       cleanupRef.current?.();
-      cleanupRef.current = bindPwaUpdate(swUrl, registration, async (reload) => {
-        setUpdating(true);
-        await updateServiceWorker(reload);
+      cleanupRef.current = bindPwaUpdate(swUrl, registration, {
+        onApplyStart: () => setUpdating(true),
       });
     },
     onRegisterError() {
@@ -48,14 +61,16 @@ export function PwaUpdateBanner() {
     };
   }, []);
 
-  // autoUpdate가 리로드하기 직전에 잠깐 안내
+  // 배너가 떠 있는데 리로드가 안 되면 강제 새로고침
   useEffect(() => {
-    if (!needRefresh) return;
-    setUpdating(true);
-    void updateServiceWorker(true);
-  }, [needRefresh, updateServiceWorker]);
+    if (!updating) return;
+    const timer = window.setTimeout(() => {
+      window.location.reload();
+    }, STUCK_FALLBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [updating]);
 
-  if (!updating && !needRefresh) return null;
+  if (!updating) return null;
 
   return (
     <div
