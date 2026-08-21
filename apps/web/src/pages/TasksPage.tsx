@@ -97,7 +97,8 @@ export function TasksPage() {
   }, [filters.status, filters.overdue, filtersReady, setSearchParams]);
 
   const handleStatusTabChange = (status: TaskStatus) => {
-    setFilters((f) => ({ ...f, status, overdue: false, dueToday: false }));
+    // 지연/오늘마감 등 다른 필터는 유지한 채 상태 탭만 전환
+    setFilters((f) => ({ ...f, status }));
   };
 
   const handleStatusChange = async (task: Task, status: TaskStatus) => {

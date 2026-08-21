@@ -77,11 +77,10 @@ export function TaskListView({
   }, [tasks]);
 
   useEffect(() => {
-    if (statusTab) return;
     if (counts[activeTab] > 0) return;
     const fallback = TASK_COLUMNS.find((c) => counts[c.id] > 0);
-    if (fallback) setActiveTab(fallback.id);
-  }, [counts, activeTab, statusTab, setActiveTab]);
+    if (fallback && fallback.id !== activeTab) setActiveTab(fallback.id);
+  }, [counts, activeTab, setActiveTab]);
 
   if (tasks.length === 0) {
     return <TaskEmptyState onCreate={onCreate} />;

@@ -74,6 +74,12 @@ export function TaskBoardView({
 
   const counts = useMemo(() => taskCountsByStatus(tasks), [tasks]);
 
+  useEffect(() => {
+    if (counts[activeColumn] > 0) return;
+    const fallback = TASK_COLUMNS.find((c) => counts[c.id] > 0);
+    if (fallback && fallback.id !== activeColumn) setActiveColumn(fallback.id);
+  }, [counts, activeColumn, setActiveColumn]);
+
   const tasksByColumn = useMemo(
     () =>
       TASK_COLUMNS.reduce(

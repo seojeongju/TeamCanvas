@@ -12,6 +12,31 @@ interface TaskSummaryBarProps {
 
 type StatKey = "dueToday" | "overdue" | "mine" | "doing";
 
+/** 팀/라벨/프로젝트 선택만 유지하고 요약 카드 필터는 단독 적용 */
+function preservedScope(filters: TaskFilters): Pick<TaskFilters, "teamId" | "labelId" | "projectId"> {
+  return {
+    teamId: filters.teamId,
+    labelId: filters.labelId,
+    projectId: filters.projectId,
+  };
+}
+
+function isDueTodayActive(f: TaskFilters) {
+  return !!f.dueToday && !f.overdue && f.assignee !== "me" && !f.status;
+}
+
+function isOverdueActive(f: TaskFilters) {
+  return !!f.overdue && !f.dueToday && f.assignee !== "me" && !f.status;
+}
+
+function isMineActive(f: TaskFilters) {
+  return f.assignee === "me" && !f.overdue && !f.dueToday && !f.status;
+}
+
+function isDoingActive(f: TaskFilters) {
+  return f.status === "doing" && !f.overdue && !f.dueToday && f.assignee !== "me";
+}
+
 export function TaskSummaryBar({
   dueToday,
   overdue,
@@ -32,52 +57,70 @@ export function TaskSummaryBar({
       label: "오늘 마감",
       value: dueToday,
       accent: "text-orange-600",
-      active: !!filters?.dueToday,
+      active: !!filters && isDueTodayActive(filters),
     },
     {
       key: "overdue",
       label: "지연",
       value: overdue,
       accent: overdue > 0 ? "text-red-600" : "text-navy-700",
-      active: !!filters?.overdue,
+      active: !!filters && isOverdueActive(filters),
     },
     {
       key: "mine",
       label: "내 업무",
       value: mine,
       accent: "text-primary-600",
-      active: filters?.assignee === "me",
+      active: !!filters && isMineActive(filters),
     },
     {
       key: "doing",
       label: "진행 중",
       value: doing,
       accent: "text-emerald-600",
-      active: filters?.status === "doing",
+      active: !!filters && isDoingActive(filters),
     },
   ];
 
   const handleClick = (key: StatKey) => {
     if (!onFilterChange || !filters) return;
-    const base = { ...filters, teamId: filters.teamId, labelId: filters.labelId };
+    const scope = preservedScope(filters);
 
     switch (key) {
       case "dueToday":
-        onFilterChange({ ...base, dueToday: !filters.dueToday, overdue: false });
+        onFilterChange({
+          ...scope,
+          assignee: "all",
+          dueToday: !isDueTodayActive(filters),
+          overdue: false,
+          status: undefined,
+        });
         break;
       case "overdue":
-        onFilterChange({ ...base, overdue: !filters.overdue, dueToday: false });
+        onFilterChange({
+          ...scope,
+          assignee: "all",
+          overdue: !isOverdueActive(filters),
+          dueToday: false,
+          status: undefined,
+        });
         break;
       case "mine":
         onFilterChange({
-          ...base,
-          assignee: filters.assignee === "me" ? "all" : "me",
+          ...scope,
+          assignee: isMineActive(filters) ? "all" : "me",
+          overdue: false,
+          dueToday: false,
+          status: undefined,
         });
         break;
       case "doing":
         onFilterChange({
-          ...base,
-          status: filters.status === "doing" ? undefined : "doing",
+          ...scope,
+          assignee: "all",
+          status: isDoingActive(filters) ? undefined : "doing",
+          overdue: false,
+          dueToday: false,
         });
         break;
     }
