@@ -29,6 +29,7 @@ export function ProjectTasksSection({ project }: Props) {
 
   const tasks = data?.tasks ?? [];
   const [viewMode, setViewMode] = useState<TaskViewMode>("list");
+  const [statusTab, setStatusTab] = useState<TaskStatus | undefined>();
   const [showCreate, setShowCreate] = useState(false);
   const [showLink, setShowLink] = useState(false);
   const [showCopyWork, setShowCopyWork] = useState(false);
@@ -45,7 +46,10 @@ export function ProjectTasksSection({ project }: Props) {
 
   const handleStatusChange = (task: Task, status: TaskStatus) => {
     if (task.status === status) return;
-    updateTask.mutate({ id: task.id, status });
+    updateTask.mutate(
+      { id: task.id, status },
+      { onSuccess: () => setStatusTab(status) },
+    );
   };
 
   const handleMove = (taskId: string, status: TaskStatus, sortOrder: number) => {
@@ -53,7 +57,11 @@ export function ProjectTasksSection({ project }: Props) {
     if (!task) return;
     const patch: { id: string; status?: TaskStatus; sortOrder: number } = { id: taskId, sortOrder };
     if (task.status !== status) patch.status = status;
-    updateTask.mutate(patch);
+    updateTask.mutate(patch, {
+      onSuccess: () => {
+        if (patch.status) setStatusTab(patch.status);
+      },
+    });
   };
 
   const handleDuplicate = async (task: Task) => {
@@ -148,6 +156,8 @@ export function ProjectTasksSection({ project }: Props) {
           onMove={handleMove}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
+          statusTab={statusTab}
+          onStatusTabChange={setStatusTab}
         />
       ) : (
         <TaskListView
@@ -158,6 +168,8 @@ export function ProjectTasksSection({ project }: Props) {
           onStatusChange={handleStatusChange}
           onCreate={() => openCreate("todo")}
           canWrite={canWrite}
+          statusTab={statusTab}
+          onStatusTabChange={setStatusTab}
         />
       )}
 
@@ -185,6 +197,7 @@ export function ProjectTasksSection({ project }: Props) {
       <TaskDetailSheet
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
+        onStatusChange={setStatusTab}
         onEdit={(task) => {
           setSelectedTask(null);
           setEditTask(task);

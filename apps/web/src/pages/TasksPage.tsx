@@ -101,10 +101,21 @@ export function TasksPage() {
     setFilters((f) => ({ ...f, status }));
   };
 
+  /** 상태 변경 후 해당 탭으로 이동해 목록에서 사라진 것처럼 보이지 않게 함 */
+  const revealTaskStatus = (status: TaskStatus) => {
+    setFilters((f) => ({
+      ...f,
+      status,
+      // 완료 업무는 지연/오늘마감 필터에서 제외되므로 해제
+      ...(status === "done" ? { overdue: false, dueToday: false } : {}),
+    }));
+  };
+
   const handleStatusChange = async (task: Task, status: TaskStatus) => {
     if (task.status === status) return;
     try {
       await updateTask.mutateAsync({ id: task.id, status });
+      revealTaskStatus(status);
     } catch (err) {
       const message = err instanceof Error ? err.message : "상태 변경에 실패했습니다.";
       if (message.includes("Blocked") || message.includes("dependencies")) {
@@ -118,7 +129,11 @@ export function TasksPage() {
     if (!task) return;
     const patch: { id: string; status?: TaskStatus; sortOrder: number } = { id: taskId, sortOrder };
     if (task.status !== status) patch.status = status;
-    updateTask.mutate(patch);
+    updateTask.mutate(patch, {
+      onSuccess: () => {
+        if (patch.status) revealTaskStatus(patch.status);
+      },
+    });
   };
 
   const handleDuplicate = async (task: Task) => {
@@ -227,6 +242,7 @@ export function TasksPage() {
       <TaskDetailSheet
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
+        onStatusChange={revealTaskStatus}
         onEdit={(task) => {
           setSelectedTask(null);
           setEditTask(task);

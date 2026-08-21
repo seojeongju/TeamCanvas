@@ -43,9 +43,11 @@ interface TaskDetailSheetProps {
   task: Task | null;
   onClose: () => void;
   onEdit?: (task: Task) => void;
+  /** 상세에서 상태 변경 시 목록 탭 동기화 */
+  onStatusChange?: (status: TaskStatus) => void;
 }
 
-export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ task, onClose, onEdit, onStatusChange }: TaskDetailSheetProps) {
   const navigate = useNavigate();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
@@ -114,6 +116,7 @@ export function TaskDetailSheet({ task, onClose, onEdit }: TaskDetailSheetProps)
 
   const save = async (patch: Omit<import("../../lib/types").UpdateTaskPayload, "id">) => {
     await updateTask.mutateAsync({ id: task.id, ...patch });
+    if (patch.status) onStatusChange?.(patch.status);
   };
 
   const handleDelete = async () => {
