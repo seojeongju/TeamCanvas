@@ -40,7 +40,11 @@ export function TasksPage() {
   const teams = teamsData?.teams ?? [];
   const projects = projectsData?.projects ?? [];
   const labels = labelsData?.labels ?? [];
-  const tasks = useMemo(() => filterTasks(allTasks, filters, userId), [allTasks, filters, userId]);
+  /** 상태 탭 건수용 — status 필터는 제외 (탭이 상태별로 나눠 보여 줌) */
+  const tasks = useMemo(
+    () => filterTasks(allTasks, { ...filters, status: undefined }, userId),
+    [allTasks, filters, userId],
+  );
   const summary = useMemo(() => computeTaskSummary(allTasks, userId), [allTasks, userId]);
   const hasTasks = allTasks.length > 0;
 
