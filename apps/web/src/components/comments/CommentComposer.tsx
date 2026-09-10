@@ -4,6 +4,7 @@ import { Button } from "../ui/Button";
 import { MentionTextarea } from "../ui/MentionTextarea";
 import { AttachmentPreviewChips } from "./CommentAttachments";
 import { useUploadEntityFile } from "../../hooks/useData";
+import { filesFromClipboardData, validateAttachmentFile } from "../../lib/attachmentLimits";
 import { cn } from "../../lib/cn";
 
 type Member = { id: string; name: string };
@@ -35,9 +36,15 @@ export function CommentComposer({
   const fileRef = useRef<HTMLInputElement>(null);
   const upload = useUploadEntityFile();
 
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
-    setPendingFiles((prev) => [...prev, ...Array.from(list)]);
+  const addFiles = (list: FileList | File[] | null) => {
+    if (!list || list.length === 0) return;
+    const incoming = list instanceof FileList ? Array.from(list) : list;
+    const accepted: File[] = [];
+    for (const file of incoming) {
+      if (validateAttachmentFile(file).ok) accepted.push(file);
+    }
+    if (accepted.length === 0) return;
+    setPendingFiles((prev) => [...prev, ...accepted]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,11 +81,10 @@ export function CommentComposer({
           placeholder={placeholder}
           rows={2}
           onPaste={(e) => {
-            const items = e.clipboardData?.files;
-            if (items?.length) {
-              e.preventDefault();
-              addFiles(items);
-            }
+            const pasted = filesFromClipboardData(e.clipboardData);
+            if (pasted.length === 0) return;
+            e.preventDefault();
+            addFiles(pasted);
           }}
         />
       ) : (
@@ -89,11 +95,10 @@ export function CommentComposer({
           rows={2}
           className="min-h-[44px] w-full resize-none rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2 text-sm text-navy-900 outline-none focus:border-primary-400"
           onPaste={(e) => {
-            const items = e.clipboardData?.files;
-            if (items?.length) {
-              e.preventDefault();
-              addFiles(items);
-            }
+            const pasted = filesFromClipboardData(e.clipboardData);
+            if (pasted.length === 0) return;
+            e.preventDefault();
+            addFiles(pasted);
           }}
         />
       )}

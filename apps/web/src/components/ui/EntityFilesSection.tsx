@@ -6,6 +6,7 @@ import { useDeleteEntityFile, useEntityFiles, useUploadEntityFile } from "../../
 import { ApiError } from "../../lib/api";
 import {
   ATTACHMENT_ACCEPT,
+  filesFromClipboardData,
   formatAttachmentSize,
   isImageMime,
   validateAttachmentFile,
@@ -20,18 +21,21 @@ export function EntityFilesSection({
   entityId: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
   const { data, isError, refetch } = useEntityFiles(entityType, entityId);
   const upload = useUploadEntityFile();
   const remove = useDeleteEntityFile();
   const files = data?.files ?? [];
   const [dragOver, setDragOver] = useState(false);
+  const [pasteFocus, setPasteFocus] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
-  const onPick = async (fileList: FileList | null) => {
-    if (!fileList?.length) return;
+  const onPick = async (picked: FileList | File[] | null) => {
+    if (!picked || picked.length === 0) return;
     setError(null);
-    for (const file of Array.from(fileList)) {
+    const list = picked instanceof FileList ? Array.from(picked) : picked;
+    for (const file of list) {
       const check = validateAttachmentFile(file);
       if (!check.ok) {
         setError(check.error);
@@ -57,8 +61,15 @@ export function EntityFilesSection({
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const onPaste = (e: React.ClipboardEvent) => {
+    const pasted = filesFromClipboardData(e.clipboardData);
+    if (pasted.length === 0) return;
+    e.preventDefault();
+    void onPick(pasted);
+  };
+
   return (
-    <div className="mt-4 border-t border-sky-100/80 pt-4">
+    <div className="mt-4 border-t border-sky-100/80 pt-4" onPaste={onPaste}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Paperclip className="h-4 w-4 text-navy-600" />
@@ -85,6 +96,14 @@ export function EntityFilesSection({
       </div>
 
       <div
+        ref={dropRef}
+        tabIndex={0}
+        role="button"
+        aria-label="파일 첨부 영역. 드래그하거나 Ctrl+V로 이미지를 붙여넣으세요"
+        onClick={() => dropRef.current?.focus()}
+        onFocus={() => setPasteFocus(true)}
+        onBlur={() => setPasteFocus(false)}
+        onPaste={onPaste}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -96,13 +115,13 @@ export function EntityFilesSection({
           void onPick(e.dataTransfer.files);
         }}
         className={cn(
-          "mb-3 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition",
-          dragOver
+          "mb-3 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition outline-none",
+          dragOver || pasteFocus
             ? "border-primary-400 bg-primary-400/5"
             : "border-sky-200/80 bg-sky-50/30 hover:border-sky-300",
         )}
       >
-        <p className="text-xs text-navy-500">파일·이미지를 여기에 놓거나 버튼으로 추가하세요</p>
+        <p className="text-xs text-navy-500">파일·이미지를 놓거나, 클릭 후 Ctrl+V로 붙여넣으세요</p>
         <p className="mt-1 text-[10px] text-navy-400">이미지, PDF, 문서, ZIP · 최대 25MB</p>
       </div>
 

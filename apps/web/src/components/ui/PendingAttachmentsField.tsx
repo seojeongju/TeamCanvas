@@ -1,8 +1,9 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { FileText, ImageIcon, Paperclip, Upload, X } from "lucide-react";
 import { cn } from "../../lib/cn";
 import {
   ATTACHMENT_ACCEPT,
+  filesFromClipboardData,
   formatAttachmentSize,
   isImageMime,
   validateAttachmentFile,
@@ -18,6 +19,7 @@ type Props = {
 
 /**
  * 생성 모달용 — 저장 전 로컬 파일 선택. 엔티티 생성 후 업로드한다.
+ * 드래그·파일 선택·Ctrl+V 붙여넣기 지원.
  */
 export function PendingAttachmentsField({
   files,
@@ -27,12 +29,15 @@ export function PendingAttachmentsField({
   disabled,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pasteFocus, setPasteFocus] = useState(false);
 
-  const addFiles = (list: FileList | null) => {
-    if (!list?.length) return;
+  const addFiles = (list: FileList | File[] | null) => {
+    if (!list || (list instanceof FileList ? list.length === 0 : list.length === 0)) return;
+    const incoming = list instanceof FileList ? Array.from(list) : list;
     const next = [...files];
     let lastError: string | null = null;
-    for (const file of Array.from(list)) {
+    for (const file of incoming) {
       const check = validateAttachmentFile(file);
       if (!check.ok) {
         lastError = check.error;
@@ -51,8 +56,16 @@ export function PendingAttachmentsField({
     onError?.(null);
   };
 
+  const onPaste = (e: React.ClipboardEvent) => {
+    if (disabled) return;
+    const pasted = filesFromClipboardData(e.clipboardData);
+    if (pasted.length === 0) return;
+    e.preventDefault();
+    addFiles(pasted);
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" onPaste={onPaste}>
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-1.5 text-sm font-medium text-navy-700">
           <Paperclip className="h-3.5 w-3.5" />
@@ -79,6 +92,16 @@ export function PendingAttachmentsField({
       </div>
 
       <div
+        ref={dropRef}
+        tabIndex={disabled ? -1 : 0}
+        role="button"
+        aria-label="파일 첨부 영역. 드래그하거나 Ctrl+V로 이미지를 붙여넣으세요"
+        onClick={() => {
+          if (!disabled) dropRef.current?.focus();
+        }}
+        onFocus={() => setPasteFocus(true)}
+        onBlur={() => setPasteFocus(false)}
+        onPaste={onPaste}
         onDragOver={(e) => {
           e.preventDefault();
         }}
@@ -87,12 +110,12 @@ export function PendingAttachmentsField({
           if (!disabled) addFiles(e.dataTransfer.files);
         }}
         className={cn(
-          "rounded-2xl border-2 border-dashed px-3 py-4 text-center transition",
-          "border-sky-200/80 bg-sky-50/30",
+          "rounded-2xl border-2 border-dashed px-3 py-4 text-center transition outline-none",
+          pasteFocus ? "border-primary-400 bg-primary-400/5" : "border-sky-200/80 bg-sky-50/30",
         )}
       >
-        <p className="text-xs text-navy-500">이미지·PDF·문서를 놓거나 추가하세요</p>
-        <p className="mt-0.5 text-[10px] text-navy-400">파일당 최대 25MB</p>
+        <p className="text-xs text-navy-500">이미지·PDF·문서를 놓거나 Ctrl+V로 붙여넣으세요</p>
+        <p className="mt-0.5 text-[10px] text-navy-400">파일당 최대 25MB · 영역을 클릭한 뒤 붙여넣기</p>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}

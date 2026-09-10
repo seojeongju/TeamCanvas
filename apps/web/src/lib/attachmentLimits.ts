@@ -56,3 +56,55 @@ export function validateAttachmentFile(file: File): { ok: true } | { ok: false; 
   }
   return { ok: true };
 }
+
+/** 스크린샷 등 이름 없는 붙여넣기 파일에 안전한 파일명 부여 */
+export function normalizePastedFile(file: File): File {
+  const hasRealName =
+    file.name &&
+    file.name !== "image.png" &&
+    file.name !== "image.jpg" &&
+    file.name !== "blob" &&
+    !/^image\.(png|jpe?g|gif|webp)$/i.test(file.name);
+
+  if (hasRealName) return file;
+
+  const mime = resolveAttachmentMime(file.name, file.type) ?? file.type ?? "image/png";
+  const ext =
+    mime === "image/jpeg"
+      ? "jpg"
+      : mime === "image/webp"
+        ? "webp"
+        : mime === "image/gif"
+          ? "gif"
+          : "png";
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace("T", "-")
+    .slice(0, 15);
+  return new File([file], `붙여넣기-${stamp}.${ext}`, { type: mime });
+}
+
+/** clipboard에서 첨부 가능한 파일(주로 이미지) 추출 */
+export function filesFromClipboardData(data: DataTransfer | null): File[] {
+  if (!data) return [];
+
+  const out: File[] = [];
+  const items = data.items;
+  if (items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind !== "file") continue;
+      const file = item.getAsFile();
+      if (file) out.push(normalizePastedFile(file));
+    }
+  }
+
+  if (out.length === 0 && data.files?.length) {
+    for (const file of Array.from(data.files)) {
+      out.push(normalizePastedFile(file));
+    }
+  }
+
+  return out;
+}
