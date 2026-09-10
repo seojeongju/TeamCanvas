@@ -1259,11 +1259,20 @@ app.get("/organizations/:orgId/tasks", async (c) => {
     };
   });
 
-  const { fetchLabelsForTasks } = await import("../utils/taskExtras");
-  const { fetchFileCountsForEntities } = await import("../utils/fileAttachments");
   const taskIds = tasks.map((t) => t.id as string);
-  const labelMap = await fetchLabelsForTasks(c.env.DB, taskIds);
-  const fileCountMap = await fetchFileCountsForEntities(c.env.DB, "task", taskIds);
+  let labelMap: Record<string, { id: string; name: string; color: string }[]> = {};
+  let fileCountMap: Record<string, number> = {};
+  try {
+    const { fetchLabelsForTasks } = await import("../utils/taskExtras");
+    const { fetchFileCountsForEntities } = await import("../utils/fileAttachments");
+    [labelMap, fileCountMap] = await Promise.all([
+      fetchLabelsForTasks(c.env.DB, taskIds),
+      fetchFileCountsForEntities(c.env.DB, "task", taskIds),
+    ]);
+  } catch (err) {
+    // 라벨/첨부 보강 실패해도 목록 자체는 내려준다 (D1 bind 한도 등)
+    console.error("tasks enrichment failed", err);
+  }
   const tasksWithLabels = tasks.map((t) => ({
     ...t,
     labels: labelMap[t.id as string] ?? [],

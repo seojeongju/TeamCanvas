@@ -1,3 +1,4 @@
+import { chunkIds } from "./d1Chunk";
 import { newId } from "./helpers";
 
 export const COMMENT_REACTION_EMOJIS = ["👍", "❤️", "😄", "🎉", "👀"] as const;
@@ -22,25 +23,27 @@ export async function fetchReactionsForComments(
 ): Promise<Record<string, ReactionSummary[]>> {
   if (commentIds.length === 0) return {};
 
-  const placeholders = commentIds.map(() => "?").join(",");
-  const { results } = await db
-    .prepare(
-      `SELECT comment_id, emoji, user_id FROM comment_reactions
-       WHERE entity_type = ? AND comment_id IN (${placeholders})`,
-    )
-    .bind(entityType, ...commentIds)
-    .all();
-
   const map = new Map<string, Map<string, { count: number; reactedByMe: boolean }>>();
 
-  for (const row of results ?? []) {
-    const r = row as { comment_id: string; emoji: string; user_id: string };
-    if (!map.has(r.comment_id)) map.set(r.comment_id, new Map());
-    const emojiMap = map.get(r.comment_id)!;
-    const entry = emojiMap.get(r.emoji) ?? { count: 0, reactedByMe: false };
-    entry.count += 1;
-    if (r.user_id === currentUserId) entry.reactedByMe = true;
-    emojiMap.set(r.emoji, entry);
+  for (const chunk of chunkIds(commentIds, 90)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const { results } = await db
+      .prepare(
+        `SELECT comment_id, emoji, user_id FROM comment_reactions
+         WHERE entity_type = ? AND comment_id IN (${placeholders})`,
+      )
+      .bind(entityType, ...chunk)
+      .all();
+
+    for (const row of results ?? []) {
+      const r = row as { comment_id: string; emoji: string; user_id: string };
+      if (!map.has(r.comment_id)) map.set(r.comment_id, new Map());
+      const emojiMap = map.get(r.comment_id)!;
+      const entry = emojiMap.get(r.emoji) ?? { count: 0, reactedByMe: false };
+      entry.count += 1;
+      if (r.user_id === currentUserId) entry.reactedByMe = true;
+      emojiMap.set(r.emoji, entry);
+    }
   }
 
   const out: Record<string, ReactionSummary[]> = {};

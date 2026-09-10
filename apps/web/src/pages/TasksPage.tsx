@@ -25,7 +25,7 @@ function firstNonEmptyStatus(tasks: Task[]): TaskStatus {
 
 export function TasksPage() {
   const userId = useAuthStore((s) => s.user?.id);
-  const { data } = useTasks();
+  const { data, isError, isFetching, refetch } = useTasks();
   const { data: teamsData } = useTeams();
   const { data: projectsData } = useProjects();
   const { data: labelsData } = useTaskLabels();
@@ -54,6 +54,7 @@ export function TasksPage() {
   );
   const summary = useMemo(() => computeTaskSummary(allTasks, userId), [allTasks, userId]);
   const hasTasks = allTasks.length > 0;
+  const loadFailed = isError && !hasTasks;
 
   const activeStatus = filters.status ?? "todo";
   const visibleCount = useMemo(
@@ -231,7 +232,22 @@ export function TasksPage() {
         )}
       </GlassCard>
 
-      {viewMode === "board" ? (
+      {loadFailed ? (
+        <GlassCard className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+          <p className="text-base font-semibold text-navy-900">업무 목록을 불러오지 못했습니다</p>
+          <p className="max-w-[260px] text-sm text-navy-600">
+            네트워크 상태 확인 후 다시 시도해 주세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            className="mt-1 rounded-xl bg-primary-400 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500 disabled:opacity-60"
+          >
+            {isFetching ? "다시 불러오는 중..." : "다시 시도"}
+          </button>
+        </GlassCard>
+      ) : viewMode === "board" ? (
         <TaskBoardView
           tasks={scopedTasks}
           onOpen={setSelectedTask}
