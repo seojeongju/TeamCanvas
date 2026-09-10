@@ -2855,10 +2855,11 @@ app.post("/organizations/:orgId/files", async (c) => {
   const accessErr = await assertEntityFileAccess(c, user.id, orgId, entityType, entityId, "write");
   if (accessErr) return accessErr;
 
-  const { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME_TYPES, attachmentExtension, attachmentKey } =
+  const { ATTACHMENT_MAX_BYTES, attachmentExtension, attachmentKey, resolveAttachmentMime } =
     await import("../utils/storage");
 
-  if (!ATTACHMENT_MIME_TYPES.has(file.type)) {
+  const mimeType = resolveAttachmentMime(file.name, file.type);
+  if (!mimeType) {
     return c.json({ error: "Unsupported file type" }, 400);
   }
   if (file.size > ATTACHMENT_MAX_BYTES) {
@@ -2866,24 +2867,24 @@ app.post("/organizations/:orgId/files", async (c) => {
   }
 
   const fileId = newId();
-  const ext = attachmentExtension(file.name, file.type);
+  const ext = attachmentExtension(file.name, mimeType);
   const key = attachmentKey(orgId, entityType, entityId, fileId, ext);
   const bytes = await file.arrayBuffer();
 
-  await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: file.type } });
+  await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: mimeType } });
 
   const ts = now();
   await c.env.DB.prepare(
     `INSERT INTO files (id, organization_id, uploader_id, r2_key, filename, mime_type, size_bytes, entity_type, entity_id, comment_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(fileId, orgId, user.id, key, file.name, file.type, file.size, entityType, entityId, commentId, ts)
+    .bind(fileId, orgId, user.id, key, file.name, mimeType, file.size, entityType, entityId, commentId, ts)
     .run();
 
   const { bumpOrgSyncSafe } = await import("../utils/orgSync");
   await bumpOrgSyncSafe(c.env, orgId, ["files", "tasks", "projects", "activity"]);
 
-  return c.json({ id: fileId, filename: file.name, mimeType: file.type, sizeBytes: file.size }, 201);
+  return c.json({ id: fileId, filename: file.name, mimeType, sizeBytes: file.size }, 201);
 });
 
 app.get("/files/:fileId", async (c) => {

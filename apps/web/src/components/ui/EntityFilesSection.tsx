@@ -3,17 +3,14 @@ import { FileText, ImageIcon, Paperclip, Trash2, Upload } from "lucide-react";
 import { Button } from "./Button";
 import { ImageLightbox } from "./ImageLightbox";
 import { useDeleteEntityFile, useEntityFiles, useUploadEntityFile } from "../../hooks/useData";
+import { ApiError } from "../../lib/api";
+import {
+  ATTACHMENT_ACCEPT,
+  formatAttachmentSize,
+  isImageMime,
+  validateAttachmentFile,
+} from "../../lib/attachmentLimits";
 import { cn } from "../../lib/cn";
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function isImageMime(mimeType: string) {
-  return mimeType.startsWith("image/");
-}
 
 export function EntityFilesSection({
   entityType,
@@ -23,17 +20,39 @@ export function EntityFilesSection({
   entityId: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { data } = useEntityFiles(entityType, entityId);
+  const { data, isError, refetch } = useEntityFiles(entityType, entityId);
   const upload = useUploadEntityFile();
   const remove = useDeleteEntityFile();
   const files = data?.files ?? [];
   const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   const onPick = async (fileList: FileList | null) => {
     if (!fileList?.length) return;
+    setError(null);
     for (const file of Array.from(fileList)) {
-      await upload.mutateAsync({ entityType, entityId, file });
+      const check = validateAttachmentFile(file);
+      if (!check.ok) {
+        setError(check.error);
+        continue;
+      }
+      try {
+        await upload.mutateAsync({ entityType, entityId, file });
+      } catch (err) {
+        const message =
+          err instanceof ApiError
+            ? err.message === "Unsupported file type"
+              ? "지원하지 않는 파일 형식입니다."
+              : err.message.includes("25MB")
+                ? "파일은 25MB 이하여야 합니다."
+                : err.status === 402
+                  ? "현재 플랜에서 파일 저장을 사용할 수 없습니다."
+                  : err.message
+            : "업로드에 실패했습니다.";
+        setError(message);
+        break;
+      }
     }
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -60,8 +79,8 @@ export function EntityFilesSection({
           type="file"
           className="hidden"
           multiple
-          accept="image/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.zip"
-          onChange={(e) => onPick(e.target.files)}
+          accept={ATTACHMENT_ACCEPT}
+          onChange={(e) => void onPick(e.target.files)}
         />
       </div>
 
@@ -84,8 +103,18 @@ export function EntityFilesSection({
         )}
       >
         <p className="text-xs text-navy-500">파일·이미지를 여기에 놓거나 버튼으로 추가하세요</p>
-        <p className="mt-1 text-[10px] text-navy-400">PDF, 이미지, 문서 · 최대 25MB</p>
+        <p className="mt-1 text-[10px] text-navy-400">이미지, PDF, 문서, ZIP · 최대 25MB</p>
       </div>
+
+      {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
+      {isError && (
+        <p className="mb-2 text-xs text-red-600">
+          첨부 목록을 불러오지 못했습니다.{" "}
+          <button type="button" className="underline" onClick={() => void refetch()}>
+            다시 시도
+          </button>
+        </p>
+      )}
 
       {files.length === 0 ? (
         <p className="text-xs text-navy-500">아직 첨부된 파일이 없습니다.</p>
@@ -134,7 +163,9 @@ export function EntityFilesSection({
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <p className="px-2 pb-2 text-[10px] text-navy-400">{formatSize(f.sizeBytes)}</p>
+                <p className="px-2 pb-2 text-[10px] text-navy-400">
+                  {formatAttachmentSize(f.sizeBytes)}
+                </p>
               </div>
             );
           })}

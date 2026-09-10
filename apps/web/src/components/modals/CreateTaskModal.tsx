@@ -3,12 +3,14 @@ import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { LabelPillPicker } from "../ui/LabelPillPicker";
+import { PendingAttachmentsField } from "../ui/PendingAttachmentsField";
 import {
   useCreateTask,
   useCreateTaskLabel,
   useDeleteTaskLabel,
   useTaskLabels,
   useTeams,
+  useUploadEntityFile,
 } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { useAuthStore } from "../../stores/authStore";
@@ -32,6 +34,7 @@ export function CreateTaskModal({
   defaultTeamId = null,
 }: CreateTaskModalProps) {
   const createTask = useCreateTask();
+  const uploadFile = useUploadEntityFile();
   const { data: labelsData } = useTaskLabels();
   const createLabel = useCreateTaskLabel();
   const deleteLabel = useDeleteTaskLabel();
@@ -47,6 +50,9 @@ export function CreateTaskModal({
   const [teamId, setTeamId] = useState("");
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
   const [labelIds, setLabelIds] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const members = membersData?.members ?? [];
   const teams = teamsData?.teams ?? [];
@@ -58,26 +64,15 @@ export function CreateTaskModal({
       setAssigneeId(userId ?? "");
       setTeamId(defaultTeamId ?? "");
       setLabelIds([]);
+      setPendingFiles([]);
+      setAttachError(null);
     }
   }, [open, defaultStatus, defaultTeamId, userId]);
 
   const selectClass =
     "min-h-12 w-full rounded-2xl border border-sky-200/80 bg-white/80 px-4 text-[15px] text-navy-800 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    await createTask.mutateAsync({
-      title: title.trim(),
-      status,
-      description: description.trim() || undefined,
-      dueAt: dueDate ? new Date(dueDate).getTime() : undefined,
-      assigneeId: assigneeId || undefined,
-      priority,
-      teamId: teamId || null,
-      projectId: defaultProjectId,
-      labelIds: labelIds.length > 0 ? labelIds : undefined,
-    });
+  const resetForm = () => {
     setTitle("");
     setDescription("");
     setDueDate("");
@@ -85,12 +80,51 @@ export function CreateTaskModal({
     setPriority("medium");
     setTeamId("");
     setLabelIds([]);
-    onClose();
+    setPendingFiles([]);
+    setAttachError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || saving) return;
+    setSaving(true);
+    try {
+      const created = await createTask.mutateAsync({
+        title: title.trim(),
+        status,
+        description: description.trim() || undefined,
+        dueAt: dueDate ? new Date(dueDate).getTime() : undefined,
+        assigneeId: assigneeId || undefined,
+        priority,
+        teamId: teamId || null,
+        projectId: defaultProjectId,
+        labelIds: labelIds.length > 0 ? labelIds : undefined,
+      });
+
+      for (const file of pendingFiles) {
+        try {
+          await uploadFile.mutateAsync({
+            entityType: "task",
+            entityId: created.id,
+            file,
+          });
+        } catch {
+          setAttachError(
+            "업무는 저장됐지만 일부 첨부 업로드에 실패했습니다. 상세에서 다시 추가해 주세요.",
+          );
+        }
+      }
+
+      resetForm();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal open={open} onClose={onClose} title="업무 추가">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <LabelPillPicker
           title="라벨"
           labels={labels}
@@ -123,6 +157,14 @@ export function CreateTaskModal({
             className={cn(selectClass, "min-h-[72px] resize-none py-3")}
           />
         </div>
+
+        <PendingAttachmentsField
+          files={pendingFiles}
+          onChange={setPendingFiles}
+          error={attachError}
+          onError={setAttachError}
+          disabled={saving}
+        />
 
         <Input
           label="마감일 (선택)"
@@ -172,8 +214,8 @@ export function CreateTaskModal({
           </div>
         )}
 
-        <Button type="submit" fullWidth disabled={createTask.isPending}>
-          {createTask.isPending ? "저장 중..." : "업무 저장"}
+        <Button type="submit" fullWidth disabled={saving || createTask.isPending}>
+          {saving ? "저장 중..." : "업무 저장"}
         </Button>
       </form>
     </Modal>

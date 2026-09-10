@@ -3,7 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import { useCreateProjectFromTemplate, useOrgProjectTemplates, useTeams } from "../../hooks/useData";
+import { PendingAttachmentsField } from "../ui/PendingAttachmentsField";
+import {
+  useCreateProjectFromTemplate,
+  useOrgProjectTemplates,
+  useTeams,
+  useUploadEntityFile,
+} from "../../hooks/useData";
 import { PROJECT_COLORS, PROJECT_STATUS_OPTIONS } from "../../lib/projectUtils";
 import { listBuiltinTemplates, resolveProjectTemplate } from "../../lib/projectTemplates";
 import { cn } from "../../lib/cn";
@@ -27,6 +33,7 @@ type Props = {
 export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const navigate = useNavigate();
   const createFromTemplate = useCreateProjectFromTemplate();
+  const uploadFile = useUploadEntityFile();
   const { data: teamsData } = useTeams();
   const { data: orgTemplatesData } = useOrgProjectTemplates();
   const teams = teamsData?.teams ?? [];
@@ -53,6 +60,9 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const [endDate, setEndDate] = useState("");
   const [templateId, setTemplateId] = useState("builtin:blank");
   const [shareWithOrganization, setShareWithOrganization] = useState(true);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const selectedTemplate = useMemo(
     () => resolveProjectTemplate(templateId, orgTemplates),
@@ -69,6 +79,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
     setEndDate("");
     setTemplateId("builtin:blank");
     setShareWithOrganization(true);
+    setPendingFiles([]);
+    setAttachError(null);
   };
 
   const handleClose = () => {
@@ -78,30 +90,50 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
+    setSaving(true);
 
-    const startAt = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
-    const endAt = endDate ? new Date(`${endDate}T23:59:59`).getTime() : null;
+    try {
+      const startAt = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null;
+      const endAt = endDate ? new Date(`${endDate}T23:59:59`).getTime() : null;
 
-    const result = await createFromTemplate.mutateAsync({
-      templateId,
-      name: name.trim(),
-      description: description.trim() || undefined,
-      status,
-      color,
-      teamId: teamId || null,
-      startAt,
-      endAt,
-      visibility: shareWithOrganization ? "organization" : "members",
-    });
+      const result = await createFromTemplate.mutateAsync({
+        templateId,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        status,
+        color,
+        teamId: teamId || null,
+        startAt,
+        endAt,
+        visibility: shareWithOrganization ? "organization" : "members",
+      });
 
-    handleClose();
-    onCreated?.(result.id);
+      for (const file of pendingFiles) {
+        try {
+          await uploadFile.mutateAsync({
+            entityType: "project",
+            entityId: result.id,
+            file,
+          });
+        } catch {
+          setAttachError(
+            "프로젝트는 저장됐지만 일부 첨부 업로드에 실패했습니다. 상세에서 다시 추가해 주세요.",
+          );
+        }
+      }
+
+      handleClose();
+      onCreated?.(result.id);
+      navigate(`/projects/${result.id}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal open={open} onClose={handleClose} title="프로젝트 추가">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <Input
           label="프로젝트 이름"
           placeholder="예: Q2 웹사이트 리뉴얼"
@@ -121,6 +153,14 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
             className={cn(selectClass, "min-h-[72px] resize-none py-3")}
           />
         </div>
+
+        <PendingAttachmentsField
+          files={pendingFiles}
+          onChange={setPendingFiles}
+          error={attachError}
+          onError={setAttachError}
+          disabled={saving}
+        />
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
@@ -242,8 +282,8 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
           <Input label="종료일 (선택)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
 
-        <Button type="submit" fullWidth disabled={createFromTemplate.isPending}>
-          {createFromTemplate.isPending ? "생성 중..." : "프로젝트 저장"}
+        <Button type="submit" fullWidth disabled={saving || createFromTemplate.isPending}>
+          {saving ? "생성 중..." : "프로젝트 저장"}
         </Button>
       </form>
     </Modal>

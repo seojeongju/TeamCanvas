@@ -1296,11 +1296,13 @@ export function useUploadEntityFile() {
       qc.invalidateQueries({ queryKey: entityFilesKey(vars.entityType, vars.entityId) });
       if (vars.entityType === "task") {
         qc.invalidateQueries({ queryKey: ["task-comments", vars.entityId] });
+        qc.invalidateQueries({ queryKey: ["tasks", orgId] });
       }
       if (vars.entityType === "project") {
         qc.invalidateQueries({ queryKey: ["project-comments", vars.entityId] });
+        qc.invalidateQueries({ queryKey: ["projects", orgId] });
+        qc.invalidateQueries({ queryKey: ["project", vars.entityId] });
       }
-      qc.invalidateQueries({ queryKey: ["tasks", orgId] });
     },
   });
 }
