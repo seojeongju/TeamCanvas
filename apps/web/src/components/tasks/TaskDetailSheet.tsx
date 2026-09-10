@@ -137,62 +137,67 @@ export function TaskDetailSheet({ task, onClose, onEdit, onStatusChange }: TaskD
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
       <button className="absolute inset-0 bg-navy-900/30 backdrop-blur-sm" onClick={onClose} aria-label="닫기" />
       <div className="glass-strong relative z-10 flex w-full max-w-lg max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl shadow-soft sm:max-h-[85vh] sm:rounded-3xl safe-bottom">
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-4">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <h2 className="text-lg font-bold text-navy-900">업무 상세</h2>
-          <div className="flex items-center gap-1">
-            {canWrite && (
+        {/* 고정 헤더: 제목 + 액션 */}
+        <div className="shrink-0 border-b border-sky-100/80 bg-white/95 px-6 pb-3 pt-6 backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-bold text-navy-900">업무 상세</h2>
+            <div className="flex items-center gap-1">
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={() => void handleDuplicate()}
+                  disabled={duplicateTask.isPending}
+                  className="flex h-10 items-center gap-1 rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-sky-100/60 disabled:opacity-60"
+                >
+                  <Copy className="h-4 w-4" />
+                  {duplicateTask.isPending ? "복사 중..." : "복사"}
+                </button>
+              )}
+              {canWrite && onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(task)}
+                  className="flex h-10 items-center gap-1 rounded-xl px-3 text-xs font-medium text-primary-600 hover:bg-primary-400/10"
+                >
+                  <Pencil className="h-4 w-4" />
+                  수정
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => void handleDuplicate()}
-                disabled={duplicateTask.isPending}
-                className="flex h-10 items-center gap-1 rounded-xl px-3 text-xs font-medium text-navy-700 hover:bg-sky-100/60 disabled:opacity-60"
+                onClick={onClose}
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-navy-600 hover:bg-sky-100/60"
               >
-                <Copy className="h-4 w-4" />
-                {duplicateTask.isPending ? "복사 중..." : "복사"}
+                <X className="h-5 w-5" />
               </button>
-            )}
-            {canWrite && onEdit && (
+            </div>
+          </div>
+
+          {/* 고정 상태 탭 */}
+          <div className="mt-3 flex gap-1.5">
+            {TASK_COLUMNS.map((col) => (
               <button
+                key={col.id}
                 type="button"
-                onClick={() => onEdit(task)}
-                className="flex h-10 items-center gap-1 rounded-xl px-3 text-xs font-medium text-primary-600 hover:bg-primary-400/10"
+                onClick={() => {
+                  setStatus(col.id);
+                  save({ status: col.id });
+                }}
+                className={cn(
+                  "flex-1 rounded-xl py-2 text-xs font-medium transition",
+                  status === col.id
+                    ? "bg-primary-400 text-white shadow-glow"
+                    : "bg-sky-100/60 text-navy-600 hover:bg-sky-100",
+                )}
               >
-                <Pencil className="h-4 w-4" />
-                수정
+                {col.label}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-navy-600 hover:bg-sky-100/60"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            ))}
           </div>
         </div>
 
-        <div className="mb-4 flex gap-1.5">
-          {TASK_COLUMNS.map((col) => (
-            <button
-              key={col.id}
-              type="button"
-              onClick={() => {
-                setStatus(col.id);
-                save({ status: col.id });
-              }}
-              className={cn(
-                "flex-1 rounded-xl py-2 text-xs font-medium transition",
-                status === col.id
-                  ? "bg-primary-400 text-white shadow-glow"
-                  : "bg-sky-100/60 text-navy-600 hover:bg-sky-100",
-              )}
-            >
-              {col.label}
-            </button>
-          ))}
-        </div>
-
+        {/* 스크롤 본문 */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
         <div className="space-y-4">
           <Input
             label="제목"
