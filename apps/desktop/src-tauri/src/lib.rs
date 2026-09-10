@@ -1,3 +1,5 @@
+mod updater;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -16,10 +18,14 @@ fn show_main_window(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let show_i = MenuItem::with_id(app, "show", "열기", true, None::<&str>)?;
+            let update_i =
+                MenuItem::with_id(app, "check_update", "업데이트 확인", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+            let menu = Menu::with_items(app, &[&show_i, &update_i, &quit_i])?;
 
             let icon = app
                 .default_window_icon()
@@ -33,6 +39,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => show_main_window(app),
+                    "check_update" => updater::manual_check(app),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -47,6 +54,13 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                // 시작 직후 네트워크/창 준비 여유
+                std::thread::sleep(std::time::Duration::from_secs(4));
+                updater::maybe_auto_check(handle);
+            });
 
             Ok(())
         })

@@ -10,6 +10,9 @@
     "core:default",
     "core:tray:default",
     "core:menu:default",
+    "core:path:default",
+    "dialog:default",
+    "notification:default",
     "opener:default"
   ]
 }

@@ -37,7 +37,19 @@ npm run desktop:publish-download   # 웹 홈 다운로드용으로 public/downlo
 ```
 
 산출물: `src-tauri/target/release/bundle/` (`nsis` / `msi`)  
-웹 다운로드 URL: `/downloads/TeamCanvas-Setup.exe` (홈 · 앱 설정에서 제공)
+## 업데이트 알림
+
+설치형 앱은 시작 시(하루 1회) 및 트레이 메뉴 **업데이트 확인**으로
+`https://teamcanvas.pages.dev/downloads/latest.json` 을 조회합니다.
+
+새 버전이 있으면 Windows 알림 + 확인 대화상자가 뜨고, 동의하면 설치 파일을
+받아 실행합니다.
+
+```bash
+npm run desktop:build
+npm run desktop:publish-download -- -Notes "변경 요약"
+# 이후 웹 배포(npm run deploy 또는 pages deploy)로 latest.json / Setup.exe 공개
+```
 
 ## 루트에서
 

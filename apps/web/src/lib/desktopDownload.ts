@@ -1,6 +1,6 @@
 /** Windows 데스크톱 설치 파일 다운로드 설정 */
 
-export const DESKTOP_APP_VERSION = "0.1.0";
+export const DESKTOP_APP_VERSION = "0.1.1";
 
 /** 안정적인 공개 경로 (Vite public → Pages 루트) */
 export const DESKTOP_SETUP_PATH = "/downloads/TeamCanvas-Setup.exe";
