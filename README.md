@@ -97,10 +97,20 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
 TeamCanvas/
 ├── apps/web/          # React PWA (Vite + Tailwind + TanStack Query)
+├── apps/desktop/      # Windows 데스크톱 셸 (Tauri · 닫기→트레이)
 ├── functions/         # Cloudflare Pages Functions (Hono)
 ├── migrations/        # D1 SQL 마이그레이션
 ├── docs/              # PRD, 개발계획, 디자인 시스템
 └── wrangler.jsonc
+```
+
+### Windows 데스크톱 앱 (트레이 상주)
+
+창의 X를 눌러도 종료되지 않고 시스템 트레이로 숨깁니다. 자세한 내용은 [`apps/desktop/README.md`](apps/desktop/README.md).
+
+```bash
+npm run desktop:dev     # 개발 실행
+npm run desktop:build   # 설치 파일 빌드 (nsis/msi)
 ```
 
 ## Cloudflare 배포

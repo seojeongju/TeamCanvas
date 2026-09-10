@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "TeamCanvas desktop shell capabilities",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://teamcanvas.pages.dev", "https://*.teamcanvas.pages.dev"]
+  },
+  "permissions": [
+    "core:default",
+    "core:tray:default",
+    "core:menu:default",
+    "opener:default"
+  ]
+}
