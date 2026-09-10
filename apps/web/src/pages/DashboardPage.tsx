@@ -15,6 +15,7 @@ import { DashboardWidgetSettingsModal } from "../components/dashboard/DashboardW
 import { MyTasksCard } from "../components/dashboard/MyTasksCard";
 import { ProjectsOverviewCard } from "../components/dashboard/ProjectsOverviewCard";
 import { TeamFlowCard } from "../components/dashboard/TeamFlowCard";
+import { DesktopDownloadCard } from "../components/dashboard/DesktopDownloadCard";
 import { WeekMilestonesCard } from "../components/dashboard/WeekMilestonesCard";
 import { TodayEventsList } from "../components/calendar/TodayEventsList";
 import { CreateEventModal } from "../components/modals/CreateEventModal";
@@ -306,6 +307,8 @@ export function DashboardPage() {
           setShowCreate(true);
         }}
       />
+
+      <DesktopDownloadCard />
 
       <DashboardStatusFilterBar
         filters={statusFilters}

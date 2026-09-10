@@ -1,3 +1,7 @@
+/downloads/*
+  Cache-Control: public, max-age=3600
+  X-Content-Type-Options: nosniff
+
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
   CDN-Cache-Control: no-store

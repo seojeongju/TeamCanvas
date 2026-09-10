@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { Bell, RefreshCw, Smartphone } from "lucide-react";
+import { Bell, Monitor, RefreshCw, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { PwaInstallPanel } from "../../components/layout/PwaInstallPanel";
+import { DesktopDownloadCard } from "../../components/dashboard/DesktopDownloadCard";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { ToastMessage } from "../../components/ui/ToastMessage";
 import { usePwaInstall } from "../../hooks/usePwaInstall";
 import { clearInstallBannerDismiss } from "../../lib/pwaInstall";
 import { applyPwaUpdate, checkForPwaUpdate } from "../../lib/pwaUpdate";
+import { isDesktopShell } from "../../lib/desktopDownload";
 
 export function AppSettingsPage() {
   const navigate = useNavigate();
@@ -71,6 +73,16 @@ export function AppSettingsPage() {
           installPending={pending}
         />
       </section>
+
+      {!isDesktopShell() && (
+        <section className="space-y-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-navy-800">
+            <Monitor className="h-4 w-4 text-primary-500" />
+            Windows 데스크톱
+          </h2>
+          <DesktopDownloadCard compact />
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-navy-800">

@@ -24,7 +24,8 @@
     "cf:secrets:github": "powershell -ExecutionPolicy Bypass -File scripts/setup-github-secrets.ps1",
     "desktop:dev": "npm run desktop:dev --prefix apps/desktop",
     "desktop:build": "npm run desktop:build --prefix apps/desktop",
-    "desktop:icons": "npm run icons --prefix apps/desktop"
+    "desktop:icons": "npm run icons --prefix apps/desktop",
+    "desktop:publish-download": "powershell -ExecutionPolicy Bypass -File scripts/publish-desktop-download.ps1"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

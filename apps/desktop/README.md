@@ -33,9 +33,11 @@ npm run desktop:dev    # 개발 실행
 
 ```bash
 npm run desktop:build
+npm run desktop:publish-download   # 웹 홈 다운로드용으로 public/downloads 에 복사
 ```
 
-산출물: `src-tauri/target/release/bundle/` (`nsis` / `msi`)
+산출물: `src-tauri/target/release/bundle/` (`nsis` / `msi`)  
+웹 다운로드 URL: `/downloads/TeamCanvas-Setup.exe` (홈 · 앱 설정에서 제공)
 
 ## 루트에서
 

@@ -111,6 +111,7 @@ TeamCanvas/
 ```bash
 npm run desktop:dev     # 개발 실행
 npm run desktop:build   # 설치 파일 빌드 (nsis/msi)
+npm run desktop:publish-download  # 홈 다운로드용으로 복사
 ```
 
 ## Cloudflare 배포
