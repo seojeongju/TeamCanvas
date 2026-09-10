@@ -84,6 +84,9 @@ export function filterTasks(tasks: Task[], filters: TaskFilters, userId?: string
   return tasks.filter((task) => {
     if (filters.assignee === "me" && userId && task.assigneeId !== userId) return false;
     if (filters.teamId && task.teamId !== filters.teamId) return false;
+    if (filters.scopeTeamIds && filters.scopeTeamIds.length > 0) {
+      if (!task.teamId || !filters.scopeTeamIds.includes(task.teamId)) return false;
+    }
     if (filters.status && task.status !== filters.status) return false;
     if (filters.overdue && !task.isOverdue) return false;
     if (filters.dueToday) {

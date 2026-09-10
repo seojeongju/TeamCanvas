@@ -24,6 +24,8 @@ export function filterProjectsList(
   opts: {
     status?: string;
     teamId?: string;
+    /** 팀별 보기: 특정 팀 미선택 시 소속 팀으로 제한 */
+    scopeTeamIds?: string[];
     mineOnly?: boolean;
     userId?: string;
     query?: string;
@@ -35,6 +37,8 @@ export function filterProjectsList(
   }
   if (opts.teamId) {
     list = list.filter((p) => p.teamId === opts.teamId);
+  } else if (opts.scopeTeamIds && opts.scopeTeamIds.length > 0) {
+    list = list.filter((p) => !!p.teamId && opts.scopeTeamIds!.includes(p.teamId));
   }
   if (opts.mineOnly && opts.userId) {
     list = list.filter((p) => p.ownerId === opts.userId || p.isOwner);

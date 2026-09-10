@@ -1,4 +1,5 @@
 import { cn } from "../../lib/cn";
+import type { WorkScopeMode } from "../../lib/workScope";
 import type { TaskFilters } from "../../lib/types";
 
 interface TaskSummaryBarProps {
@@ -7,39 +8,40 @@ interface TaskSummaryBarProps {
   mine: number;
   doing: number;
   filters?: TaskFilters;
+  scopeMode?: WorkScopeMode;
   onFilterChange?: (filters: TaskFilters) => void;
+  onScopeChange?: (mode: WorkScopeMode) => void;
 }
 
 type StatKey = "dueToday" | "overdue" | "mine" | "doing";
 
-/** 팀/라벨/프로젝트 선택만 유지 */
-function preservedScope(filters: TaskFilters): Pick<TaskFilters, "teamId" | "labelId" | "projectId"> {
+function preservedScope(
+  filters: TaskFilters,
+): Pick<TaskFilters, "teamId" | "labelId" | "projectId" | "scopeTeamIds" | "assignee"> {
   return {
     teamId: filters.teamId,
     labelId: filters.labelId,
     projectId: filters.projectId,
+    scopeTeamIds: filters.scopeTeamIds,
+    assignee: filters.assignee,
   };
 }
 
 function isDueTodayActive(f: TaskFilters) {
-  return !!f.dueToday && !f.overdue && f.assignee !== "me" && !f.status;
+  return !!f.dueToday && !f.overdue && !f.status;
 }
 
 function isOverdueActive(f: TaskFilters) {
-  return !!f.overdue && !f.dueToday && f.assignee !== "me" && !f.status;
-}
-
-function isMineActive(f: TaskFilters) {
-  return f.assignee === "me" && !f.overdue && !f.dueToday && !f.status;
+  return !!f.overdue && !f.dueToday && !f.status;
 }
 
 function isDoingActive(f: TaskFilters) {
-  return f.status === "doing" && !f.overdue && !f.dueToday && f.assignee !== "me";
+  return f.status === "doing" && !f.overdue && !f.dueToday;
 }
 
 /**
  * 전체 현황 바로가기 — 조직 전체 건수 기준.
- * 클릭 시 해당 보기만 단독 적용 (범위 필터의 상태 탭과 역할이 다름).
+ * 「내 업무」는 상단 보기 범위(내 업무)로 전환.
  */
 export function TaskSummaryBar({
   dueToday,
@@ -47,7 +49,9 @@ export function TaskSummaryBar({
   mine,
   doing,
   filters,
+  scopeMode,
   onFilterChange,
+  onScopeChange,
 }: TaskSummaryBarProps) {
   const items: {
     key: StatKey;
@@ -75,7 +79,7 @@ export function TaskSummaryBar({
       label: "내 업무",
       value: mine,
       accent: "text-primary-600",
-      active: !!filters && isMineActive(filters),
+      active: scopeMode === "mine",
     },
     {
       key: "doing",
@@ -94,7 +98,6 @@ export function TaskSummaryBar({
       case "dueToday":
         onFilterChange({
           ...scope,
-          assignee: "all",
           dueToday: !isDueTodayActive(filters),
           overdue: false,
           status: undefined,
@@ -103,25 +106,17 @@ export function TaskSummaryBar({
       case "overdue":
         onFilterChange({
           ...scope,
-          assignee: "all",
           overdue: !isOverdueActive(filters),
           dueToday: false,
           status: undefined,
         });
         break;
       case "mine":
-        onFilterChange({
-          ...scope,
-          assignee: isMineActive(filters) ? "all" : "me",
-          overdue: false,
-          dueToday: false,
-          status: undefined,
-        });
+        onScopeChange?.(scopeMode === "mine" ? "all" : "mine");
         break;
       case "doing":
         onFilterChange({
           ...scope,
-          assignee: "all",
           status: isDoingActive(filters) ? undefined : "doing",
           overdue: false,
           dueToday: false,

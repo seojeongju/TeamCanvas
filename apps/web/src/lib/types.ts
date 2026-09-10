@@ -641,6 +641,8 @@ export type TaskActivity = {
 export type TaskFilters = {
   assignee?: "me" | "all";
   teamId?: string;
+  /** 팀별 보기: 특정 팀 미선택 시 소속 팀 ID 목록으로 제한 (클라이언트 전용) */
+  scopeTeamIds?: string[];
   projectId?: string;
   status?: TaskStatus;
   overdue?: boolean;

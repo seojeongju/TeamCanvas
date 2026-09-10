@@ -22,6 +22,11 @@ import {
   projectStatusTone,
   type ProjectViewMode,
 } from "../lib/projectUtils";
+import {
+  getProjectsScopeMode,
+  saveProjectsScopeMode,
+  type WorkScopeMode,
+} from "../lib/workScope";
 import { cn } from "../lib/cn";
 import {
   projectWorkTone,
@@ -91,19 +96,18 @@ export function ProjectsPage() {
   const [teamFilter, setTeamFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [statusReady, setStatusReady] = useState(false);
+  const [scopeMode, setScopeMode] = useState<WorkScopeMode>(() => getProjectsScopeMode());
   const projectFilters = useMemo(() => {
     const f: import("../lib/types").ProjectFilters = {};
-    if (teamFilter) f.teamId = teamFilter;
     if (statusFilter !== "all") f.status = statusFilter;
     return Object.keys(f).length > 0 ? f : undefined;
-  }, [teamFilter, statusFilter]);
+  }, [statusFilter]);
   const { data, isLoading } = useProjects(projectFilters);
   const updateProject = useUpdateProject();
   const canWrite = useHasPermission("projects:write");
   const [viewMode, setViewMode] = useState<ProjectViewMode>("list");
   const [showCreate, setShowCreate] = useState(false);
   const [sortKey, setSortKey] = useState<ProjectSortKey>("updated");
-  const [mineOnly, setMineOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -134,18 +138,30 @@ export function ProjectsPage() {
   }, [statusFilter, statusReady, setSearchParams]);
 
   const teams = teamsData?.teams ?? [];
+  const myTeamIds = useMemo(() => teams.map((t) => t.id), [teams]);
   const projects = data?.projects ?? [];
   const filtered = useMemo(() => {
     const list = filterProjectsList(projects, {
       status: statusFilter,
-      mineOnly,
+      teamId: teamFilter || undefined,
+      scopeTeamIds: scopeMode === "team" && !teamFilter ? myTeamIds : undefined,
+      mineOnly: scopeMode === "mine",
       userId,
       query: searchQuery,
     });
     return sortProjects(list, sortKey);
-  }, [projects, statusFilter, mineOnly, userId, searchQuery, sortKey]);
+  }, [projects, statusFilter, teamFilter, scopeMode, myTeamIds, userId, searchQuery, sortKey]);
 
-  const listResetKey = `${statusFilter}-${teamFilter}-${sortKey}-${mineOnly}-${searchQuery}`;
+  const scopeSubtitle =
+    scopeMode === "mine" ? "내 프로젝트" : scopeMode === "team" ? "팀별 프로젝트" : "전체 프로젝트";
+
+  const handleScopeChange = (mode: WorkScopeMode) => {
+    setScopeMode(mode);
+    saveProjectsScopeMode(mode);
+    if (mode !== "team") setTeamFilter("");
+  };
+
+  const listResetKey = `${statusFilter}-${teamFilter}-${sortKey}-${scopeMode}-${searchQuery}`;
   const {
     visible: visibleProjects,
     page: listPage,
@@ -168,7 +184,11 @@ export function ProjectsPage() {
     <div className="space-y-3 pb-4">
       <PageHeader
         title="프로젝트"
-        subtitle={projects.length > 0 ? `총 ${projects.length}개` : "팀 프로젝트를 계획하고 추적하세요"}
+        subtitle={
+          projects.length > 0
+            ? `총 ${projects.length}개 · ${scopeSubtitle}`
+            : "팀 프로젝트를 계획하고 추적하세요"
+        }
         action={
           canWrite ? (
             <div className="flex items-center gap-1.5">
@@ -195,19 +215,17 @@ export function ProjectsPage() {
         }
       />
 
-      {projects.length > 0 && (
-        <ProjectListFilters
-          teams={teams}
-          teamId={teamFilter}
-          sort={sortKey}
-          mineOnly={mineOnly}
-          query={searchQuery}
-          onTeamChange={setTeamFilter}
-          onSortChange={setSortKey}
-          onMineToggle={() => setMineOnly((v) => !v)}
-          onQueryChange={setSearchQuery}
-        />
-      )}
+      <ProjectListFilters
+        teams={teams}
+        teamId={teamFilter}
+        sort={sortKey}
+        scopeMode={scopeMode}
+        query={searchQuery}
+        onTeamChange={setTeamFilter}
+        onSortChange={setSortKey}
+        onScopeChange={handleScopeChange}
+        onQueryChange={setSearchQuery}
+      />
 
       {projects.length > 0 && (
         <div className="flex items-center justify-between gap-2">
@@ -250,12 +268,18 @@ export function ProjectsPage() {
         <GlassCard className="flex flex-col items-center gap-3 p-8 text-center">
           <FolderKanban className="h-10 w-10 text-navy-300" />
           <p className="text-base font-semibold text-navy-900">
-            {projects.length === 0 ? "프로젝트가 없습니다" : "해당 상태의 프로젝트가 없습니다"}
+            {projects.length === 0
+              ? "프로젝트가 없습니다"
+              : scopeMode === "mine"
+                ? "내 프로젝트가 없습니다"
+                : scopeMode === "team"
+                  ? "팀별 프로젝트가 없습니다"
+                  : "해당 조건의 프로젝트가 없습니다"}
           </p>
           <p className="text-sm text-navy-500">
             {projects.length === 0
               ? "새 프로젝트를 만들어 일정·업무를 묶어 관리하세요."
-              : "다른 상태 필터를 선택해 보세요."}
+              : "보기 범위나 상태 필터를 바꿔 보세요."}
           </p>
           {canWrite && projects.length === 0 && (
             <button

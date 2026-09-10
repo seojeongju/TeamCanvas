@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
+import { ScopeModeSwitcher } from "../components/ui/ScopeModeSwitcher";
 import { CreateTaskModal } from "../components/modals/CreateTaskModal";
 import { EditTaskModal } from "../components/modals/EditTaskModal";
 import { useHasPermission } from "../hooks/usePermissions";
@@ -16,6 +17,12 @@ import { TaskViewSwitcher } from "../components/tasks/TaskViewSwitcher";
 import { useProjects, useTaskLabels, useTasks, useTeams, useUpdateTask, useDuplicateTask } from "../hooks/useData";
 import { useAuthStore } from "../stores/authStore";
 import { computeTaskSummary, filterTasks, TASK_COLUMNS } from "../lib/taskUtils";
+import {
+  applyTaskScopeFilters,
+  getTasksScopeMode,
+  saveTasksScopeMode,
+  type WorkScopeMode,
+} from "../lib/workScope";
 import type { Task, TaskFilters, TaskStatus, TaskViewMode } from "../lib/types";
 
 function firstNonEmptyStatus(tasks: Task[]): TaskStatus {
@@ -34,6 +41,7 @@ export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [viewMode, setViewMode] = useState<TaskViewMode>("list");
+  const [scopeMode, setScopeMode] = useState<WorkScopeMode>(() => getTasksScopeMode());
   const [filters, setFilters] = useState<TaskFilters>({ assignee: "all" });
   const [filtersReady, setFiltersReady] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -46,8 +54,8 @@ export function TasksPage() {
   const teams = teamsData?.teams ?? [];
   const projects = projectsData?.projects ?? [];
   const labels = labelsData?.labels ?? [];
+  const myTeamIds = useMemo(() => teams.map((t) => t.id), [teams]);
 
-  /** 범위 필터만 적용 (상태는 하단 탭에서 분리) */
   const scopedTasks = useMemo(
     () => filterTasks(allTasks, { ...filters, status: undefined }, userId),
     [allTasks, filters, userId],
@@ -62,10 +70,32 @@ export function TasksPage() {
     [scopedTasks, activeStatus],
   );
 
+  const scopeSubtitle =
+    scopeMode === "mine" ? "내 업무" : scopeMode === "team" ? "팀별 업무" : "전체 업무";
+
   const openCreate = (status: TaskStatus = "todo") => {
     setCreateStatus(status);
     setShowCreate(true);
   };
+
+  const handleScopeChange = (mode: WorkScopeMode) => {
+    setScopeMode(mode);
+    saveTasksScopeMode(mode);
+    setFilters((f) => applyTaskScopeFilters(f, mode, myTeamIds));
+  };
+
+  const handleFiltersChange = (next: TaskFilters) => {
+    setFilters(applyTaskScopeFilters(next, scopeMode, myTeamIds));
+  };
+
+  useEffect(() => {
+    if (!filtersReady || scopeMode !== "team" || filters.teamId) return;
+    const same =
+      (filters.scopeTeamIds?.length ?? 0) === myTeamIds.length &&
+      (filters.scopeTeamIds ?? []).every((id, i) => id === myTeamIds[i]);
+    if (same) return;
+    setFilters((f) => applyTaskScopeFilters(f, "team", myTeamIds));
+  }, [filtersReady, scopeMode, filters.teamId, filters.scopeTeamIds, myTeamIds]);
 
   useEffect(() => {
     const taskId = searchParams.get("task");
@@ -80,19 +110,28 @@ export function TasksPage() {
   useEffect(() => {
     const status = searchParams.get("status");
     const overdue = searchParams.get("overdue");
-    setFilters((f) => ({
-      ...f,
-      status:
-        status === "todo" ||
-        status === "doing" ||
-        status === "on_hold" ||
-        status === "done"
-          ? status
-          : undefined,
-      overdue: overdue === "1",
-      dueToday: overdue === "1" ? false : f.dueToday,
-    }));
+    const mode = getTasksScopeMode();
+    setScopeMode(mode);
+    setFilters((f) =>
+      applyTaskScopeFilters(
+        {
+          ...f,
+          status:
+            status === "todo" ||
+            status === "doing" ||
+            status === "on_hold" ||
+            status === "done"
+              ? status
+              : undefined,
+          overdue: overdue === "1",
+          dueToday: overdue === "1" ? false : f.dueToday,
+        },
+        mode,
+        myTeamIds,
+      ),
+    );
     setFiltersReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회
   }, []);
 
   useEffect(() => {
@@ -110,10 +149,6 @@ export function TasksPage() {
     );
   }, [filters.status, filters.overdue, filtersReady, setSearchParams]);
 
-  /**
-   * 범위 필터(담당/지연/팀 등)가 바뀌었을 때만 상태 탭을 보정.
-   * 상태 탭만 바꾼 경우(빈 탭 클릭 포함)에는 재실행하지 않음.
-   */
   useEffect(() => {
     if (!filtersReady) return;
     const scoped = filterTasks(allTasks, { ...filters, status: undefined }, userId);
@@ -124,7 +159,6 @@ export function TasksPage() {
     if (next !== filters.status) {
       setFilters((f) => ({ ...f, status: next }));
     }
-    // filters.status는 deps에서 제외 — 사용자가 빈 상태 탭을 유지할 수 있게 함
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filtersReady,
@@ -134,8 +168,10 @@ export function TasksPage() {
     filters.overdue,
     filters.dueToday,
     filters.teamId,
+    filters.scopeTeamIds,
     filters.projectId,
     filters.labelId,
+    scopeMode,
   ]);
 
   const handleStatusTabChange = (status: TaskStatus) => {
@@ -183,7 +219,9 @@ export function TasksPage() {
     <div className="space-y-3 pb-4">
       <PageHeader
         title="업무"
-        subtitle={hasTasks ? `총 ${allTasks.length}건` : "팀 업무를 관리하세요"}
+        subtitle={
+          hasTasks ? `총 ${allTasks.length}건 · ${scopeSubtitle}` : "팀 업무를 관리하세요"
+        }
         action={
           canWrite ? (
             <button
@@ -206,13 +244,23 @@ export function TasksPage() {
           mine={summary.mine}
           doing={summary.doing}
           filters={filters}
-          onFilterChange={setFilters}
+          scopeMode={scopeMode}
+          onFilterChange={handleFiltersChange}
+          onScopeChange={handleScopeChange}
         />
       )}
 
       <GlassCard className="space-y-2.5 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <TaskViewSwitcher value={viewMode} onChange={setViewMode} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <TaskViewSwitcher value={viewMode} onChange={setViewMode} />
+            <ScopeModeSwitcher
+              value={scopeMode}
+              onChange={handleScopeChange}
+              mineLabel="내 업무"
+              teamLabel="팀별"
+            />
+          </div>
           {hasTasks && (
             <span className="shrink-0 text-xs text-navy-500">
               {scopedTasks.length !== allTasks.length
@@ -224,10 +272,11 @@ export function TasksPage() {
         {hasTasks && (
           <TaskFilterBar
             filters={filters}
+            scopeMode={scopeMode}
             teams={teams}
             projects={projects}
             labels={labels}
-            onChange={setFilters}
+            onChange={handleFiltersChange}
           />
         )}
       </GlassCard>
