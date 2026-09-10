@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
+import { EntityFilesSection } from "../ui/EntityFilesSection";
 import { useProjects, useTeams, useUpdateTask } from "../../hooks/useData";
 import { useOrgMembers } from "../../hooks/useAdmin";
 import { PRIORITY_OPTIONS, TASK_COLUMNS, toDateInputValue } from "../../lib/taskUtils";
@@ -67,7 +68,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
   return (
     <Modal open={!!task} onClose={onClose} title="업무 수정">
       {task && (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <Input
             label="업무 제목"
             value={title}
@@ -85,6 +86,8 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
               className={cn(selectClass, "min-h-[72px] resize-none py-3")}
             />
           </div>
+
+          <EntityFilesSection entityType="task" entityId={task.id} />
 
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-navy-700">상태</label>

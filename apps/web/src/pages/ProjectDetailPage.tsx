@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Archive, ArrowLeft, Copy, FolderKanban, LayoutTemplate, Trash2, UserCog } from "lucide-react";
 import { DuplicateProjectModal } from "../components/modals/DuplicateProjectModal";
+import { EditProjectModal } from "../components/modals/EditProjectModal";
 import { SaveProjectAsTemplateModal } from "../components/modals/SaveProjectAsTemplateModal";
 import { TransferProjectOwnershipModal } from "../components/modals/TransferProjectOwnershipModal";
 import { ProjectActivityFolder } from "../components/projects/ProjectActivityFolder";
@@ -15,7 +16,7 @@ import { ProjectMembersSection } from "../components/projects/ProjectMembersSect
 import { PageHeader } from "../components/layout/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Button } from "../components/ui/Button";
-import { useDeleteProject, useProject, useProjectMembers, useProjectMilestones, useTasks, useTeams, useUpdateProject } from "../hooks/useData";
+import { useDeleteProject, useProject, useProjectMembers, useProjectMilestones, useTasks, useUpdateProject } from "../hooks/useData";
 import { useCurrentOrgRole, useHasPermission } from "../hooks/usePermissions";
 import { useAuthStore } from "../stores/authStore";
 import {
@@ -26,20 +27,11 @@ import {
 import {
   canEditProjectMeta,
   formatProjectDateRange,
-  parseDateInputEnd,
-  parseDateInputStart,
-  PROJECT_COLORS,
-  PROJECT_STATUS_OPTIONS,
   projectStatusLabel,
   projectStatusTone,
-  toDateInputValue,
 } from "../lib/projectUtils";
 import { ProjectProgressBar } from "../components/projects/ProjectProgressBadge";
 import { cn } from "../lib/cn";
-import type { ProjectStatus, ProjectVisibility } from "../lib/types";
-
-const selectClass =
-  "w-full rounded-xl border border-sky-100/80 bg-white/70 px-3 py-2.5 text-sm text-navy-900 outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20";
 
 const TABS = [
   { id: "overview", label: "개요" },
@@ -56,9 +48,7 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { data, isLoading, isError } = useProject(projectId);
-  const { data: teamsData } = useTeams();
   const updateProject = useUpdateProject();
-  const teams = teamsData?.teams ?? [];
   const deleteProject = useDeleteProject();
   const canDeletePerm = useHasPermission("projects:delete");
   const orgRole = useCurrentOrgRole();
@@ -96,45 +86,7 @@ export function ProjectDetailPage() {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>("planning");
-  const [color, setColor] = useState(PROJECT_COLORS[0]);
-  const [teamId, setTeamId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [shareWithOrganization, setShareWithOrganization] = useState(true);
-
-  const startEdit = () => {
-    if (!project) return;
-    setName(project.name);
-    setDescription(project.description ?? "");
-    setStatus(project.status);
-    setColor(project.color);
-    setTeamId(project.teamId ?? "");
-    setStartDate(toDateInputValue(project.startAt));
-    setEndDate(toDateInputValue(project.endAt));
-    setShareWithOrganization(project.visibility !== "members");
-    setEditing(true);
-  };
-
-  const handleSave = async () => {
-    if (!project || !name.trim()) return;
-    const visibility: ProjectVisibility = shareWithOrganization ? "organization" : "members";
-    await updateProject.mutateAsync({
-      id: project.id,
-      name: name.trim(),
-      description: description.trim() || null,
-      status,
-      color,
-      teamId: teamId || null,
-      startAt: parseDateInputStart(startDate),
-      endAt: parseDateInputEnd(endDate),
-      visibility,
-    });
-    setEditing(false);
-  };
+  const [showEdit, setShowEdit] = useState(false);
 
   const handleDelete = async () => {
     if (!project) return;
@@ -270,137 +222,30 @@ export function ProjectDetailPage() {
 
           <div className="mt-4">
             <p className="mb-1.5 text-sm font-medium text-navy-700">설명</p>
-            {editing ? (
-              <>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={cn(selectClass, "mb-2 font-semibold")}
-                />
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ProjectStatus)}
-                  className={cn(selectClass, "mb-2")}
-                >
-                  {PROJECT_STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="프로젝트 설명"
-                  className={cn(selectClass, "min-h-[80px] resize-none py-3")}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-navy-700">시작일</label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className={selectClass}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-medium text-navy-700">종료일</label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className={selectClass}
-                    />
-                  </div>
-                </div>
-                {teams.length > 0 && (
-                  <select
-                    value={teamId}
-                    onChange={(e) => setTeamId(e.target.value)}
-                    className={selectClass}
-                  >
-                    <option value="">팀 없음</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sky-100/80 bg-sky-50/50 px-3 py-3">
-                  <input
-                    type="checkbox"
-                    checked={shareWithOrganization}
-                    onChange={(e) => setShareWithOrganization(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-sky-300 text-primary-500 focus:ring-primary-400"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-navy-800">조직 전체에 공유</span>
-                    <span className="mt-0.5 block text-xs text-navy-500">
-                      조직 멤버 모두가 프로젝트를 보고 협업할 수 있습니다.
-                    </span>
-                  </span>
-                </label>
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-navy-700">색상</label>
-                  <div className="flex flex-wrap gap-2">
-                    {PROJECT_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setColor(c)}
-                        className={cn(
-                          "h-8 w-8 rounded-full border-2 transition",
-                          color === c ? "border-navy-800 scale-110" : "border-transparent",
-                        )}
-                        style={{ backgroundColor: c }}
-                        aria-label={`색상 ${c}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-navy-700 whitespace-pre-wrap">
-                {project.description?.trim() || "설명이 없습니다."}
-              </p>
-            )}
+            <p className="text-sm text-navy-700 whitespace-pre-wrap">
+              {project.description?.trim() || "설명이 없습니다."}
+            </p>
           </div>
 
           {(canEditProjectMeta(project.currentUserRole) || project.isOwner || canDelete) && (
             <div className="mt-5 flex flex-wrap gap-2">
               {canEditProjectMeta(project.currentUserRole) && (
                 <>
-                  {editing ? (
-                    <>
-                      <Button onClick={handleSave} disabled={updateProject.isPending || !name.trim()}>
-                        {updateProject.isPending ? "저장 중..." : "저장"}
-                      </Button>
-                      <Button variant="ghost" onClick={() => setEditing(false)}>
-                        취소
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button variant="secondary" onClick={startEdit}>
-                        수정
-                      </Button>
-                      <Button variant="secondary" onClick={() => setShowSaveTemplate(true)}>
-                        <LayoutTemplate className="mr-1.5 h-4 w-4" />
-                        템플릿으로 저장
-                      </Button>
-                      <Button variant="secondary" onClick={() => setShowDuplicate(true)}>
-                        <Copy className="mr-1.5 h-4 w-4" />
-                        복제
-                      </Button>
-                      <Button variant="secondary" onClick={handleArchive} disabled={updateProject.isPending}>
-                        <Archive className="mr-1.5 h-4 w-4" />
-                        {project.status === "archived" ? "보관 해제" : "보관"}
-                      </Button>
-                    </>
-                  )}
+                  <Button variant="secondary" onClick={() => setShowEdit(true)}>
+                    수정
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShowSaveTemplate(true)}>
+                    <LayoutTemplate className="mr-1.5 h-4 w-4" />
+                    템플릿으로 저장
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShowDuplicate(true)}>
+                    <Copy className="mr-1.5 h-4 w-4" />
+                    복제
+                  </Button>
+                  <Button variant="secondary" onClick={handleArchive} disabled={updateProject.isPending}>
+                    <Archive className="mr-1.5 h-4 w-4" />
+                    {project.status === "archived" ? "보관 해제" : "보관"}
+                  </Button>
                 </>
               )}
               {project.isOwner && (
@@ -438,6 +283,11 @@ export function ProjectDetailPage() {
       {tab === "milestones" && <ProjectMilestonesSection project={project} />}
       {tab === "members" && <ProjectMembersSection project={project} />}
       {tab === "activity" && <ProjectActivitySection projectId={project.id} />}
+
+      <EditProjectModal
+        project={showEdit ? project : null}
+        onClose={() => setShowEdit(false)}
+      />
 
       <SaveProjectAsTemplateModal
         open={showSaveTemplate}
