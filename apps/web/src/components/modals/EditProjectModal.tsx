@@ -67,9 +67,25 @@ export function EditProjectModal({ project, onClose }: Props) {
   };
 
   return (
-    <Modal open={!!project} onClose={onClose} title="프로젝트 수정">
+    <Modal
+      open={!!project}
+      onClose={onClose}
+      title="프로젝트 수정"
+      footer={
+        project ? (
+          <Button
+            type="submit"
+            form="edit-project-form"
+            fullWidth
+            disabled={updateProject.isPending || !name.trim()}
+          >
+            {updateProject.isPending ? "저장 중..." : "변경 저장"}
+          </Button>
+        ) : null
+      }
+    >
       {project && (
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+        <form id="edit-project-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <Input
             label="프로젝트 이름"
             value={name}
@@ -167,10 +183,6 @@ export function EditProjectModal({ project, onClose }: Props) {
               ))}
             </div>
           </div>
-
-          <Button type="submit" fullWidth disabled={updateProject.isPending || !name.trim()}>
-            {updateProject.isPending ? "저장 중..." : "변경 저장"}
-          </Button>
         </form>
       )}
     </Modal>

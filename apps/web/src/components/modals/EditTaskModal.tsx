@@ -66,9 +66,20 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
   };
 
   return (
-    <Modal open={!!task} onClose={onClose} title="업무 수정">
+    <Modal
+      open={!!task}
+      onClose={onClose}
+      title="업무 수정"
+      footer={
+        task ? (
+          <Button type="submit" form="edit-task-form" fullWidth disabled={updateTask.isPending}>
+            {updateTask.isPending ? "저장 중..." : "변경 저장"}
+          </Button>
+        ) : null
+      }
+    >
       {task && (
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+        <form id="edit-task-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <Input
             label="업무 제목"
             value={title}
@@ -160,10 +171,6 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
               </select>
             </div>
           )}
-
-          <Button type="submit" fullWidth disabled={updateTask.isPending}>
-            {updateTask.isPending ? "저장 중..." : "변경 저장"}
-          </Button>
         </form>
       )}
     </Modal>

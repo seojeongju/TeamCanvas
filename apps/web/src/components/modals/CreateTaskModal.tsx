@@ -123,8 +123,17 @@ export function CreateTaskModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="업무 추가">
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="업무 추가"
+      footer={
+        <Button type="submit" form="create-task-form" fullWidth disabled={saving || createTask.isPending}>
+          {saving ? "저장 중..." : "업무 저장"}
+        </Button>
+      }
+    >
+      <form id="create-task-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <LabelPillPicker
           title="라벨"
           labels={labels}
@@ -213,10 +222,6 @@ export function CreateTaskModal({
             </select>
           </div>
         )}
-
-        <Button type="submit" fullWidth disabled={saving || createTask.isPending}>
-          {saving ? "저장 중..." : "업무 저장"}
-        </Button>
       </form>
     </Modal>
   );

@@ -132,8 +132,22 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={handleClose} title="프로젝트 추가">
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="프로젝트 추가"
+      footer={
+        <Button
+          type="submit"
+          form="create-project-form"
+          fullWidth
+          disabled={saving || createFromTemplate.isPending}
+        >
+          {saving ? "생성 중..." : "프로젝트 저장"}
+        </Button>
+      }
+    >
+      <form id="create-project-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <Input
           label="프로젝트 이름"
           placeholder="예: Q2 웹사이트 리뉴얼"
@@ -281,10 +295,6 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
           <Input label="시작일 (선택)" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           <Input label="종료일 (선택)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
-
-        <Button type="submit" fullWidth disabled={saving || createFromTemplate.isPending}>
-          {saving ? "생성 중..." : "프로젝트 저장"}
-        </Button>
       </form>
     </Modal>
   );
