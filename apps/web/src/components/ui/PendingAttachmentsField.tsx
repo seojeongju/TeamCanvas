@@ -61,11 +61,12 @@ export function PendingAttachmentsField({
     const pasted = filesFromClipboardData(e.clipboardData);
     if (pasted.length === 0) return;
     e.preventDefault();
+    e.stopPropagation();
     addFiles(pasted);
   };
 
   return (
-    <div className="space-y-2" onPaste={onPaste}>
+    <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-1.5 text-sm font-medium text-navy-700">
           <Paperclip className="h-3.5 w-3.5" />

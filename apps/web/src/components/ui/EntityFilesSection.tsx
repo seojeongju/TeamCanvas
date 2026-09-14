@@ -65,11 +65,12 @@ export function EntityFilesSection({
     const pasted = filesFromClipboardData(e.clipboardData);
     if (pasted.length === 0) return;
     e.preventDefault();
+    e.stopPropagation();
     void onPick(pasted);
   };
 
   return (
-    <div className="mt-4 border-t border-sky-100/80 pt-4" onPaste={onPaste}>
+    <div className="mt-4 border-t border-sky-100/80 pt-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Paperclip className="h-4 w-4 text-navy-600" />

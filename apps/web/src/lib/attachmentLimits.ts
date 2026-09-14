@@ -90,19 +90,27 @@ export function filesFromClipboardData(data: DataTransfer | null): File[] {
   if (!data) return [];
 
   const out: File[] = [];
+  const seen = new Set<string>();
+  const pushUnique = (file: File) => {
+    const key = `${file.type}:${file.size}:${file.lastModified}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(normalizePastedFile(file));
+  };
+
   const items = data.items;
   if (items) {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.kind !== "file") continue;
       const file = item.getAsFile();
-      if (file) out.push(normalizePastedFile(file));
+      if (file) pushUnique(file);
     }
   }
 
   if (out.length === 0 && data.files?.length) {
     for (const file of Array.from(data.files)) {
-      out.push(normalizePastedFile(file));
+      pushUnique(file);
     }
   }
 

@@ -84,6 +84,7 @@ export function CommentComposer({
             const pasted = filesFromClipboardData(e.clipboardData);
             if (pasted.length === 0) return;
             e.preventDefault();
+            e.stopPropagation();
             addFiles(pasted);
           }}
         />
@@ -98,6 +99,7 @@ export function CommentComposer({
             const pasted = filesFromClipboardData(e.clipboardData);
             if (pasted.length === 0) return;
             e.preventDefault();
+            e.stopPropagation();
             addFiles(pasted);
           }}
         />
