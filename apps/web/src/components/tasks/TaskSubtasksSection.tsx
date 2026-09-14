@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Calendar, CheckCircle2, ListTree, Plus, Trash2, User } from "lucide-react";
+import { Calendar, CheckCircle2, ListTree, Pencil, Plus, Trash2, User } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { AssigneeBadge } from "../ui/AssigneeBadge";
@@ -109,7 +109,7 @@ export function TaskSubtasksSection({
           </div>
           {!compact && (
             <p className="mt-1 text-xs text-navy-500">
-              세부 진행 항목을 추가해 업무 진행 내용을 파악하세요.
+              세부 진행 항목을 추가하고, 연필 아이콘으로 제목을 수정할 수 있습니다.
             </p>
           )}
         </div>
@@ -254,14 +254,42 @@ export function TaskSubtasksSection({
                 </div>
 
                 {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(sub.id, sub.title)}
-                    className="mt-0.5 rounded-lg p-1 text-navy-400 hover:bg-red-50 hover:text-red-500"
-                    aria-label="하위 업무 삭제"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="mt-0.5 flex shrink-0 items-center gap-0.5">
+                    {!isEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(sub.id);
+                          setEditTitle(sub.title);
+                        }}
+                        className="rounded-lg p-1 text-navy-400 hover:bg-sky-50 hover:text-primary-600"
+                        aria-label="하위 업무 수정"
+                        title="수정"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void saveTitle(sub.id)}
+                        disabled={updateTitle.isPending || !editTitle.trim()}
+                        className="rounded-lg px-1.5 py-1 text-[10px] font-semibold text-primary-600 hover:bg-primary-400/10 disabled:opacity-50"
+                        aria-label="수정 저장"
+                      >
+                        저장
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(sub.id, sub.title)}
+                      disabled={isEditing}
+                      className="rounded-lg p-1 text-navy-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                      aria-label="하위 업무 삭제"
+                      title="삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             );
