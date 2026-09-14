@@ -48,7 +48,8 @@ export function AppSettingsPage() {
       }
       setToast({
         tone: "info",
-        message: "업데이트 확인을 완료했습니다. 새 버전이 있으면 잠시 후 자동으로 적용됩니다.",
+        message:
+          "업데이트 확인을 완료했습니다. 새 버전이 있으면 하단에 안내가 표시됩니다. 안내에 따라 새로고침해 주세요.",
       });
     } finally {
       setCheckingUpdate(false);
@@ -91,9 +92,17 @@ export function AppSettingsPage() {
         </h2>
         <GlassCard className="space-y-3 p-4">
           <p className="text-sm text-navy-600">
-            설치형 앱은 새 배포가 있으면 자동으로 확인하고 적용합니다. 바로 확인하고 싶으면 아래
-            버튼을 눌러 주세요.
+            새 버전이 배포되면 하단에 <strong>업데이트 안내</strong>가 표시됩니다. 안내에 따라
+            새로고침하면 최신 앱이 적용됩니다.
           </p>
+          <div className="rounded-xl bg-sky-50/80 px-3 py-2.5 text-xs leading-relaxed text-navy-700">
+            <p className="font-semibold text-navy-800">새로고침 방법</p>
+            <ol className="mt-1.5 list-decimal space-y-1 pl-4">
+              <li>하단 안내의 <strong>지금 새로고침</strong> 버튼 누르기</li>
+              <li>아래 <strong>앱 새로고침</strong> 버튼 누르기</li>
+              <li>앱을 완전히 종료했다가 다시 실행하기</li>
+            </ol>
+          </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
